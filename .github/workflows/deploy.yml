@@ -1,0 +1,47 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare site (fix absolute paths for GitHub Pages subpath)
+        run: |
+          cp -r extracted/0501 /tmp/site
+
+          # GitHub Pages serves at /gamedata/ (repo name), so absolute paths need adjustment:
+          #   /gamedata/game(sort)/  →  /gamedata/gamedata/game(sort)/
+          #   /images/medals/        →  /gamedata/images/medals/
+          find /tmp/site -type f \( -name "*.html" -o -name "*.js" \) | while read f; do
+            sed -i \
+              -e 's|/gamedata/game(sort)/|/gamedata/gamedata/game(sort)/|g' \
+              -e 's|/images/medals/|/gamedata/images/medals/|g' \
+              "$f"
+          done
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
