@@ -127,11 +127,11 @@ const backBtn = document.getElementById("back-button");
 if (backBtn) {
   backBtn.addEventListener("click", function (e) {
     e.preventDefault();
-    window.location.href = "https://iogames91531.netlify.app";
+    window.location.href = "../index.html";
   });
   backBtn.addEventListener("touchend", (e) => {
     e.preventDefault();
-    window.location.href = "https://iogames91531.netlify.app";
+    window.location.href = "../index.html";
   });
 }
 /*******************************************************
@@ -182,30 +182,6 @@ function updateTimerDisplay() {
  *******************************************************/
 function updateScoreDisplay() {
   scoreDisplay.textContent = "Score: " + score;
-}
-
-/*******************************************************
- * 問題読み込み・キャンバス描画
- * 【修正】同じ問題が連続しないようにランダム選出
- *******************************************************/
-function loadQuestion() {
-  let newIndex;
-  do {
-    newIndex = Math.floor(Math.random() * questions.length);
-  } while (questions.length > 1 && newIndex === lastQuestionIndex);
-  lastQuestionIndex = newIndex;
-  currentQuestion = questions[newIndex];
-
-  const segments = currentQuestion.sentence.split("/");
-  correctBoundaries = [];
-  let cumulativeLength = 0;
-  for (let i = 0; i < segments.length - 1; i++) {
-    cumulativeLength += segments[i].length;
-    correctBoundaries.push(cumulativeLength);
-  }
-  baseText = segments.join("");
-  userCuts = [];
-  drawSentence();
 }
 
 /*****************************************************************************

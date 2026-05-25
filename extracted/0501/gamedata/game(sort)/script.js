@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const resetRankingButton = document.getElementById("resetRankingButton");
 
   let showingAlt = false;
+  if (table2) table2.style.display = "none";
 
   toggleButton.addEventListener("click", async () => {
     showingAlt = !showingAlt;

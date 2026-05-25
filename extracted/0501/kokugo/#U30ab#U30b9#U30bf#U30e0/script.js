@@ -565,6 +565,7 @@ function endGame() {
     alert("GAME OVER!\nスコア: " + score);
     const username = prompt("あなたの名前を入力してください") || "名前なしは０点だよ？";
     saveScore(username, score);
+    saveLocalScore(username, score);
     gameScreen.style.display = "none";
     startScreen.style.display = "block";
 }
@@ -650,6 +651,86 @@ document.getElementById("resetRankingButton").addEventListener("click", async ()
         }
     }
 });
+
+/* ===============================
+   ローカルランキング
+=============================== */
+const LOCAL_RANKING_KEY = "rankings品詞カスタム";
+
+const specialEntriesLocal = [
+  { username: "👆👆👆👆Sランク👆👆👆👆", score: 6000, time: new Date("2025-02-15T00:00:00").getTime() },
+  { username: "👆👆👆👆Aランク👆👆👆👆", score: 4000, time: new Date("2025-02-15T00:00:00").getTime() },
+  { username: "👆👆👆👆Bランク👆👆👆👆", score: 2000, time: new Date("2025-02-15T00:00:00").getTime() },
+  { username: "👆👆👆👆Cランク👆👆👆👆", score: 1000, time: new Date("2025-02-15T00:00:00").getTime() },
+  { username: "👆👆👆👆Dランク👆👆👆👆", score: 0,    time: new Date("2025-02-15T00:00:00").getTime() },
+];
+
+function isSpecialLocal(entry) {
+  return specialEntriesLocal.some(s => s.username === entry.username && s.score === entry.score);
+}
+
+function saveLocalScore(username, score) {
+  let rankings = JSON.parse(localStorage.getItem(LOCAL_RANKING_KEY)) || [];
+  rankings.push({ username, score, time: Date.now() });
+  specialEntriesLocal.forEach(s => {
+    if (!rankings.some(e => e.username === s.username && e.score === s.score)) {
+      rankings.push(s);
+    }
+  });
+  rankings.sort((a, b) => b.score - a.score || a.time - b.time);
+  const specials = rankings.filter(isSpecialLocal);
+  const normals  = rankings.filter(e => !isSpecialLocal(e)).slice(0, 10);
+  const combined = [...specials, ...normals];
+  combined.sort((a, b) => b.score - a.score || a.time - b.time);
+  localStorage.setItem(LOCAL_RANKING_KEY, JSON.stringify(combined));
+  displayLocalRanking();
+}
+
+function displayLocalRanking() {
+  const tbody = document.querySelector("#local-ranking-table tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const rankings = JSON.parse(localStorage.getItem(LOCAL_RANKING_KEY)) || [];
+  specialEntriesLocal.forEach(s => {
+    if (!rankings.some(e => e.username === s.username && e.score === s.score)) {
+      rankings.push(s);
+    }
+  });
+  rankings.sort((a, b) => b.score - a.score || a.time - b.time);
+  rankings.forEach(entry => {
+    const tr = document.createElement("tr");
+    if (isSpecialLocal(entry)) tr.classList.add("special-entry");
+    const dateCell = document.createElement("td");
+    if (isSpecialLocal(entry)) {
+      dateCell.textContent = "";
+    } else {
+      const d = new Date(entry.time);
+      dateCell.textContent = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+    }
+    const nameCell  = document.createElement("td"); nameCell.textContent  = entry.username;
+    const scoreCell = document.createElement("td"); scoreCell.textContent = entry.score;
+    tr.append(dateCell, nameCell, scoreCell);
+    tbody.appendChild(tr);
+  });
+}
+
+// ランキング切り替えトグル
+const rankingToggleBtn = document.getElementById("rankingToggleButton");
+const globalTable      = document.getElementById("ranking-table");
+const localTable       = document.getElementById("local-ranking-table");
+let showingLocal = false;
+
+if (rankingToggleBtn) {
+  rankingToggleBtn.addEventListener("click", () => {
+    showingLocal = !showingLocal;
+    globalTable.style.display = showingLocal ? "none"  : "table";
+    localTable.style.display  = showingLocal ? "table" : "none";
+    rankingToggleBtn.textContent = showingLocal ? "グローバルランキング" : "My ベストスコア";
+  });
+}
+
+// 初期ローカルランキング表示
+displayLocalRanking();
 
 // DOMContentLoadedイベントで初期化
 document.addEventListener('DOMContentLoaded', () => {
