@@ -1,0 +1,144 @@
+/* 全体リセット */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* html, body：全画面にフィットさせ、スクロールを無効化 */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 全体を中央に配置するラッパー */
+#scale-wrapper {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ゲーム全体のコンテナ（デザインサイズ：幅600px） */
+#game-container {
+  width: 600px;
+  background-color: #fdf6e3;
+  padding: 20px;
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+/* ゲーム中のコンテンツは初期状態では非表示 */
+.hidden {
+  display: none;
+}
+
+/* ヘッダー：タイマーとスコア */
+#header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  font-size: 1.2em;
+}
+
+/* 竹のエリア */
+#bamboo-container {
+  width: 240px;
+  height: 640px;
+  background: url("https://via.placeholder.com/200x600?text=竹の背景")
+    no-repeat center;
+  background-size: cover;
+  border: 2px solid #8b4513;
+  padding: 20px;
+  margin: 0 auto 20px;
+}
+
+/* 竹の緑枠 */
+#bamboo {
+  background-color: #c8e6c9;
+  padding: 10px;
+  border: 3px solid #4caf50;
+  border-radius: 5px;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* エラー時のフラッシュ */
+#bamboo.harvest-error {
+  animation: harvest-error-animation 0.5s;
+}
+@keyframes harvest-error-animation {
+  0% {
+    background-color: #c8e6c9;
+  }
+  50% {
+    background-color: rgba(255, 0, 0, 0.6);
+  }
+  100% {
+    background-color: #c8e6c9;
+  }
+}
+
+/* キャンバスを竹エリア内に収める */
+#drawingCanvas {
+  display: block;
+  margin: 0 auto;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+}
+
+/* ボタン類 */
+#start-button,
+#restart-button,
+#harvest-button {
+  padding: 10px 20px;
+  font-size: 1.2em;
+  cursor: pointer;
+  background-color: #4caf50;
+  border: none;
+  color: white;
+  border-radius: 5px;
+  margin: 10px;
+}
+
+/* ゲーム開始画面 */
+#start-screen {
+  width: 100%;
+  margin: 100px auto;
+  text-align: center;
+  background-color: #fdf6e3;
+  padding: 40px;
+  border: 2px solid #8b4513;
+  border-radius: 10px;
+}
+
+/* 戻るボタン */
+#back-button {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 8px 16px;
+  font-size: 1em;
+  cursor: pointer;
+  background-color: #ff9800;
+  border: none;
+  color: white;
+  border-radius: 5px;
+}
+
+/* スタート画面を相対配置に */
+#start-screen {
+  position: relative;
+  width: 100%;
+  margin: 100px auto;
+  text-align: center;
+  background-color: #fdf6e3;
+  padding: 40px;
+  border: 2px solid #8b4513;
+  border-radius: 10px;
+}

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ゲーム</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- スタート画面 -->
+    <div id="startScreen" class="screen">
+      <h1>品詞仕分けゲーム２</h1>
+      <p>
+        単語が降り注いできます！<br />
+        ドラッグ＆ドロップして分類しましょう！
+      </p>
+      <p3>Produce by igami</p3>
+
+      <div class="button-container">
+        <div class="button-row">
+          <button id="bonusToggleButton">ボーナス: OFF</button>
+          <button id="startButton">START</button>
+        </div>
+        <button id="backButton">戻る</button>
+      </div>
+
+      <div id="rankingContainer">
+        <h2>My ベストスコア</h2>
+        <table id="ranking-table">
+          <colgroup>
+            <col style="width: 25%" />
+            <col style="width: 50%" />
+            <col style="width: 25%" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th>プレイヤー名</th>
+              <th>スコア</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- ランキングがここに表示される -->
+          </tbody>
+        </table>
+        <button id="resetRankingButton">リセット</button>
+      </div>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="gameScreen" class="screen" style="display: none">
+      <!-- ヘッダー：タイマー・スコア・COMBO・MAX -->
+      <div id="header">
+        <div id="timer">Time: 60</div>
+        <div id="score">Score: 0</div>
+        <div id="combo">Combo: 0</div>
+        <div id="maxCombo">Max: 0</div>
+      </div>
+      <div id="playArea"></div>
+      <button id="returnButton">Return to START</button>
+    </div>
+
+    <!-- 各スクリプト -->
+    <script src="wordData.js"></script>
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,416 @@
+/* --- 全体のスタイル --- */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+  background: #222;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.screen {
+  width: 100%;
+  text-align: center;
+  padding: 0px;
+}
+
+#startScreen {
+  margin-top: 50px;
+  overflow-y: auto;
+}
+
+/* ヘッダー */
+#header {
+  width: 400px;
+  display: flex;
+  justify-content: space-around;
+  margin: 0 auto 10px auto;
+  position: relative; /* エフェクト表示用 */
+}
+
+/* 隠しメッセージ */
+p3 {
+  text-align: center;
+  font-size: 1em;
+  color: #00000000;
+}
+
+/* ボタン全体のコンテナ */
+.button-container {
+  display: flex;
+  flex-direction: column; /* 縦並び配置 */
+  align-items: center;
+  gap: 10px; /* ボタン間のスペース */
+}
+
+/* 上部のボタン2つを横並びに */
+.button-row {
+  display: flex;
+  gap: 10px; /* ボタンの間隔 */
+}
+
+/* startボタン */
+#startButton {
+  font-size: 20px;
+  cursor: pointer;
+  margin: 0px auto;
+  display: block;
+  background-color: #fed000;
+  text-align: center;
+}
+
+.medal-button {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  height: 60px; 
+ }
+
+
+#medalImage {
+  height: 60px;
+}
+
+
+
+.start-label {
+  position: absolute;
+  top: 85%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #222;
+  font-size: 18px;
+  font-weight: bold;
+  pointer-events: none;
+  text-shadow: 1px 1px 2px white;
+}
+
+
+
+/* 戻るボタン */
+#backButton {
+  padding: 7px 15px;
+  font-size: 12px;
+  cursor: pointer;
+  margin: auto;
+  display: block;
+}
+
+
+
+/* ランキングのタイトル */
+h2 {
+  text-align: center;
+  font-size: 1.5em;
+  color: #fed000;
+  margin-top: 10px;
+}
+
+/* 親要素で中央配置を強制する場合（オプション） */
+#rankingContainer {
+  position: relative; /* 追加 */
+  text-align: center;
+  width: 100%;
+}
+
+/* ランキングテーブルを中央に配置 */
+#ranking-table {
+  margin: 0px auto;
+  width: 95%;
+  max-width: 700px;
+  border-collapse: collapse;
+  overflow-y: auto;
+}
+
+/* テーブルヘッダーのスタイル */
+#ranking-table th,
+#ranking-table td {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 8px;
+}
+
+/* テーブルヘッダーの背景色 */
+#ranking-table th {
+  background-color: #6e0000;
+}
+
+/* テーブル内の行の交互色を設定 */
+#ranking-table tr:nth-child(even) {
+  background-color: #626060;
+}
+#ranking-table tr:nth-child(odd) {
+  background-color: #919191;
+}
+
+.special-entry {
+  color: #fed000;
+}
+
+/* ランキングリセットボタン */
+#resetRankingButton {
+  padding: 5px 10px;
+  margin-top: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* 名前変更ボタン */
+#changeNameButton {
+  padding: 5px 10px;
+  margin-top: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+
+/* ゲーム画面全体を垂直・水平に中央配置 */
+#gameScreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* プレイエリア（全体） */
+#playArea {
+  position: relative;
+  width: 90%;
+  max-width: 900px;
+  aspect-ratio: 9 / 5;
+  background: linear-gradient(to bottom, #800, #200);
+  border: 2px solid #fff;
+  overflow: hidden;
+  margin: 0 auto 10px auto;
+}
+
+/* 画面幅が小さいとき、縦を大きくする */
+@media (max-width: 900px) {
+  #playArea {
+    height: 70vh;
+  }
+}
+
+/* 仕分けスペースのオーバーレイ表示 */
+#sortingAreaOverlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 90px;
+  border-top: 2px dashed #fff;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 1;
+  display: flex;
+}
+
+.sorting-column {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #fff;
+  pointer-events: none;
+}
+
+.sorting-column:nth-child(1) {
+  background: rgba(0, 150, 255, 0.3);
+}
+.sorting-column:nth-child(2) {
+  background: rgba(0, 255, 0, 0.3);
+}
+.sorting-column:nth-child(3) {
+  background: rgba(255, 165, 0, 0.3);
+}
+.sorting-column:nth-child(4) {
+  background: rgba(255, 255, 0, 0.3);
+}
+.sorting-column:nth-child(5) {
+  background: rgba(255, 105, 180, 0.3);
+}
+.sorting-column:nth-child(6) {
+  background: rgba(0, 150, 255, 0.3);
+}
+.sorting-column:nth-child(7) {
+  background: rgba(0, 255, 0, 0.3);
+}
+.sorting-column:nth-child(8) {
+  background: rgba(255, 165, 0, 0.3);
+}
+.sorting-column:nth-child(9) {
+  background: rgba(255, 255, 0, 0.3);
+}
+.sorting-column:nth-child(10) {
+  background: rgba(255, 105, 180, 0.3);
+}
+
+/* 落下する単語 */
+.word {
+  position: absolute;
+  padding: 5px 10px;
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+  border-radius: 3px;
+  cursor: grab;
+  user-select: none;
+  z-index: 2;
+}
+
+/* ドラッグ中のスタイル */
+.word.dragging {
+  opacity: 0.7;
+  cursor: grabbing;
+}
+
+/* 正解時のエフェクト */
+.word.correct {
+  animation: glow 0.5s ease-out;
+}
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 10px 5px yellow;
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+/* 誤答時のエフェクト */
+.word.wrong {
+  background: red;
+  color: #fff;
+}
+
+/* ペナルティエフェクト：-3秒表示 */
+.penalty-effect {
+  position: absolute;
+  font-size: 24px;
+  font-weight: bold;
+  color: #ff0;
+  text-shadow: 1px 1px 2px #000;
+  pointer-events: none;
+  z-index: 3;
+  animation: penalty-fade 1s forwards;
+}
+@keyframes penalty-fade {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+}
+
+/* Returnボタン */
+#returnButton {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  margin: 10px auto;
+  display: block;
+}
+
+/* COMBOエフェクト - 10回ごと */
+#combo.combo-effect {
+  animation: comboGlow 0.5s ease-in-out;
+}
+
+@keyframes comboGlow {
+  0% {
+    text-shadow: 0 0 5px yellow;
+  }
+  50% {
+    text-shadow: 0 0 15px yellow;
+    transform: scale(1.2);
+  }
+  100% {
+    text-shadow: 0 0 5px yellow;
+  }
+}
+
+/* COMBOエフェクト - 50回ごと、特別版 */
+#combo.combo-effect-50 {
+  animation: comboGlow50 0.7s ease-in-out;
+  color: orange;
+}
+
+@keyframes comboGlow50 {
+  0% {
+    text-shadow: 0 0 5px orange;
+  }
+  50% {
+    text-shadow: 0 0 25px orange;
+    transform: scale(1.5);
+  }
+  100% {
+    text-shadow: 0 0 5px orange;
+  }
+}
+
+/* === 追加: 切り替え可能なランキングテーブル用 === */
+#alt-ranking-table {
+  margin: 0px auto;
+  width: 95%;
+  max-width: 700px;
+  border-collapse: collapse;
+  display: none;
+}
+
+#alt-ranking-table th,
+#alt-ranking-table td {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  text-align: center;
+  white-space: nowrap;
+}
+
+#alt-ranking-table th {
+  background-color: #6e0000;
+}
+
+#alt-ranking-table tr:nth-child(even) {
+  background-color: #626060;
+}
+#alt-ranking-table tr:nth-child(odd) {
+  background-color: #919191;
+}
+
+/* 切り替えボタンとメダル画像 */
+#rankingToggleButton {
+  background-color: #6e0000;
+  color: #fff;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 10px;
+  margin-bottom: 5px;
+  border: none;
+  border-radius: 5px;
+
+}
+
+/* 落下ワード内の画像用 */
+.word img {
+  display: block;
+  max-width: 250px;   /* ← 好きなサイズに調整 */
+  max-height: 250px;
+  width: auto;
+  height: auto;
+  pointer-events: none; /* ドラッグ邪魔しない */
+}
+

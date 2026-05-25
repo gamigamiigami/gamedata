@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>用言の活用パズル Pro</title>
+    <style>
+        * { 
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: "Yu Mincho", "MS Mincho", serif;
+            background: #f0f0f0;
+            margin: 0;
+            padding: 10px;
+            min-height: 100vh;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.5s;
+        }
+        body.penalty-mode {
+            background: linear-gradient(135deg, #a8e6cf 0%, #88d8b0 50%, #7bc47f 100%);
+        }
+        #layout {
+            display: flex;
+            gap: 15px;
+            height: auto;
+            min-height: calc(100vh - 20px);
+            max-height: calc(100vh - 20px);
+            max-width: calc(100vw - 20px);
+            transform: scale(0.85);
+            transform-origin: center;
+        }
+        h1 {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            margin: 0;
+            font-size: 1.2rem;
+            padding: 12px;
+            background: #fff;
+            border: 2px solid #333;
+            height: fit-content;
+        }
+        #game-container {
+            background: #fff;
+            padding: 15px;
+            border: 2px solid #333;
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        /* 右側：タイマー・スコア・問題・活用表 */
+        #main-area {
+            writing-mode: vertical-rl;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        #info-bar {
+            display: flex;
+            gap: 8px;
+            writing-mode: horizontal-tb;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            align-self: flex-start;
+        }
+        #timer-display {
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 6px 12px;
+            background: #fff;
+            border: 2px solid #333;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        #timer-display.warning {
+            background: #ffeb3b;
+            border-color: #f57f17;
+        }
+        #timer-display.danger {
+            background: #f44336;
+            color: #fff;
+            border-color: #b71c1c;
+        }
+        #score-display {
+            font-size: 1rem;
+            font-weight: bold;
+            padding: 6px 12px;
+            background: #fff;
+            border: 2px solid #333;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        h2 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        #target-word {
+            display: inline-block;
+            padding: 5px 10px;
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            margin: 5px 0;
+            font-weight: bold;
+        }
+        #katsuyo-type {
+            display: inline-block;
+            height: 8em;
+            width: 2.4em;
+            padding: 4px 4px;
+            border: 2px dashed #999;
+            background: #fffde7;
+            margin-left: 8px;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            cursor: pointer;
+            overflow: hidden;
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+        }
+        #katsuyo-type.filled {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+        }
+        #katsuyo-type.correct {
+            background: #c8e6c9;
+            border-color: #4caf50;
+        }
+        #katsuyo-type.incorrect {
+            background: #ffcdd2;
+            border-color: #f44336;
+        }
+        table {
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #333;
+            padding: 6px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        th {
+            background: #e9e9e9;
+            font-weight: bold;
+        }
+        .katsuyo-gobi-label {
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+        .stem-cell {
+            border: 3px double #333 !important;
+            background-color: #fcfcfc;
+        }
+        .drop-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            justify-content: center;
+            align-items: center;
+        }
+        .drop {
+            min-width: 2.4em;
+            width: 2.4em;
+            height: 4em;
+            padding: 0 4px;
+            border: 2px dashed #999;
+            background: #fffde7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+            font-size: 1rem;
+            font-weight: bold;
+            white-space: nowrap;
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            overflow: hidden;
+            word-break: break-all;
+            overflow-wrap: anywhere;
+        }
+        .drop.disabled {
+            background: #eceff1;
+            border: 1px solid #cfd8dc;
+            cursor: default;
+            color: #455a64;
+        }
+        .drop:not(.disabled):hover {
+            background: #fff9c4;
+            border-color: #666;
+        }
+        .drop.filled {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+        }
+        .drop.correct {
+            background: #c8e6c9 !important;
+            border-color: #4caf50 !important;
+        }
+        .drop.incorrect {
+            background: #ffcdd2 !important;
+            border-color: #f44336 !important;
+        }
+        
+        /* 左側：ピース・コントロール */
+        #left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 600px;
+            flex-shrink: 0;
+        }
+        #pieces-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            width: 100%;
+        }
+        .piece-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .piece-label {
+            font-weight: bold;
+            font-size: 0.85rem;
+            color: #555;
+        }
+        .pieces-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .piece {
+            padding: 8px 4px;
+            background: #2c3e50;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            user-select: none;
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            box-shadow: inset 0 0 0 0 transparent, 2px 2px 4px rgba(0,0,0,0.2);
+            width: 2.8em;
+            height: auto;
+            min-height: 6.5em;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.1;
+            word-break: break-all;
+            overflow-wrap: anywhere;
+        }
+        .piece.katsuyo-type {
+            background: #c62828;
+        }
+        .piece.hidden {
+            display: none;
+        }
+        .piece:hover {
+            background: #34495e;
+        }
+        .piece.katsuyo-type:hover {
+            background: #d32f2f;
+        }
+        .piece.selected {
+            background: #e74c3c;
+            box-shadow: inset 0 0 10px rgba(231, 76, 60, 0.8), 0 0 0 2px #fff;
+        }
+        
+        /* カウントダウン表示 */
+        #countdown-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+        #countdown-number {
+            font-size: 10rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            animation: countdown-pulse 1s ease-in-out;
+        }
+        @keyframes countdown-pulse {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+        .button-row {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .category-btn, .level-btn {
+            padding: 5px 8px;
+            font-size: 0.8rem;
+            border: 2px solid #666;
+            background: #f5f5f5;
+            color: #666;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .category-btn.active {
+            background: #1976d2;
+            color: #fff;
+            border-color: #1976d2;
+        }
+        .level-btn.active {
+            background: #333;
+            color: #fff;
+            border-color: #333;
+        }
+        .action-btn {
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            border: 2px solid #333;
+            background: #fff;
+            cursor: pointer;
+            font-family: inherit;
+            transition: 0.2s;
+        }
+        .action-btn:hover {
+            background: #333;
+            color: #fff;
+        }
+        .action-btn.start-btn {
+            background: #4caf50;
+            color: #fff;
+            border-color: #4caf50;
+            font-size: 1rem;
+            padding: 10px 20px;
+        }
+        .action-btn.start-btn:hover {
+            background: #388e3c;
+            border-color: #388e3c;
+        }
+        .action-btn.disabled {
+            background: #ccc;
+            color: #888;
+            border-color: #999;
+            cursor: not-allowed;
+        }
+        .action-btn.disabled:hover {
+            background: #ccc;
+            color: #888;
+        }
+        
+        /* 正解エフェクト */
+        @keyframes celebrate {
+            0% { transform: scale(1); }
+            25% { transform: scale(1.1) rotate(-3deg); }
+            50% { transform: scale(1.2) rotate(3deg); }
+            75% { transform: scale(1.1) rotate(-3deg); }
+            100% { transform: scale(1); }
+        }
+        @keyframes confetti-fall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+        @keyframes combo-pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.8; }
+        }
+        .celebrate {
+            animation: celebrate 0.5s ease-in-out;
+        }
+        #confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9998;
+            overflow: hidden;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            animation: confetti-fall 3s linear forwards;
+        }
+        #combo-display {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: #ff6b6b;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            z-index: 9997;
+            display: none;
+            writing-mode: horizontal-tb;
+        }
+        #combo-display.show {
+            display: block;
+            animation: combo-pulse 0.5s ease-in-out;
+        }
+        #streak-display {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border-radius: 10px;
+            z-index: 100;
+            display: none;
+            writing-mode: horizontal-tb;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        #streak-display.show {
+            display: block;
+        }
+        
+        #message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            font-size: 1.5rem;
+            writing-mode: vertical-rl;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.98);
+            border: 4px solid #333;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            z-index: 9999;
+            display: none;
+        }
+        
+        /* スマホ縦向き: 1カラムレイアウト */
+        @media (max-width: 600px) and (orientation: portrait) {
+            body {
+                padding: 5px;
+                display: block;
+                overflow-y: auto;
+            }
+            
+            #layout {
+                display: block;
+                transform: none;
+                max-height: none;
+                min-height: auto;
+                height: auto;
+            }
+            
+            h1 {
+                writing-mode: horizontal-tb;
+                text-align: center;
+                font-size: 1.2rem;
+                padding: 8px;
+                margin-bottom: 5px;
+            }
+            
+            #game-container {
+                flex-direction: column;
+                padding: 8px;
+                gap: 8px;
+                overflow: visible;
+            }
+            
+            /* コントロールパネルを最上部に */
+            #left-panel {
+                order: 1;
+                min-width: auto;
+                width: 100%;
+                flex-shrink: 1;
+            }
+            
+            /* 活用表エリアを2番目に */
+            #main-area {
+                order: 2;
+                writing-mode: vertical-rl;
+            }
+            
+            /* ピースコンテナを最後に */
+            #pieces-container {
+                order: 3;
+                max-height: 250px;
+            }
+            
+            .piece-section {
+                margin-bottom: 5px;
+            }
+            
+            .pieces-row {
+                gap: 4px;
+            }
+            
+            .piece {
+                font-size: 0.9rem;
+                padding: 6px 8px;
+                writing-mode: horizontal-tb;
+                width: auto;
+                height: auto;
+                min-width: 3em;
+                min-height: 2.5em;
+            }
+            
+            /* コントロールボタンを小さく */
+            .controls {
+                gap: 5px;
+                padding-top: 5px;
+            }
+            
+            .button-row {
+                gap: 3px;
+                justify-content: center;
+            }
+            
+            .category-btn, .level-btn {
+                padding: 4px 6px;
+                font-size: 0.75rem;
+                flex: 1;
+                min-width: 0;
+            }
+            
+            .action-btn {
+                padding: 6px 10px;
+                font-size: 0.85rem;
+                flex: 1;
+            }
+            
+            .action-btn.start-btn {
+                padding: 8px 15px;
+                font-size: 0.9rem;
+            }
+            
+            /* 問題表示エリア */
+            #info-bar {
+                flex-direction: row;
+                gap: 5px;
+                margin-bottom: 5px;
+                justify-content: space-between;
+            }
+            
+            #timer-display, #score-display {
+                font-size: 0.9rem;
+                padding: 4px 8px;
+            }
+            
+            h2 {
+                font-size: 1rem;
+                writing-mode: vertical-rl;
+            }
+            
+            #target-word {
+                padding: 4px 8px;
+                font-size: 0.95rem;
+            }
+            
+            #katsuyo-type {
+                height: 6em;
+                width: 2em;
+                padding: 4px;
+                font-size: 0.7rem;
+                margin-left: 5px;
+            }
+            
+            /* 活用表を横スクロール可能に */
+            table {
+                font-size: 0.75rem;
+                width: auto;
+            }
+            
+            th, td {
+                padding: 3px 2px;
+                font-size: 0.7rem;
+            }
+            
+            .katsuyo-gobi-label {
+                font-size: 0.6rem;
+            }
+            
+            .drop {
+                min-width: 1.8em;
+                width: 1.8em;
+                height: 3.2em;
+                padding: 0 2px;
+                font-size: 0.8rem;
+            }
+            
+            .drop-group {
+                gap: 2px;
+            }
+            
+            #message {
+                font-size: 1.2rem;
+                padding: 15px;
+                writing-mode: horizontal-tb;
+            }
+            
+            #combo-display {
+                font-size: 2rem;
+                top: 15%;
+            }
+            
+            #streak-display {
+                bottom: 10px;
+                right: 10px;
+                font-size: 1rem;
+                padding: 8px 12px;
+            }
+        }
+        
+        /* スマホ横向き: PCと同じだが少し縮小 */
+        @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+            #layout {
+                transform: scale(0.75);
+            }
+            
+            #message {
+                font-size: 1.2rem;
+                padding: 15px;
+            }
+        }
+        
+        /* タブレット: PCと同じだが少し縮小 */
+        @media (min-width: 601px) and (max-width: 1024px) {
+            body {
+                padding: 5px;
+                justify-content: flex-end;
+                align-items: flex-start;
+                overflow: hidden;
+            }
+            #layout {
+                transform: scale(0.7);
+                transform-origin: top right;
+                margin-left: auto;
+            }
+            #game-container {
+                width: 850px;
+                flex-shrink: 0;
+            }
+            #pieces-container {
+                max-height: 450px;
+            }
+        }
+        
+
+
+    </style>
+</head>
+<body>
+    <div id="layout">
+        <div id="game-container">
+            <!-- 左側パネル：ピースとコントロール -->
+            <div id="left-panel">
+                <div id="pieces-container"></div>
+                <div class="controls">
+                    <div class="button-row" id="category-row">
+                        <button class="category-btn active" onclick="setCategory('doushi')">動詞</button>
+                        <button class="category-btn" onclick="setCategory('keiyou')">形容詞＆形容動詞</button>
+                        <button class="category-btn" onclick="setCategory('all')">用言</button>
+                    </div>
+                    <div class="button-row" id="level-row">
+                        <button class="level-btn" onclick="setLevel(1)">Lv1</button>
+                        <button class="level-btn" onclick="setLevel(2)">Lv2</button>
+                        <button class="level-btn" onclick="setLevel(3)">Lv3</button>
+                        <button class="level-btn" onclick="setLevel(4)">Lv4</button>
+                    </div>
+                    <div class="button-row" id="start-row">
+                        <button class="action-btn start-btn" onclick="startGame()">ゲーム開始</button>
+                        <button class="action-btn" onclick="goBack()" style="background: #2196f3; color: #fff;">ポータルへ</button>
+                    </div>
+                    <div class="button-row" id="action-row" style="display: none;">
+                        <button class="action-btn" onclick="checkAnswers()">答え合わせ</button>
+                        <button class="action-btn" onclick="resetCurrent()">やり直し</button>
+                        <button class="action-btn" id="next-btn" onclick="nextWord()">次へ</button>
+                        <button class="action-btn" onclick="backToStart()" style="background: #ff9800;">スタートに戻る</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右側メインエリア：問題と活用表 -->
+            <div id="main-area">
+                <div id="info-bar">
+                    <div id="timer-display">60秒</div>
+                    <div id="score-display">Score: 0</div>
+                </div>
+                <h2>
+                    <span id="question-label">問題：</span>
+                    <span id="target-word"></span>
+                    <span id="katsuyo-type"></span>
+                </h2>
+                <table id="conjugation-table">
+                    <thead>
+                        <tr id="header-row"></tr>
+                    </thead>
+                    <tbody>
+                        <tr id="data-row"></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <h1>用言の活用パズル</h1>
+    </div>
+    <div id="confetti-container"></div>
+    <div id="combo-display"></div>
+    <div id="streak-display">🔥 連続正解: <span id="streak-count">0</span></div>
+    <div id="message"></div>
+    
+    <!-- カウントダウンオーバーレイ -->
+    <div id="countdown-overlay">
+        <div id="countdown-number">3</div>
+        <div id="countdown-message" style="font-size: 2rem; color: #fff; margin-top: 30px; text-align: center;">準備はいいかな？</div>
+    </div>
+    
+    <!-- 外部ファイルから問題データを読み込み -->
+    <script src="questions.js"></script>
+    
+    <script>
+        // questions は questions.js から読み込まれる
+
+        let idx = 0;
+        let selectedPiece = null;
+        let currentLevel = 1;
+        let pieceElements = new Map();
+        let currentAsks = [];
+        let shuffledQuestions = [];
+        let correctCount = 0;
+        let isPenalty = false;
+        let penaltyType = null;
+        let currentCategory = 'doushi'; // デフォルトは動詞
+        let score = 0;
+        let timerInterval = null;
+        let timeRemaining = 60;
+        let buttonsDisabled = false;
+        let streak = 0; // 連続正解数
+        let gameStarted = false; // ゲーム開始フラグ
+        
+        const TIME_LIMITS = { 1: 60, 2: 60, 3: 60, 4: 60 };
+        
+        const comboMessages = [
+            { streak: 3, text: "3連続！🔥", color: "#ff9800" },
+            { streak: 5, text: "5連続！！🔥🔥", color: "#ff5722" },
+            { streak: 7, text: "7連続！！！🔥🔥🔥", color: "#f44336" },
+            { streak: 10, text: "10連続！神！👑", color: "#e91e63" },
+        ];
+        
+        const correctMessages = [
+            "正解！", "素晴らしい！", "完璧だ！", "よくできました！",
+            "その調子！", "見事！", "お見事！", "バッチリ！",
+            "流石です！", "凄い！", "天才か！", "完璧な活用だ！"
+        ];
+        
+        const incorrectMessages = [
+            "惜しい！ もう一度！", "あと少し！", "よく考えてみよう",
+            "落ち着いて確認！", "間違いがあるよ"
+        ];
+
+        const penaltyQuestions = {
+            // type1: 活用形の名前（共通）
+            type1: {
+                word: "活用形の名前",
+                headers: ["活用形", "語幹", "未然形", "連用形", "終止形", "連体形", "仮定形", "命令形"],
+                answers: ["活用形", "語幹", "未然形", "連用形", "終止形", "連体形", "仮定形", "命令形"]
+            },
+            // type2: 動詞の続く言葉
+            type2: {
+                word: "動詞の活用語尾に続く言葉",
+                headers: ["活用形", "語幹", "未然形", "連用形", "終止形", "連体形", "仮定形", "命令形"],
+                conjugations: {
+                    stem: ["×"],
+                    mizen: ["ない", "（よ）う"],
+                    renyo: ["ます", "た", "、"],
+                    shushi: ["。"],
+                    rentai: ["とき", "ひと"],
+                    katei: ["ば"],
+                    meirei: ["！"]
+                }
+            },
+            // type3: 形容詞・形容動詞の続く言葉（共通）
+            type3: {
+                word: "形容詞・形容動詞の活用語尾に続く言葉",
+                headers: ["活用形", "語幹", "未然形", "連用形", "終止形", "連体形", "仮定形", "命令形"],
+                conjugations: {
+                    stem: ["×"],
+                    mizen: ["う"],
+                    renyo: ["た", "なる", "、"],
+                    shushi: ["。"],
+                    rentai: ["とき", "ひと"],
+                    katei: ["ば"],
+                    meirei: ["×"]
+                },
+                askMeirei: true  // 命令形も出題する
+            }
+        };
+
+        function shuffleQuestions() {
+            let filtered = questions;
+            if (currentCategory === 'doushi') {
+                // 動詞のみ（形容詞・形容動詞を除く）
+                filtered = questions.filter(q => !q.word.includes('形容詞') && !q.word.includes('形容動詞'));
+            } else if (currentCategory === 'keiyou') {
+                // 形容詞＆形容動詞
+                filtered = questions.filter(q => q.word.includes('形容詞') || q.word.includes('形容動詞'));
+            }
+            // 'all' の場合はそのまま全問題
+            shuffledQuestions = [...filtered].sort(() => Math.random() - 0.5);
+            idx = 0;
+        }
+
+        // タイマー開始関数
+        function startTimer(resetTime = false) {
+            stopTimer();
+            if (resetTime || timeRemaining <= 0 || timeRemaining > TIME_LIMITS[currentLevel]) {
+                timeRemaining = TIME_LIMITS[currentLevel];
+            }
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+                if (timeRemaining <= 0) {
+                    stopTimer();
+                    showGameOver();
+                }
+            }, 1000);
+        }
+        
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+        
+        function showGameOver() {
+            const m = document.getElementById("message");
+            m.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="margin-bottom: 20px;">ゲーム終了！</div>
+                    <div style="margin-bottom: 20px; font-size: 1.2rem;">スコア: ${score}pt</div>
+                    <div style="display: flex; flex-direction: column; gap: 10px; writing-mode: horizontal-tb;">
+                        <button onclick="restartGame()" style="padding: 10px 20px; font-size: 1rem; cursor: pointer;">再開</button>
+                    </div>
+                </div>
+            `;
+            m.style.color = "#333";
+            m.style.display = "block";
+            buttonsDisabled = true;
+        }
+        
+        function restartGame() {
+            document.getElementById("message").style.display = "none";
+            // ゲーム終了→カテゴリ選択画面に戻る
+            gameStarted = false;
+            document.getElementById('category-row').style.display = '';
+            document.getElementById('level-row').style.display = '';
+            document.getElementById('start-row').style.display = '';
+            document.getElementById('action-row').style.display = 'none';
+            score = 0;
+            streak = 0;
+            updateScore();
+            updateStreakDisplay();
+            buttonsDisabled = false;
+            // 初期表示をクリア
+            document.getElementById("target-word").textContent = "品詞とレベルを選んでね";
+            document.getElementById("katsuyo-type").style.display = "none";
+            document.getElementById("header-row").innerHTML = "";
+            document.getElementById("data-row").innerHTML = "";
+            document.getElementById("pieces-container").innerHTML = "";
+            // タイマーを停止
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+        
+        function backToStart() {
+            if (buttonsDisabled) return;
+            // タイマーを停止
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            restartGame();
+        }
+        
+        function goBack() {
+            window.location.href = 'https://iogames91531.netlify.app/kokugo/index.html';
+        }
+        
+        function addPenaltyTime() {
+            timeRemaining = Math.max(0, timeRemaining - 3);
+            updateTimerDisplay();
+        }
+        
+        function updateScore() {
+            document.getElementById('score-display').textContent = `Score: ${score}`;
+        }
+
+        function generateRandomAsks(q) {
+            const allKeys = [];
+            Object.keys(q.conjugations).forEach(key => {
+                q.conjugations[key].forEach((val, idx) => {
+                    if (val !== "×") {
+                        allKeys.push(`${key}-${idx}`);
+                    }
+                });
+            });
+            const numToAsk = Math.min(5, allKeys.length);
+            const shuffled = allKeys.sort(() => Math.random() - 0.5);
+            return shuffled.slice(0, numToAsk);
+        }
+
+        function setupPenalty(type) {
+            isPenalty = true;
+            penaltyType = type;
+            buttonsDisabled = false;
+            stopTimer();
+            
+            // ペナルティモード：背景色変更、次へボタン無効化
+            document.body.classList.add('penalty-mode');
+            document.getElementById('next-btn').classList.add('disabled');
+            
+            const container = document.getElementById("pieces-container");
+            container.innerHTML = "";
+            pieceElements.clear();
+            
+            document.getElementById("question-label").textContent = "ペナルティ問題：";
+            document.getElementById("katsuyo-type").style.display = "none";
+            
+            if (type === 1) {
+                const q = penaltyQuestions.type1;
+                document.getElementById("target-word").textContent = q.word;
+                
+                const headerRow = document.getElementById("header-row");
+                headerRow.innerHTML = "";
+                
+                // レベルに応じて出題数を決定
+                const numToAsk = (currentLevel === 3 || currentLevel === 4) ? 7 : 5;
+                let askedIndices = [];
+                
+                if (currentLevel === 3 || currentLevel === 4) {
+                    // Lv3, Lv4は全て出題
+                    askedIndices = [1, 2, 3, 4, 5, 6, 7];
+                } else {
+                    // Lv1, Lv2は5個ランダムに選択
+                    const allIndices = [1, 2, 3, 4, 5, 6, 7];
+                    askedIndices = allIndices.sort(() => Math.random() - 0.5).slice(0, 5);
+                }
+                
+                q.headers.forEach((h, i) => {
+                    const th = document.createElement("th");
+                    if (i === 0) {
+                        th.textContent = h;
+                    } else if (askedIndices.includes(i)) {
+                        // 出題する
+                        const drop = document.createElement("div");
+                        drop.className = "drop";
+                        drop.dataset.key = `header-${i}`;
+                        drop.dataset.answer = h;
+                        drop.addEventListener("click", () => dropPiece(drop));
+                        th.appendChild(drop);
+                    } else {
+                        // 出題しない（答えを表示）
+                        th.textContent = h;
+                        th.style.background = "#f5f5f5";
+                    }
+                    headerRow.appendChild(th);
+                });
+                
+                const dataRow = document.getElementById("data-row");
+                dataRow.innerHTML = "<th>（例）</th>";
+                ["か", "か/こ", "き/い", "く", "く", "け", "け"].forEach(text => {
+                    const td = document.createElement("td");
+                    td.textContent = text;
+                    td.style.background = "#f5f5f5";
+                    dataRow.appendChild(td);
+                });
+                
+                const section = document.createElement("div");
+                section.className = "piece-section";
+                section.innerHTML = '<div class="piece-label">【活用形】</div><div class="pieces-row" id="pieces"></div>';
+                container.appendChild(section);
+                
+                const piecesRow = section.querySelector(".pieces-row");
+                // 出題される活用形のピースのみ生成
+                const pieces = askedIndices.map(i => q.answers[i]);
+                
+                // ピースをランダムに並べる
+                pieces.sort(() => Math.random() - 0.5);
+                
+                pieces.forEach((val, i) => {
+                    const p = document.createElement("div");
+                    p.className = "piece";
+                    p.textContent = val;
+                    const id = `p-${i}-${Date.now()}`;
+                    p.dataset.pieceId = id;
+                    p.onclick = () => selectPiece(p);
+                    piecesRow.appendChild(p);
+                    pieceElements.set(id, p);
+                });
+                
+            } else {
+                // type2: 動詞, type3: 形容詞・形容動詞
+                const q = penaltyQuestions[`type${type}`];
+                document.getElementById("target-word").textContent = q.word;
+                
+                const headerRow = document.getElementById("header-row");
+                headerRow.innerHTML = "";
+                q.headers.forEach(h => {
+                    const th = document.createElement("th");
+                    th.textContent = h;
+                    headerRow.appendChild(th);
+                });
+                
+                const dataRow = document.getElementById("data-row");
+                dataRow.innerHTML = "<th>接続語</th>";
+                
+                // Lv1用: 出題する5個を事前に選択
+                let selectedForLv1 = new Set();
+                if (currentLevel === 1) {
+                    // 全ての解答欄候補を収集（語幹の×を除く）
+                    const allCandidates = [];
+                    Object.keys(q.conjugations).forEach(key => {
+                        q.conjugations[key].forEach((val, idx) => {
+                            const isAskableCross = (q.askMeirei && key === 'meirei' && val === "×");
+                            if (val !== "×" || isAskableCross) {
+                                allCandidates.push(`${key}-${idx}`);
+                            }
+                        });
+                    });
+                    // ランダムに5個選択
+                    const shuffled = allCandidates.sort(() => Math.random() - 0.5);
+                    selectedForLv1 = new Set(shuffled.slice(0, 5));
+                }
+                
+                Object.keys(q.conjugations).forEach(key => {
+                    const td = document.createElement("td");
+                    const group = document.createElement("div");
+                    group.className = "drop-group";
+                    
+                    q.conjugations[key].forEach((val, idx) => {
+                        const drop = document.createElement("div");
+                        drop.className = "drop";
+                        drop.dataset.key = `${key}-${idx}`;
+                        
+                        // type3の命令形「×」は出題対象にする
+                        const isAskableCross = (q.askMeirei && key === 'meirei' && val === "×");
+                        
+                        if (val === "×" && !isAskableCross) {
+                            // 語幹の×は自動で埋める
+                            drop.textContent = "×";
+                            drop.classList.add("disabled");
+                        } else {
+                            // 出題する解答欄には必ずanswerを設定
+                            drop.dataset.answer = val;
+                            
+                            let shouldAsk = false;
+                            if (currentLevel === 3 || currentLevel === 4) {
+                                // Lv3, Lv4は全て出題
+                                shouldAsk = true;
+                            } else if (currentLevel === 1) {
+                                // Lv1は事前に選択された5個のみ出題
+                                shouldAsk = selectedForLv1.has(`${key}-${idx}`);
+                            } else {
+                                // Lv2は70%の確率で出題
+                                shouldAsk = Math.random() < 0.7;
+                            }
+                            
+                            if (!shouldAsk) {
+                                drop.textContent = currentLevel === 1 ? val : "？";
+                                drop.classList.add("disabled");
+                            } else {
+                                drop.addEventListener("click", () => dropPiece(drop));
+                            }
+                        }
+                        group.appendChild(drop);
+                    });
+                    
+                    td.appendChild(group);
+                    dataRow.appendChild(td);
+                });
+                
+                const section = document.createElement("div");
+                section.className = "piece-section";
+                section.innerHTML = '<div class="piece-label">【続く言葉】</div><div class="pieces-row" id="pieces"></div>';
+                container.appendChild(section);
+                
+                const piecesRow = section.querySelector(".pieces-row");
+                let allPieces = [];
+                
+                if (currentLevel === 3) {
+                    // type3の場合は×も含める
+                    if (q.askMeirei) {
+                        allPieces = Object.values(q.conjugations).flat().filter(v => !(v === "×" && q.conjugations.stem.includes(v)));
+                        // 語幹の×だけ除外、命令形の×は含める
+                        allPieces = [];
+                        Object.keys(q.conjugations).forEach(key => {
+                            q.conjugations[key].forEach(v => {
+                                if (key === 'stem' && v === "×") return; // 語幹の×は除外
+                                allPieces.push(v);
+                            });
+                        });
+                    } else {
+                        allPieces = Object.values(q.conjugations).flat().filter(v => v !== "×");
+                    }
+                } else {
+                    document.querySelectorAll('.drop:not(.disabled)').forEach(d => {
+                        allPieces.push(d.dataset.answer);
+                    });
+                }
+                
+                allPieces.sort(() => Math.random() - 0.5);
+                
+                allPieces.forEach((val, i) => {
+                    const p = document.createElement("div");
+                    p.className = "piece";
+                    p.textContent = val;
+                    const id = `p-${i}-${Date.now()}`;
+                    p.dataset.pieceId = id;
+                    p.onclick = () => selectPiece(p);
+                    piecesRow.appendChild(p);
+                    pieceElements.set(id, p);
+                });
+            }
+            
+            selectedPiece = null;
+            updateLevelButtons();
+            adjustDropFontSize();
+        }
+
+        function setup() {
+            isPenalty = false;
+            buttonsDisabled = false;
+            const q = shuffledQuestions[idx];
+            currentAsks = generateRandomAsks(q);
+            
+            // ペナルティモード解除
+            document.body.classList.remove('penalty-mode');
+            document.getElementById('next-btn').classList.remove('disabled');
+            
+            // タイマーが動いていない場合のみ開始（正解後も継続）
+            if (!timerInterval) {
+                startTimer(true);
+            }
+            
+            setupQuestionDisplay(q);
+        }
+        
+        // ペナルティクリア後用：タイマーをリセットせずに問題を再セットアップ
+        function setupNormalQuestion() {
+            isPenalty = false;
+            buttonsDisabled = false;
+            const q = shuffledQuestions[idx];
+            currentAsks = generateRandomAsks(q);
+            
+            // ペナルティモード解除
+            document.body.classList.remove('penalty-mode');
+            document.getElementById('next-btn').classList.remove('disabled');
+            
+            setupQuestionDisplay(q);
+        }
+        
+        // 問題表示の共通処理
+        function setupQuestionDisplay(q) {
+            
+            document.getElementById("question-label").textContent = "問題：";
+            document.getElementById("target-word").textContent = q.word.split("（")[0];
+            
+            const container = document.getElementById("pieces-container");
+            container.innerHTML = "";
+            pieceElements.clear();
+            
+            // Lv4では活用の種類を選ばせる
+            const katsuyoType = document.getElementById("katsuyo-type");
+            if (currentLevel === 4) {
+                katsuyoType.style.display = "inline-block";
+                katsuyoType.textContent = "";
+                katsuyoType.classList.remove("filled", "correct", "incorrect");
+                katsuyoType.dataset.answer = q.word.match(/（(.+)）/)?.[1] || "";
+                katsuyoType.onclick = () => dropPiece(katsuyoType);
+            } else {
+                katsuyoType.style.display = "none";
+            }
+            
+            const headerRow = document.getElementById("header-row");
+            headerRow.innerHTML = "";
+            q.headers.forEach(h => {
+                const th = document.createElement("th");
+                th.textContent = h;
+                headerRow.appendChild(th);
+            });
+            
+            const dataRow = document.getElementById("data-row");
+            dataRow.innerHTML = "<th class='katsuyo-gobi-label'>活用語尾</th>";
+            
+            Object.keys(q.conjugations).forEach(key => {
+                const td = document.createElement("td");
+                if (key === "stem") {
+                    td.classList.add("stem-cell");
+                }
+                const group = document.createElement("div");
+                group.className = "drop-group";
+                
+                q.conjugations[key].forEach((val, idx) => {
+                    const drop = document.createElement("div");
+                    drop.className = "drop";
+                    drop.dataset.key = `${key}-${idx}`;
+                    
+                    const isAsked = currentAsks.includes(`${key}-${idx}`);
+                    
+                    if (val === "×") {
+                        drop.textContent = "×";
+                        drop.classList.add("disabled");
+                    } else if (currentLevel === 3 || currentLevel === 4) {
+                        drop.addEventListener("click", () => dropPiece(drop));
+                    } else if (currentLevel === 2) {
+                        if (!currentAsks.includes(`${key}-${idx}`)) {
+                            drop.textContent = "？";
+                            drop.classList.add("disabled");
+                        } else {
+                            drop.addEventListener("click", () => dropPiece(drop));
+                        }
+                    } else {
+                        if (!isAsked) {
+                            drop.textContent = val;
+                            drop.classList.add("disabled");
+                        } else {
+                            drop.addEventListener("click", () => dropPiece(drop));
+                        }
+                    }
+                    group.appendChild(drop);
+                });
+                
+                td.appendChild(group);
+                dataRow.appendChild(td);
+            });
+            
+            // ピース生成
+            const section = document.createElement("div");
+            section.className = "piece-section";
+            section.innerHTML = '<div class="piece-label">【活用語尾】</div><div class="pieces-row" id="pieces"></div>';
+            container.appendChild(section);
+            
+            const piecesRow = section.querySelector(".pieces-row");
+            let piecesToShow = [];
+            
+            if (currentLevel === 3 || currentLevel === 4) {
+                // Lv3とLv4は全ての活用語尾を入力
+                Object.values(q.conjugations).flat().filter(v => v !== "×").forEach(val => piecesToShow.push(val));
+            } else {
+                // Lv1とLv2は出題される活用語尾のみ
+                currentAsks.forEach(ask => {
+                    const [key, idx] = ask.split('-');
+                    const val = q.conjugations[key][idx];
+                    if (val !== "×") piecesToShow.push(val);
+                });
+            }
+            
+            piecesToShow.sort(() => Math.random() - 0.5);
+            
+            piecesToShow.forEach((val, i) => {
+                const p = document.createElement("div");
+                p.className = "piece";
+                p.textContent = val;
+                const id = `p-${i}-${Date.now()}`;
+                p.dataset.pieceId = id;
+                p.onclick = () => selectPiece(p);
+                
+                // 文字数に応じてフォントサイズを調整（4文字基準）
+                const len = val.length;
+                if (len > 4) {
+                    p.style.fontSize = '0.85rem';
+                } else {
+                    p.style.fontSize = '1rem';
+                }
+                
+                piecesRow.appendChild(p);
+                pieceElements.set(id, p);
+            });
+            
+            // Lv4の場合、活用の種類ピースを追加
+            if (currentLevel === 4) {
+                const typeSection = document.createElement("div");
+                typeSection.className = "piece-section";
+                typeSection.innerHTML = '<div class="piece-label">【活用の種類】</div><div class="pieces-row" id="type-pieces"></div>';
+                container.appendChild(typeSection);
+                
+                const typePiecesRow = typeSection.querySelector(".pieces-row");
+                let types = [];
+                
+                // 品詞によって選択肢を変える
+                if (q.word.includes('形容動詞')) {
+                    types = ['形容詞', '形容動詞', '五段活用', '上一段活用', '下一段活用', 'カ変活用', 'サ変活用'];
+                } else if (q.word.includes('形容詞')) {
+                    types = ['形容詞', '形容動詞', '五段活用', '上一段活用', '下一段活用', 'カ変活用', 'サ変活用'];
+                } else {
+                    types = ['五段活用', '上一段活用', '下一段活用', 'カ変活用', 'サ変活用'];
+                }
+                
+                types.sort(() => Math.random() - 0.5);
+                
+                types.forEach((type, i) => {
+                    const p = document.createElement("div");
+                    p.className = "piece katsuyo-type";
+                    p.textContent = type;
+                    const id = `type-${i}-${Date.now()}`;
+                    p.dataset.pieceId = id;
+                    p.onclick = () => selectPiece(p);
+                    
+                    // 活用の種類は5文字基準（すでに設定済み）
+                    // 他のピースと統一感を持たせるため、念のため設定
+                    const len = type.length;
+                    if (len >= 5) {
+                        p.style.fontSize = '0.85rem';
+                    } else if (len > 4) {
+                        p.style.fontSize = '0.9rem';
+                    } else {
+                        p.style.fontSize = '1rem';
+                    }
+                    
+                    typePiecesRow.appendChild(p);
+                    pieceElements.set(id, p);
+                });
+            }
+            
+            selectedPiece = null;
+            updateLevelButtons();
+            adjustDropFontSize();
+        }
+
+        function selectPiece(piece) {
+            if (buttonsDisabled) return;
+            if (piece.classList.contains("hidden")) return;
+            
+            if (selectedPiece) {
+                selectedPiece.classList.remove("selected");
+            }
+            selectedPiece = piece;
+            piece.classList.add("selected");
+        }
+
+        function dropPiece(zone) {
+            if (buttonsDisabled) return;
+            if (zone.classList.contains("disabled")) return;
+            
+            // 既に設置されているピースをクリックした場合は解除
+            if (zone.classList.contains("filled")) {
+                // spanで囲まれている場合はspanの中身を取得
+                const text = zone.querySelector('span') ? zone.querySelector('span').textContent : zone.textContent;
+                
+                // ピース一覧から対応するピースを探して表示
+                pieceElements.forEach((piece, id) => {
+                    if (piece.classList.contains("hidden") && piece.textContent === text) {
+                        piece.classList.remove("hidden");
+                        zone.textContent = "";
+                        zone.classList.remove("filled", "correct", "incorrect");
+                        return;
+                    }
+                });
+                return;
+            }
+            
+            // 新しいピースを設置
+            if (!selectedPiece) return;
+            
+            zone.textContent = selectedPiece.textContent;
+            zone.classList.add("filled");
+            selectedPiece.classList.add("hidden");
+            selectedPiece.classList.remove("selected");
+            selectedPiece = null;
+            adjustDropFontSize();
+        }
+        
+        function updateTimerDisplay() {
+            const display = document.getElementById('timer-display');
+            display.textContent = `${timeRemaining}秒`;
+            
+            display.classList.remove('warning', 'danger');
+            if (timeRemaining <= 10) {
+                display.classList.add('danger');
+            } else if (timeRemaining <= 20) {
+                display.classList.add('warning');
+            }
+        }
+        
+        function updateStreakDisplay() {
+            const display = document.getElementById('streak-display');
+            const count = document.getElementById('streak-count');
+            count.textContent = streak;
+            
+            if (streak >= 3) {
+                display.classList.add('show');
+            } else {
+                display.classList.remove('show');
+            }
+        }
+        
+        function showCombo(text, color) {
+            const combo = document.getElementById('combo-display');
+            combo.textContent = text;
+            combo.style.color = color;
+            combo.classList.add('show');
+            
+            setTimeout(() => {
+                combo.classList.remove('show');
+            }, 1500);
+        }
+        
+        // dropゾーンのテキストを取得（spanで囲まれている場合も対応）
+        function getDropText(zone) {
+            const span = zone.querySelector('span');
+            return span ? span.textContent : zone.textContent;
+        }
+
+        function checkAnswers() {
+            if (buttonsDisabled) return;
+            
+            let allCorrect = true;
+            let correctCount = 0;
+            let totalCount = 0;
+            
+            if (isPenalty) {
+                if (penaltyType === 1) {
+                    document.querySelectorAll('.drop').forEach(zone => {
+                        const answer = zone.dataset.answer;
+                        const userAnswer = getDropText(zone).trim();
+                        totalCount++;
+                        
+                        // 空欄は不正解
+                        if (!userAnswer || userAnswer === "") {
+                            zone.classList.add('incorrect');
+                            allCorrect = false;
+                        } else if (userAnswer === answer) {
+                            zone.classList.add('correct');
+                            correctCount++;
+                        } else {
+                            zone.classList.add('incorrect');
+                            allCorrect = false;
+                        }
+                    });
+                } else {
+                    // type2, type3: 続く言葉（順不同判定）
+                    const q = penaltyQuestions[`type${penaltyType}`];
+                    
+                    // すべてのdropゾーンを取得（空も含む）
+                    document.querySelectorAll('.drop:not(.disabled)').forEach(zone => {
+                        const text = getDropText(zone);
+                        const key = zone.dataset.key;
+                        const [katsuyo, index] = key.split('-');
+                        
+                        totalCount++;
+                        
+                        // 空欄の場合は不正解
+                        if (!text || text.trim() === "") {
+                            zone.classList.add('incorrect');
+                            allCorrect = false;
+                        } else {
+                            // 正解候補を取得（命令形の×は含める、語幹の×は除外）
+                            let correctAnswers = q.conjugations[katsuyo] || [];
+                            
+                            // 語幹の場合は×を除外
+                            if (katsuyo === 'stem') {
+                                correctAnswers = correctAnswers.filter(a => a !== "×");
+                            }
+                            
+                            if (correctAnswers.includes(text.trim())) {
+                                zone.classList.add('correct');
+                                correctCount++;
+                            } else {
+                                zone.classList.add('incorrect');
+                                allCorrect = false;
+                            }
+                        }
+                    });
+                }
+                
+                if (allCorrect) {
+                    const msg = correctMessages[Math.floor(Math.random() * correctMessages.length)];
+                    showMessage("ペナルティクリア！ " + msg, "#2e7d32");
+                    
+                    // ペナルティモード終了
+                    isPenalty = false;
+                    penaltyType = null;
+                    document.body.classList.remove('penalty-mode');
+                    document.getElementById('next-btn').classList.remove('disabled');
+                    
+                    // 通常問題に戻ってタイマー再開
+                    setTimeout(() => {
+                        setupNormalQuestion(); // タイマーをリセットしない専用関数
+                        startTimer(false); // タイマー再開（残り時間から）
+                    }, 1500);
+                } else {
+                    const msg = incorrectMessages[Math.floor(Math.random() * incorrectMessages.length)];
+                    showMessage(msg + ` (${correctCount}/${totalCount}正解)`, "#c62828");
+                    
+                    // 間違った解答欄だけクリアし、ピースを復活させる
+                    setTimeout(() => {
+                        document.querySelectorAll('.drop.incorrect').forEach(zone => {
+                            const text = getDropText(zone);
+                            
+                            // ピース一覧から対応するピースを探して復活
+                            if (text && text.trim() !== "") {
+                                pieceElements.forEach((piece, id) => {
+                                    if (piece.classList.contains("hidden") && piece.textContent === text) {
+                                        piece.classList.remove("hidden");
+                                    }
+                                });
+                            }
+                            
+                            // 解答欄をクリア
+                            zone.textContent = "";
+                            zone.classList.remove('filled', 'incorrect');
+                        });
+                        
+                        // correctクラスだけ削除（正解はそのまま維持）
+                        document.querySelectorAll('.drop.correct').forEach(zone => {
+                            zone.classList.remove('correct');
+                        });
+                    }, 1500);
+                }
+                return;
+            }
+            
+            const q = shuffledQuestions[idx];
+            
+            if (currentLevel === 4) {
+                const katsuyoType = document.getElementById("katsuyo-type");
+                const answer = katsuyoType.dataset.answer;
+                const userAnswer = getDropText(katsuyoType).replace(/[（）]/g, "").trim();
+                
+                totalCount++;
+                // 空欄は不正解
+                if (!userAnswer || userAnswer === "") {
+                    katsuyoType.classList.add('incorrect');
+                    allCorrect = false;
+                } else if (userAnswer === answer) {
+                    katsuyoType.classList.add('correct');
+                    correctCount++;
+                } else {
+                    katsuyoType.classList.add('incorrect');
+                    allCorrect = false;
+                }
+            }
+            
+            document.querySelectorAll('.drop:not(.disabled)').forEach(zone => {
+                const key = zone.dataset.key;
+                const [katsuyo, index] = key.split('-');
+                const allAnswersForKatsuyo = q.conjugations[katsuyo];
+                const userAnswer = getDropText(zone).trim();
+                
+                totalCount++;
+                // 空欄は不正解
+                if (!userAnswer || userAnswer === "") {
+                    zone.classList.add('incorrect');
+                    allCorrect = false;
+                } else if (allAnswersForKatsuyo.includes(userAnswer)) {
+                    zone.classList.add('correct');
+                    correctCount++;
+                } else {
+                    zone.classList.add('incorrect');
+                    allCorrect = false;
+                }
+            });
+            
+            if (allCorrect) {
+                // 連続正解カウント
+                streak++;
+                updateStreakDisplay();
+                
+                // コンボボーナス
+                let comboBonus = 0;
+                const comboMsg = comboMessages.find(c => c.streak === streak);
+                if (comboMsg) {
+                    showCombo(comboMsg.text, comboMsg.color);
+                    comboBonus = streak * 50;
+                }
+                
+                let points = currentAsks.length * currentLevel * 100 + comboBonus;
+                if (currentLevel === 4) points += 100;
+                score += points;
+                updateScore();
+                
+                celebrateCorrect();
+                
+                const msg = correctMessages[Math.floor(Math.random() * correctMessages.length)];
+                showMessage(`${msg} +${points}pt`, "#2e7d32");
+                
+                setTimeout(() => nextWord(), 1500);
+            } else {
+                // 連続正解リセット
+                streak = 0;
+                updateStreakDisplay();
+                
+                addPenaltyTime();
+                const msg = incorrectMessages[Math.floor(Math.random() * incorrectMessages.length)];
+                showMessage(`${msg} -3秒 (${correctCount}/${totalCount}正解)`, "#c62828");
+                setTimeout(() => {
+                    // 品詞モードに応じてペナルティ問題を選択
+                    let penaltyTypes;
+                    if (currentCategory === 'doushi') {
+                        // 動詞モード: type1（活用形）or type2（動詞の続く言葉）
+                        penaltyTypes = [1, 2];
+                    } else if (currentCategory === 'keiyou') {
+                        // 形容詞＆形容動詞モード: type1 or type3（形容詞・形容動詞の続く言葉）
+                        penaltyTypes = [1, 3];
+                    } else {
+                        // 用言モード: 全種類
+                        penaltyTypes = [1, 2, 3];
+                    }
+                    const type = penaltyTypes[Math.floor(Math.random() * penaltyTypes.length)];
+                    setupPenalty(type);
+                }, 1500);
+            }
+        }
+        
+        // 正解エフェクト：紙吹雪
+        function celebrateCorrect() {
+            const container = document.getElementById('confetti-container');
+            const colors = ['#ff6b6b', '#feca57', '#48dbfb', '#ff9ff3', '#54a0ff', '#5f27cd'];
+            
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = Math.random() * 100 + '%';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.animationDelay = Math.random() * 0.5 + 's';
+                confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+                container.appendChild(confetti);
+                
+                setTimeout(() => confetti.remove(), 3000);
+            }
+        }
+
+        function showMessage(txt, color) {
+            const m = document.getElementById("message");
+            m.textContent = txt;
+            m.style.color = color;
+            m.style.display = "block";
+            setTimeout(() => m.style.display = "none", 1500);
+        }
+
+        function setLevel(lv) { 
+            if (gameStarted) return; // ゲーム中は変更不可
+            currentLevel = lv;
+            updateLevelButtons();
+        }
+        
+        function setCategory(cat) {
+            if (gameStarted) return; // ゲーム中は変更不可
+            currentCategory = cat;
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+        
+        // ゲーム開始
+        function startGame() {
+            gameStarted = true;
+            // カテゴリ・レベル選択を非表示、アクションボタンを表示
+            document.getElementById('category-row').style.display = 'none';
+            document.getElementById('level-row').style.display = 'none';
+            document.getElementById('start-row').style.display = 'none';
+            document.getElementById('action-row').style.display = '';
+            
+            score = 0;
+            streak = 0;
+            updateScore();
+            updateStreakDisplay();
+            shuffleQuestions();
+            
+            // 3秒カウントダウンを表示
+            showCountdown();
+        }
+        
+        function showCountdown() {
+            const overlay = document.getElementById('countdown-overlay');
+            const number = document.getElementById('countdown-number');
+            const message = document.getElementById('countdown-message');
+            let count = 3;
+            
+            const messages = [
+                "準備はいいかな？",
+                "集中して！",
+                "頑張ろう！",
+                "スタート！"
+            ];
+            
+            overlay.style.display = 'flex';
+            number.textContent = count;
+            message.textContent = messages[3 - count];
+            
+            const countdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    number.textContent = count;
+                    message.textContent = messages[3 - count];
+                    // アニメーションをリセット
+                    number.style.animation = 'none';
+                    setTimeout(() => {
+                        number.style.animation = 'countdown-pulse 1s ease-in-out';
+                    }, 10);
+                } else {
+                    // 0秒の時は「スタート！」を表示
+                    number.textContent = "スタート！";
+                    message.textContent = "";
+                    number.style.fontSize = "6rem";
+                    setTimeout(() => {
+                        clearInterval(countdownInterval);
+                        overlay.style.display = 'none';
+                        number.style.fontSize = "10rem";
+                        // カウントダウン終了後にゲーム開始
+                        setup();
+                    }, 500);
+                }
+            }, 1000);
+        }
+        
+        function updateLevelButtons() {
+            document.querySelectorAll('.level-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', i + 1 === currentLevel);
+            });
+        }
+        
+        function resetCurrent() {
+            if (buttonsDisabled) return;
+            if (isPenalty) {
+                setupPenalty(penaltyType);
+            } else {
+                setup();
+            }
+        }
+        
+        function nextWord() {
+            // ペナルティ中は無効
+            if (isPenalty) return;
+            idx = (idx + 1) % shuffledQuestions.length;
+            setup();
+        }
+
+        // 長いテキストのフォントサイズを自動調整（背景サイズは固定）
+        function adjustDropFontSize() {
+            document.querySelectorAll('.drop, #katsuyo-type').forEach(d => {
+                const text = d.textContent;
+                const len = text.length;
+                
+                // 文字数に応じてフォントサイズを段階的に小さくする
+                let fontSize;
+                if (len >= 5) {
+                    fontSize = '0.7rem';  // かなり長い場合
+                } else if (len >= 4) {
+                    fontSize = '0.8rem';  // サ変語幹など
+                } else if (len >= 3) {
+                    fontSize = '0.9rem';
+                } else {
+                    fontSize = '1.05rem'; // 1〜2文字は大きく
+                }
+                
+                // spanで囲んで文字サイズだけ変更
+                if (text && text !== "？" && text !== "×" && text.trim() !== "") {
+                    // 既存のspanを削除
+                    const existingSpan = d.querySelector('span');
+                    if (existingSpan) {
+                        d.textContent = text;
+                    }
+                    
+                    // 新しいspanで囲む
+                    const span = document.createElement('span');
+                    span.textContent = text;
+                    span.style.fontSize = fontSize;
+                    d.textContent = '';
+                    d.appendChild(span);
+                }
+            });
+        }
+
+        
+        // ビューポート高さを設定（iOS Safari対応）
+        function setViewportHeight() {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        }
+        
+        // 画面向き変更時の処理
+        function handleOrientationChange() {
+            setViewportHeight();
+        }
+        
+        // イベントリスナー登録
+        window.addEventListener('resize', handleOrientationChange);
+        window.addEventListener('orientationchange', handleOrientationChange);
+        
+        // 初期化
+        setViewportHeight();
+
+        // 初期表示（ゲーム開始前）
+        function initDisplay() {
+            document.getElementById("target-word").textContent = "品詞とレベルを選んでね";
+            document.getElementById("katsuyo-type").style.display = "none";
+            updateLevelButtons();
+        }
+        
+        initDisplay();
+    </script>
+</body>
+</html>
