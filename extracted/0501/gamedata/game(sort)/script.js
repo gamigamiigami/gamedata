@@ -37,16 +37,8 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // --- Firestore 操作用関数等 ---
-
-import {
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  orderBy,
-  limit,
-} from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 function getDb() { return window.firebaseDB; }
+function getModules() { return window.firebaseModules; }
 
 // ゲームタイトル取得
 const title = document.querySelector("h1").textContent.trim();
@@ -75,6 +67,7 @@ window.displayAltRanking = async function(limitNum = 30) {
     tbody.innerHTML = "<tr><td colspan='3'>Firebase未接続</td></tr>";
     return;
   }
+  const { getDocs, query, collection, orderBy, limit } = getModules();
   try {
     const qSnap = await getDocs(
       query(
@@ -110,8 +103,11 @@ window.displayAltRanking = async function(limitNum = 30) {
 async function saveToFirebase(username, score) {
   const today    = new Date().toISOString().slice(0, 10);
   const deviceId = localStorage.getItem("deviceId");
+  const db = getDb();
+  if (!db) return;
+  const { addDoc, collection } = getModules();
   try {
-    await addDoc(collection(getDb(), getFirestoreCollectionName()), {
+    await addDoc(collection(db, getFirestoreCollectionName()), {
       date:     today,
       player:   username,
       score:    score,
