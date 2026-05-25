@@ -20,6 +20,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const resetRankingButton = document.getElementById("resetRankingButton");
   const changeNameButton   = document.getElementById("changeNameButton");
 
+  // グローバルリセットボタンを動的生成（グローバルランキング表示中のみ表示）
+  const globalResetBtn = document.createElement("button");
+  globalResetBtn.id = "globalResetButton";
+  globalResetBtn.textContent = "グローバルリセット";
+  globalResetBtn.style.cssText = "display:none; padding:5px 10px; margin-top:10px; font-size:14px; cursor:pointer;";
+  resetRankingButton.parentNode.appendChild(globalResetBtn);
+  globalResetBtn.addEventListener("click", globalResetRanking);
+
   let showingAlt = false;
   if (table2) table2.style.display = "none";
 
@@ -30,10 +38,11 @@ document.addEventListener("DOMContentLoaded", () => {
       await displayAltRanking();
     }
 
-    table1.style.display             = showingAlt ? "none"  : "table";
-    table2.style.display             = showingAlt ? "table" : "none";
+    table1.style.display             = showingAlt ? "none"    : "table";
+    table2.style.display             = showingAlt ? "table"   : "none";
     toggleButton.textContent         = showingAlt ? "グローバルランキング" : "My ベストスコア";
-    resetRankingButton.style.display = showingAlt ? "none" : "inline-block";
+    resetRankingButton.style.display = showingAlt ? "none"    : "inline-block";
+    globalResetBtn.style.display     = showingAlt ? "inline-block" : "none";
     if (changeNameButton) changeNameButton.style.display = showingAlt ? "none" : "inline-block";
   });
 });
@@ -41,6 +50,55 @@ document.addEventListener("DOMContentLoaded", () => {
 // --- Firestore 操作用関数等 ---
 function getDb() { return window.firebaseDB; }
 function getModules() { return window.firebaseModules; }
+
+/* ===============================
+   パスワード認証（SHA-256）
+=============================== */
+const _AH = "bfd86db114080042e8d40ec387b2cd01ed7a9d261c2d503c17e1e724a7b303a4";
+async function _verifyPw(input) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("") === _AH;
+}
+
+/* ===============================
+   禁止ワードフィルター
+=============================== */
+const _BAD = [
+  "ちんちん","ちんこ","まんこ","ちんぽ","ちんぽこ","おちんちん","おちんぽ","ちんまん",
+  "うんこ","うんち","くそやろう","くそったれ",
+  "しね","死ね","ころせ","殺せ","しにさらせ","死にさらせ",
+  "セックス","えっち","エッチ","レイプ","わいせつ",
+  "fuck","shit","bitch","dick","pussy","nigger","nigga","cunt","asshole","motherfuck","whore","slut","cock",
+];
+function containsBadWord(text) {
+  const t = text.toLowerCase();
+  return _BAD.some(w => t.includes(w.toLowerCase()));
+}
+
+/* ===============================
+   グローバルランキングリセット（管理者用）
+=============================== */
+async function globalResetRanking() {
+  const pw = prompt("管理者パスワードを入力してください：");
+  if (pw === null) return;
+  const ok = await _verifyPw(pw);
+  if (!ok) { alert("パスワードが違います"); return; }
+  if (!confirm("グローバルランキングをリセットします。\nこの操作は取り消せません。よろしいですか？")) return;
+
+  const db = getDb();
+  if (!db) { alert("Firebase未接続"); return; }
+  const { getDocs, collection } = getModules();
+  try {
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js");
+    const snap = await getDocs(collection(db, getFirestoreCollectionName()));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    alert("グローバルランキングをリセットしました");
+    await window.displayAltRanking();
+  } catch (e) {
+    alert("リセット失敗: " + e.message);
+    console.error(e);
+  }
+}
 
 // ゲームタイトル取得
 const title = document.querySelector("h1").textContent.trim();
@@ -103,6 +161,7 @@ window.displayAltRanking = async function(limitNum = 30) {
 
 // Firestore にスコアを保存（deviceId も添付）
 async function saveToFirebase(username, score) {
+  if (containsBadWord(username)) return;
   const today    = new Date().toISOString().slice(0, 10);
   const deviceId = localStorage.getItem("deviceId");
   const db = getDb();
@@ -358,6 +417,8 @@ document.getElementById("changeNameButton").addEventListener("click", () => {
       alert("空の名前は使えません");
     } else if (newName.length > 20) {
       alert("20文字以内で入力してください");
+    } else if (containsBadWord(newName)) {
+      alert("その言葉は使えません");
     } else {
       break;
     }
@@ -796,9 +857,12 @@ if (!username) {
   let inputName = "";
   while (!inputName) {
     inputName = prompt("あなたの名前を入力してください（20文字以内）") || "";
-    
+
     if (inputName.length > 20) {
       alert("20文字以内で入力してください。");
+      inputName = "";
+    } else if (containsBadWord(inputName)) {
+      alert("その言葉は使えません");
       inputName = "";
     }
   }
@@ -821,11 +885,15 @@ if (!username) {
   const table2 = document.getElementById("alt-ranking-table");
   const toggleButton = document.getElementById("rankingToggleButton");
   const resetRankingButton = document.getElementById("resetRankingButton");
+  const changeNameButton = document.getElementById("changeNameButton");
+  const globalResetButton = document.getElementById("globalResetButton");
 
   table1.style.display = "table";
   table2.style.display = "none";
   toggleButton.textContent = "My ベストスコア";
   resetRankingButton.style.display = "inline-block";
+  if (changeNameButton) changeNameButton.style.display = "inline-block";
+  if (globalResetButton) globalResetButton.style.display = "none";
 }
 
 /* ===============================

@@ -7,6 +7,55 @@ function getDb() { return window.firebaseDB; }
 function getFbModules() { return window.firebaseModules; }
 
 /* ===============================
+   パスワード認証（SHA-256）
+=============================== */
+const _AH = "bfd86db114080042e8d40ec387b2cd01ed7a9d261c2d503c17e1e724a7b303a4";
+async function _verifyPw(input) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("") === _AH;
+}
+
+/* ===============================
+   禁止ワードフィルター
+=============================== */
+const _BAD = [
+  "ちんちん","ちんこ","まんこ","ちんぽ","ちんぽこ","おちんちん","おちんぽ","ちんまん",
+  "うんこ","うんち","くそやろう","くそったれ",
+  "しね","死ね","ころせ","殺せ","しにさらせ","死にさらせ",
+  "セックス","えっち","エッチ","レイプ","わいせつ",
+  "fuck","shit","bitch","dick","pussy","nigger","nigga","cunt","asshole","motherfuck","whore","slut","cock",
+];
+function containsBadWord(text) {
+  const t = text.toLowerCase();
+  return _BAD.some(w => t.includes(w.toLowerCase()));
+}
+
+/* ===============================
+   グローバルランキングリセット（管理者用）
+=============================== */
+async function globalResetRanking() {
+  const pw = prompt("管理者パスワードを入力してください：");
+  if (pw === null) return;
+  const ok = await _verifyPw(pw);
+  if (!ok) { alert("パスワードが違います"); return; }
+  if (!confirm("グローバルランキングをリセットします。\nこの操作は取り消せません。よろしいですか？")) return;
+
+  const db = getDb();
+  if (!db) { alert("Firebase未接続"); return; }
+  const { getDocs, collection } = getFbModules();
+  try {
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js");
+    const snap = await getDocs(collection(db, getCollectionName()));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    alert("グローバルランキングをリセットしました");
+    displayGlobalRanking();
+  } catch (e) {
+    alert("リセット失敗: " + e.message);
+    console.error(e);
+  }
+}
+
+/* ===============================
    deviceId
 =============================== */
 (function ensureDeviceId() {
@@ -174,6 +223,7 @@ async function displayGlobalRanking() {
 }
 
 async function saveGlobalScore(username, score) {
+  if (containsBadWord(username)) return;
   const db = getDb();
   if (!db) return;
   const { addDoc, collection } = getFbModules();
@@ -201,6 +251,8 @@ function showLocalRanking() {
   document.getElementById("alt-ranking-table").style.display = "none";
   document.getElementById("resetRankingButton").style.display = "inline-block";
   document.getElementById("changeNameButton").style.display = "inline-block";
+  const gr = document.getElementById("globalResetButton");
+  if (gr) gr.style.display = "none";
   displayLocalRanking();
   rankingState = "local";
   document.getElementById("rankingToggleButton").textContent = "グローバルランキング";
@@ -211,6 +263,8 @@ function showGlobalRanking() {
   document.getElementById("alt-ranking-table").style.display = "table";
   document.getElementById("resetRankingButton").style.display = "none";
   document.getElementById("changeNameButton").style.display = "none";
+  const gr = document.getElementById("globalResetButton");
+  if (gr) gr.style.display = "inline-block";
   displayGlobalRanking();
   rankingState = "global";
   document.getElementById("rankingToggleButton").textContent = "My ベストスコア";
@@ -575,8 +629,16 @@ function startTimer() {
 function getPlayerName() {
   let name = localStorage.getItem("playerName");
   if (!name) {
-    name = prompt("プレイヤー名を入力してください（20文字以内）") || "名無し";
-    if (name.length > 20) name = name.slice(0, 20);
+    while (true) {
+      name = prompt("プレイヤー名を入力してください（20文字以内）") || "名無し";
+      if (name.length > 20) {
+        alert("20文字以内で入力してください");
+      } else if (containsBadWord(name)) {
+        alert("その言葉は使えません");
+      } else {
+        break;
+      }
+    }
     localStorage.setItem("playerName", name);
   }
   return name;
@@ -681,6 +743,8 @@ document.getElementById("changeNameButton").addEventListener("click", () => {
       alert("空の名前は使えません");
     } else if (newName.length > 20) {
       alert("20文字以内で入力してください");
+    } else if (containsBadWord(newName)) {
+      alert("その言葉は使えません");
     } else {
       break;
     }
@@ -688,6 +752,8 @@ document.getElementById("changeNameButton").addEventListener("click", () => {
   localStorage.setItem("playerName", newName);
   alert(`名前を「${newName}」に変更しました`);
 });
+
+document.getElementById("globalResetButton").addEventListener("click", globalResetRanking);
 
 /* ===============================
    初期化
