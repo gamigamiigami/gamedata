@@ -46,7 +46,7 @@ import {
   orderBy,
   limit,
 } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
-const db = window.firebaseDB;
+function getDb() { return window.firebaseDB; }
 
 // ゲームタイトル取得
 const title = document.querySelector("h1").textContent.trim();
@@ -68,8 +68,13 @@ function getFirestoreCollectionName() {
 // Firestore から上位 N 件を取得して #alt-ranking-table に描画
 window.displayAltRanking = async function(limitNum = 30) {
   const tbody       = document.querySelector("#alt-ranking-table tbody");
-  tbody.innerHTML   = "";
+  tbody.innerHTML   = "<tr><td colspan='3'>読み込み中...</td></tr>";
   const seenDevices = new Set();
+  const db = getDb();
+  if (!db) {
+    tbody.innerHTML = "<tr><td colspan='3'>Firebase未接続</td></tr>";
+    return;
+  }
   try {
     const qSnap = await getDocs(
       query(
@@ -78,6 +83,7 @@ window.displayAltRanking = async function(limitNum = 30) {
         limit(limitNum * 100) // 重複排除用に多めに取得
       )
     );
+    tbody.innerHTML = "";
     let count = 0;
     for (const docSnap of qSnap.docs) {
       const { player, score, deviceId } = docSnap.data();
@@ -93,7 +99,9 @@ window.displayAltRanking = async function(limitNum = 30) {
       `;
       tbody.appendChild(tr);
     }
+    if (count === 0) tbody.innerHTML = "<tr><td colspan='3'>データなし</td></tr>";
   } catch (e) {
+    tbody.innerHTML = "<tr><td colspan='3'>取得エラー</td></tr>";
     console.error("Firestore 読み込みエラー:", e);
   }
 };
@@ -103,7 +111,7 @@ async function saveToFirebase(username, score) {
   const today    = new Date().toISOString().slice(0, 10);
   const deviceId = localStorage.getItem("deviceId");
   try {
-    await addDoc(collection(db, getFirestoreCollectionName()), {
+    await addDoc(collection(getDb(), getFirestoreCollectionName()), {
       date:     today,
       player:   username,
       score:    score,

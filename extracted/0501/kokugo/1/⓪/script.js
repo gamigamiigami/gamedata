@@ -589,6 +589,11 @@ function endGame() {
   finalRankDisplay.textContent = "ランク: " + determineRank(score);
   resultScreen.classList.remove("hidden");
 
+  // スコア保存
+  const username = getBambooUsername();
+  saveBambooLocal(username, score);
+  saveBambooFirebase(username, score);
+
   // harvestButtonのイベントをスタート画面へ戻る処理に切替
   harvestButton.textContent = "スタート画面へ戻る";
   harvestButton.removeEventListener("click", onHarvest);
@@ -642,6 +647,197 @@ function goToStartScreen() {
   harvestButton.removeEventListener("touchend", onGoToStartScreen);
   harvestButton.addEventListener("click", onHarvest);
   harvestButton.addEventListener("touchend", onHarvestTouch);
+
+  // ローカルランキングを表示
+  showBambooLocalRanking();
 }
 
 /* スタート画面用のタッチイベント（ゲーム終了後の「スタート画面へ戻る」用）は onGoToStartScreen を利用 */
+
+/*******************************************************
+ * ランキング機能
+ *******************************************************/
+const BAMBOO_LOCAL_KEY = "rankings竹切り文節ゲーム";
+const BAMBOO_COLLECTION = "ranks竹切り文節ゲーム";
+
+function getBambooDeviceId() {
+  let id = localStorage.getItem("deviceId");
+  if (!id) {
+    id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem("deviceId", id);
+  }
+  return id;
+}
+
+function getBambooUsername() {
+  let name = localStorage.getItem("playerName");
+  if (!name) {
+    name = prompt("プレイヤー名を入力してください", "プレイヤー") || "プレイヤー";
+    localStorage.setItem("playerName", name);
+  }
+  return name;
+}
+
+function saveBambooLocal(username, finalScore) {
+  const today = new Date().toISOString().slice(0, 10);
+  const data = JSON.parse(localStorage.getItem(BAMBOO_LOCAL_KEY) || "[]");
+  data.push({ date: today, player: username, score: finalScore });
+  data.sort((a, b) => b.score - a.score);
+  localStorage.setItem(BAMBOO_LOCAL_KEY, JSON.stringify(data.slice(0, 100)));
+}
+
+function displayBambooLocal() {
+  const tbody = document.querySelector("#ranking-table tbody");
+  if (!tbody) return;
+  const data = JSON.parse(localStorage.getItem(BAMBOO_LOCAL_KEY) || "[]");
+  tbody.innerHTML = "";
+
+  const borders = ranks.slice().sort((a, b) => b.score - a.score);
+  let borderIdx = 0;
+
+  for (let i = 0; i < Math.min(data.length, 30); i++) {
+    while (borderIdx < borders.length && data[i].score < borders[borderIdx].score) {
+      const br = document.createElement("tr");
+      br.className = "rank-border-row";
+      br.innerHTML = `<td colspan="3">${borders[borderIdx].rank}（${borders[borderIdx].score}点以上）</td>`;
+      tbody.appendChild(br);
+      borderIdx++;
+    }
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].player}</td><td>${data[i].score}</td>`;
+    tbody.appendChild(tr);
+  }
+  while (borderIdx < borders.length) {
+    const br = document.createElement("tr");
+    br.className = "rank-border-row";
+    br.innerHTML = `<td colspan="3">${borders[borderIdx].rank}（${borders[borderIdx].score}点以上）</td>`;
+    tbody.appendChild(br);
+    borderIdx++;
+  }
+
+  if (data.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='3'>まだ記録がありません</td></tr>";
+  }
+}
+
+async function saveBambooFirebase(username, finalScore) {
+  const db = window.firebaseDB;
+  const mods = window.firebaseModules;
+  if (!db || !mods) return;
+  const { collection, addDoc } = mods;
+  const today = new Date().toISOString().slice(0, 10);
+  const deviceId = getBambooDeviceId();
+  try {
+    await addDoc(collection(db, BAMBOO_COLLECTION), {
+      date: today,
+      player: username,
+      score: finalScore,
+      deviceId: deviceId
+    });
+  } catch (e) {
+    console.error("Firestore 保存エラー:", e);
+  }
+}
+
+async function displayBambooGlobal() {
+  const tbody = document.querySelector("#alt-ranking-table tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "<tr><td colspan='3'>読み込み中...</td></tr>";
+
+  const db = window.firebaseDB;
+  const mods = window.firebaseModules;
+  if (!db || !mods) {
+    tbody.innerHTML = "<tr><td colspan='3'>Firebase未接続</td></tr>";
+    return;
+  }
+  const { collection, getDocs, query, orderBy, limit } = mods;
+  const seenDevices = new Set();
+  try {
+    const qSnap = await getDocs(
+      query(collection(db, BAMBOO_COLLECTION), orderBy("score", "desc"), limit(3000))
+    );
+    tbody.innerHTML = "";
+    let count = 0;
+    for (const docSnap of qSnap.docs) {
+      const { player, score: s, deviceId } = docSnap.data();
+      if (seenDevices.has(deviceId)) continue;
+      seenDevices.add(deviceId);
+      count++;
+      if (count > 30) break;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${count}</td><td>${player}</td><td>${s}</td>`;
+      tbody.appendChild(tr);
+    }
+    if (count === 0) tbody.innerHTML = "<tr><td colspan='3'>データなし</td></tr>";
+  } catch (e) {
+    tbody.innerHTML = "<tr><td colspan='3'>取得エラー</td></tr>";
+    console.error("Firestore 読み込みエラー:", e);
+  }
+}
+
+let bambooRankingState = "none";
+
+function showBambooLocalRanking() {
+  const localTable = document.getElementById("ranking-table");
+  const globalTable = document.getElementById("alt-ranking-table");
+  const resetBtn = document.getElementById("resetRankingButton");
+  const changeNameBtn = document.getElementById("changeNameButton");
+  if (!localTable) return;
+  localTable.style.display = "table";
+  globalTable.style.display = "none";
+  resetBtn.style.display = "inline-block";
+  changeNameBtn.style.display = "inline-block";
+  displayBambooLocal();
+  bambooRankingState = "local";
+  document.getElementById("rankingToggleButton").textContent = "グローバルランキング";
+}
+
+function showBambooGlobalRanking() {
+  const localTable = document.getElementById("ranking-table");
+  const globalTable = document.getElementById("alt-ranking-table");
+  const resetBtn = document.getElementById("resetRankingButton");
+  const changeNameBtn = document.getElementById("changeNameButton");
+  if (!localTable) return;
+  localTable.style.display = "none";
+  globalTable.style.display = "table";
+  resetBtn.style.display = "none";
+  changeNameBtn.style.display = "none";
+  displayBambooGlobal();
+  bambooRankingState = "global";
+  document.getElementById("rankingToggleButton").textContent = "My ベストスコア";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const toggleBtn = document.getElementById("rankingToggleButton");
+  const resetBtn = document.getElementById("resetRankingButton");
+  const changeNameBtn = document.getElementById("changeNameButton");
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      if (bambooRankingState === "local") {
+        showBambooGlobalRanking();
+      } else {
+        showBambooLocalRanking();
+      }
+    });
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      if (confirm("ローカルランキングをリセットしますか？")) {
+        localStorage.removeItem(BAMBOO_LOCAL_KEY);
+        displayBambooLocal();
+      }
+    });
+  }
+
+  if (changeNameBtn) {
+    changeNameBtn.addEventListener("click", () => {
+      const name = prompt(
+        "新しいプレイヤー名を入力してください",
+        localStorage.getItem("playerName") || "プレイヤー"
+      );
+      if (name) localStorage.setItem("playerName", name);
+    });
+  }
+});

@@ -142,3 +142,55 @@ body {
   border: 2px solid #8b4513;
   border-radius: 10px;
 }
+
+/* ランキングコンテナ */
+#rankingContainer {
+  margin-top: 20px;
+}
+
+#rankingToggleButton,
+#resetRankingButton,
+#changeNameButton {
+  padding: 8px 16px;
+  font-size: 0.9em;
+  cursor: pointer;
+  background-color: #795548;
+  border: none;
+  color: white;
+  border-radius: 5px;
+  margin: 5px;
+}
+
+#ranking-table,
+#alt-ranking-table {
+  display: none;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+
+#ranking-table th,
+#ranking-table td,
+#alt-ranking-table th,
+#alt-ranking-table td {
+  border: 1px solid #8b4513;
+  padding: 6px 10px;
+  text-align: center;
+  font-size: 0.9em;
+}
+
+#ranking-table thead,
+#alt-ranking-table thead {
+  background-color: #d7ccc8;
+}
+
+.rank-border-row td {
+  background-color: #fff8e1;
+  font-weight: bold;
+  color: #5d4037;
+  text-align: center;
+}
+
+.rank-border-row td:first-child {
+  font-size: 1.1em;
+}
