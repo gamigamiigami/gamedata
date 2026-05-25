@@ -159,9 +159,29 @@ window.displayAltRanking = async function(limitNum = 30) {
   }
 };
 
+// 禁止ワード使用を violations コレクションに記録（ユーザーには通知しない）
+async function logViolation(username) {
+  const db = getDb();
+  if (!db) return;
+  const { addDoc, collection } = getModules();
+  try {
+    await addDoc(collection(db, "violations"), {
+      name:     username,
+      game:     title,
+      date:     new Date().toISOString(),
+      deviceId: localStorage.getItem("deviceId"),
+    });
+  } catch (e) {
+    console.error("violation log:", e);
+  }
+}
+
 // Firestore にスコアを保存（deviceId も添付）
 async function saveToFirebase(username, score) {
-  if (containsBadWord(username)) return;
+  if (containsBadWord(username)) {
+    logViolation(username);
+    return;
+  }
   const today    = new Date().toISOString().slice(0, 10);
   const deviceId = localStorage.getItem("deviceId");
   const db = getDb();
@@ -417,8 +437,6 @@ document.getElementById("changeNameButton").addEventListener("click", () => {
       alert("空の名前は使えません");
     } else if (newName.length > 20) {
       alert("20文字以内で入力してください");
-    } else if (containsBadWord(newName)) {
-      alert("その言葉は使えません");
     } else {
       break;
     }
@@ -860,9 +878,6 @@ if (!username) {
 
     if (inputName.length > 20) {
       alert("20文字以内で入力してください。");
-      inputName = "";
-    } else if (containsBadWord(inputName)) {
-      alert("その言葉は使えません");
       inputName = "";
     }
   }

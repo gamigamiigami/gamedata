@@ -222,8 +222,27 @@ async function displayGlobalRanking() {
   }
 }
 
+async function logViolation(username) {
+  const db = getDb();
+  if (!db) return;
+  const { addDoc, collection } = getFbModules();
+  try {
+    await addDoc(collection(db, "violations"), {
+      name:     username,
+      game:     "品詞カスタム",
+      date:     new Date().toISOString(),
+      deviceId: localStorage.getItem("deviceId"),
+    });
+  } catch (e) {
+    console.error("violation log:", e);
+  }
+}
+
 async function saveGlobalScore(username, score) {
-  if (containsBadWord(username)) return;
+  if (containsBadWord(username)) {
+    logViolation(username);
+    return;
+  }
   const db = getDb();
   if (!db) return;
   const { addDoc, collection } = getFbModules();
@@ -633,8 +652,6 @@ function getPlayerName() {
       name = prompt("プレイヤー名を入力してください（20文字以内）") || "名無し";
       if (name.length > 20) {
         alert("20文字以内で入力してください");
-      } else if (containsBadWord(name)) {
-        alert("その言葉は使えません");
       } else {
         break;
       }
@@ -743,8 +760,6 @@ document.getElementById("changeNameButton").addEventListener("click", () => {
       alert("空の名前は使えません");
     } else if (newName.length > 20) {
       alert("20文字以内で入力してください");
-    } else if (containsBadWord(newName)) {
-      alert("その言葉は使えません");
     } else {
       break;
     }
