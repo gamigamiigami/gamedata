@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>示準化石 分類ゲーム</title>
+    <link rel="stylesheet" href="/gamedata/game(sort)/style.css" />
+
+    <!-- Firebase SDK -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+      import {
+        getFirestore,
+        collection,
+        addDoc,
+        getDocs,
+        query,
+        orderBy,
+        limit
+      } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyDE2tXcwqCNqQZ72ON_48-Qkd9xGfy9y0Y",
+        authDomain: "rank-cf9fe.firebaseapp.com",
+        databaseURL: "https://rank-cf9fe-default-rtdb.firebaseio.com",
+        projectId: "rank-cf9fe",
+        storageBucket: "rank-cf9fe.firebasestorage.app",
+        messagingSenderId: "45390799176",
+        appId: "1:45390799176:web:fb547734f6b29107ca537d",
+        measurementId: "G-3N3541718C"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
+      const db = getFirestore(app);
+
+      // script.js から参照できるようにする
+      window.firebaseDB = db;
+      window.firebaseModules = {
+        collection,
+        addDoc,
+        getDocs,
+        query,
+        orderBy,
+        limit
+      };
+    </script>
+  </head>
+
+  <body>
+    <!-- スタート画面 -->
+    <div id="startScreen" class="screen">
+      <h1>示準化石 分類ゲーム</h1>
+
+      <p>
+        示準化石が単語として降り注いできます！<br />
+        ドラッグ＆ドロップして３つの時代に分類しましよう！<br />
+        プレイ回数に応じてエンブレム(金・銀・銅)がつくよ！
+      </p>
+
+      <p3>Produce by okada</p3>
+
+      <div class="button-container">
+        <div class="button-row">
+          <button id="bonusToggleButton">ボーナス: OFF</button>
+          <button id="startButton" class="medal-button">
+            <img id="medalImage" src="" alt="Medal" />
+            <span class="start-label">START</span>
+          </button>
+        </div>
+        <button id="backButton">戻る</button>
+      </div>
+
+      <div id="rankingContainer">
+        <button id="rankingToggleButton">My ベストスコア</button>
+
+        <table id="ranking-table">
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th>プレイヤー名</th>
+              <th>スコア</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <table id="alt-ranking-table">
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>プレイヤー名</th>
+              <th>スコア</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <button id="resetRankingButton">リセット</button>
+        <button id="changeNameButton">名前変更</button>
+      </div>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="gameScreen" class="screen" style="display: none">
+      <div id="header">
+        <div id="timer">Time: 60</div>
+        <div id="score">Score: 0</div>
+        <div id="combo">Combo: 0</div>
+        <div id="maxCombo">Max: 0</div>
+      </div>
+      <div id="playArea"></div>
+      <button id="returnButton">Return to START</button>
+    </div>
+
+    <!-- ★ ゲーム起動用モジュール（最重要） -->
+    <script type="module">
+      import wordData from "./worddata.js";
+      import { initGame } from "/gamedata/game(sort)/script.js";
+
+      // STARTボタンを押したときにゲーム開始
+      document.getElementById("startButton").addEventListener("click", () => {
+        initGame(wordData);
+      });
+    </script>
+  </body>
+</html>
