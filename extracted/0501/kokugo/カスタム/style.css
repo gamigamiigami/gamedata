@@ -86,62 +86,48 @@ h2 {
 }
 
 /* ランキングテーブルを中央に配置 */
-#ranking-table {
+#ranking-table,
+#alt-ranking-table {
   margin: 0px auto;
   width: 95%;
   max-width: 700px;
   border-collapse: collapse;
   overflow-y: auto;
-  table-layout: fixed; /* この1行を追加 */
+  table-layout: fixed;
 }
 
 /* テーブルヘッダーのスタイル */
 #ranking-table th,
-#ranking-table td {
-  padding: 8px 12px;
+#ranking-table td,
+#alt-ranking-table th,
+#alt-ranking-table td {
+  padding: 8px;
   border: 1px solid #ddd;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
-  padding: 8px;
-}
-
-/* 各列の幅を指定（追加） */
-#ranking-table th:first-child,
-#ranking-table td:first-child {
-  width: 10%; /* 順位列 */
-}
-
-#ranking-table th:nth-child(2),
-#ranking-table td:nth-child(2) {
-  width: 25%; /* 日付列 */
-}
-
-#ranking-table th:nth-child(3),
-#ranking-table td:nth-child(3) {
-  width: 40%; /* 名前列 */
-}
-
-#ranking-table th:nth-child(4),
-#ranking-table td:nth-child(4) {
-  width: 25%; /* スコア列 */
 }
 
 /* テーブルヘッダーの背景色 */
-#ranking-table th {
+#ranking-table th,
+#alt-ranking-table th {
   background-color: #6e0000;
 }
 
 /* テーブル内の行の交互色を設定 */
-#ranking-table tr:nth-child(even) {
+#ranking-table tr:nth-child(even),
+#alt-ranking-table tr:nth-child(even) {
   background-color: #626060;
 }
-#ranking-table tr:nth-child(odd) {
+#ranking-table tr:nth-child(odd),
+#alt-ranking-table tr:nth-child(odd) {
   background-color: #919191;
 }
 
-.special-entry {
+.special-entry,
+.rank-border-row {
   color: #fed000;
+  background-color: #3a3a3a !important;
 }
 
 /* ランキングリセットボタン */

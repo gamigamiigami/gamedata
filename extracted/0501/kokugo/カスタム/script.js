@@ -122,6 +122,8 @@ function displayLocalRanking() {
     const dateCell = document.createElement("td");
     if (isSpecial(entry)) {
       dateCell.textContent = entry.username;
+      dateCell.colSpan = 3;
+      dateCell.style.textAlign = "center";
       tr.appendChild(dateCell);
     } else {
       const d = new Date(entry.time);

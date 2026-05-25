@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const table1             = document.getElementById("ranking-table");
   const table2             = document.getElementById("alt-ranking-table");
   const resetRankingButton = document.getElementById("resetRankingButton");
+  const changeNameButton   = document.getElementById("changeNameButton");
 
   let showingAlt = false;
   if (table2) table2.style.display = "none";
@@ -33,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
     table2.style.display             = showingAlt ? "table" : "none";
     toggleButton.textContent         = showingAlt ? "グローバルランキング" : "My ベストスコア";
     resetRankingButton.style.display = showingAlt ? "none" : "inline-block";
+    if (changeNameButton) changeNameButton.style.display = showingAlt ? "none" : "inline-block";
   });
 });
 
@@ -338,10 +340,6 @@ returnButton.addEventListener("click", () => {
   startScreen.style.display = "block";
 
   showUpdatedMedal();
-});
-
-startButton.addEventListener("click", () => {
-  initGame(currentWordData);
 });
 
 document.getElementById("backButton").addEventListener("click", () => {
