@@ -67,6 +67,28 @@ async function globalResetRanking() {
 })();
 
 /* ===============================
+   文字幅計算（全角=2, 半角=1）
+=============================== */
+function displayWidth(str) {
+  let w = 0;
+  for (const ch of str) {
+    const cp = ch.codePointAt(0);
+    w += (
+      (cp >= 0x1100 && cp <= 0x115F) ||
+      (cp >= 0x2E80 && cp <= 0xA4CF && cp !== 0x303F) ||
+      (cp >= 0xAC00 && cp <= 0xD7A3) ||
+      (cp >= 0xF900 && cp <= 0xFAFF) ||
+      (cp >= 0xFE10 && cp <= 0xFE19) ||
+      (cp >= 0xFE30 && cp <= 0xFE6F) ||
+      (cp >= 0xFF01 && cp <= 0xFF60) ||
+      (cp >= 0xFFE0 && cp <= 0xFFE6) ||
+      cp >= 0x1F300
+    ) ? 2 : 1;
+  }
+  return w;
+}
+
+/* ===============================
    グローバル変数の定義
 =============================== */
 const TIME_LIMIT = 60;
@@ -222,20 +244,52 @@ async function displayGlobalRanking() {
   }
 }
 
+/* ===============================
+   EmailJS 通知設定
+   ↓ EmailJS (emailjs.com) で取得した値を入力してください
+=============================== */
+const _EJS_PK  = "YOUR_PUBLIC_KEY";    // アカウント → Account → Public Key
+const _EJS_SVC = "YOUR_SERVICE_ID";    // Email Services → Service ID
+const _EJS_TPL = "YOUR_TEMPLATE_ID";   // Email Templates → Template ID
+
+let _ejsReady = false;
+async function _loadEmailJS() {
+  if (_ejsReady) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
+    s.onload = () => { emailjs.init({ publicKey: _EJS_PK }); _ejsReady = true; resolve(); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
 async function logViolation(username) {
+  const deviceId   = localStorage.getItem("deviceId") || "unknown";
+  const deviceInfo = `${screen.width}×${screen.height} / ${navigator.userAgent}`;
+  const dateStr    = new Date().toLocaleString("ja-JP");
+
   const db = getDb();
-  if (!db) return;
-  const { addDoc, collection } = getFbModules();
-  try {
-    await addDoc(collection(db, "violations"), {
-      name:     username,
-      game:     "品詞カスタム",
-      date:     new Date().toISOString(),
-      deviceId: localStorage.getItem("deviceId"),
-    });
-  } catch (e) {
-    console.error("violation log:", e);
+  if (db) {
+    const { addDoc, collection } = getFbModules();
+    addDoc(collection(db, "violations"), {
+      name:       username,
+      game:       "品詞カスタム",
+      date:       new Date().toISOString(),
+      deviceId:   deviceId,
+      deviceInfo: deviceInfo,
+    }).catch(() => {});
   }
+
+  _loadEmailJS().then(() => {
+    emailjs.send(_EJS_SVC, _EJS_TPL, {
+      bad_name:    username,
+      game:        "品詞カスタム",
+      device_id:   deviceId,
+      device_info: deviceInfo,
+      date:        dateStr,
+    }).catch(() => {});
+  }).catch(() => {});
 }
 
 async function saveGlobalScore(username, score) {
@@ -649,9 +703,9 @@ function getPlayerName() {
   let name = localStorage.getItem("playerName");
   if (!name) {
     while (true) {
-      name = prompt("プレイヤー名を入力してください（20文字以内）") || "名無し";
-      if (name.length > 20) {
-        alert("20文字以内で入力してください");
+      name = prompt("プレイヤー名を入力してください（全角8文字・半角16文字以内）") || "名無し";
+      if (displayWidth(name) > 16) {
+        alert("全角8文字（半角16文字）以内で入力してください");
       } else {
         break;
       }
@@ -754,12 +808,12 @@ document.getElementById("resetRankingButton").addEventListener("click", () => {
 document.getElementById("changeNameButton").addEventListener("click", () => {
   let newName;
   while (true) {
-    newName = prompt("新しい名前を入力してください（20文字以内）");
+    newName = prompt("新しい名前を入力してください（全角8文字・半角16文字以内）");
     if (newName === null) return;
     if (newName.trim() === "") {
       alert("空の名前は使えません");
-    } else if (newName.length > 20) {
-      alert("20文字以内で入力してください");
+    } else if (displayWidth(newName) > 16) {
+      alert("全角8文字（半角16文字）以内で入力してください");
     } else {
       break;
     }
