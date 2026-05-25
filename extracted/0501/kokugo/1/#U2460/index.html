@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>竹の節・語の節</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- 全体を中央に配置するラッパー -->
+    <div id="scale-wrapper">
+      <!-- ゲーム全体のコンテナ（初期状態で非表示にせずスタート画面だけ表示） -->
+      <div id="game-container">
+        <!-- ゲームスタート画面（初期表示） -->
+        <div id="start-screen">
+	  <button id="back-button" class="back-button">← 戻る</button>
+          <h2>
+            竹をちょうどいいサイズに<br />切って収穫しよう！<br />
+            <br />「単語」サイズが<br />ちょうどよさそうだ！
+          </h2>
+          <button id="start-button">スタート</button>
+        </div>
+
+        <!-- ゲームコンテナ内のコンテンツ（ゲーム中のみ表示） -->
+        <div id="game-container-inner" class="hidden">
+          <!-- ヘッダー：タイマーとスコア表示 -->
+          <div id="header">
+            <div id="timer">Time: 60</div>
+            <div id="score">Score: 0</div>
+          </div>
+
+          <!-- 竹の背景をイメージしたエリア -->
+          <div id="bamboo-container">
+            <!-- harvest-errorエフェクト用に #bamboo に対してアニメを付ける -->
+            <div id="bamboo">
+              <!-- キャンバスに問題文（縦書き）を描画し、ドラッグで回答 -->
+              <canvas id="drawingCanvas"></canvas>
+            </div>
+          </div>
+
+          <!-- 収穫ボタン -->
+          <button id="harvest-button">収穫する</button>
+
+          <!-- ゲーム終了時の結果画面 -->
+          <div id="result" class="hidden">
+            <h2>ゲーム終了！</h2>
+            <p id="final-score"></p>
+            <p id="final-rank"></p>
+            <button id="restart-button">もう一度</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
