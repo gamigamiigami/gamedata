@@ -658,7 +658,7 @@ function goToStartScreen() {
  * ランキング機能
  *******************************************************/
 const BAMBOO_LOCAL_KEY = "rankings竹切り文節ゲーム";
-const BAMBOO_COLLECTION = "ranks竹切り文節ゲーム";
+const BAMBOO_COLLECTION = "ranks竹切りゲーム";
 
 function getBambooDeviceId() {
   let id = localStorage.getItem("deviceId");
