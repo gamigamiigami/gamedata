@@ -114,6 +114,141 @@ let wordIdCounter = 0;
 let selectedTypes = new Set();
 let bonusEnabled = false;
 
+// 間違い記録・ポーズ・復習モード
+let wrongAnswers = [];
+let isPaused = false;
+let reviewMode = false;
+let reviewQueue = [];
+let reviewIndex = 0;
+
+/* ===============================
+   ズームリセット
+=============================== */
+function resetAndLockZoom() {
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+}
+function unlockZoom() {
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0');
+}
+
+/* ===============================
+   ポーズ
+=============================== */
+function pauseGame() {
+  if (isPaused || gameOver || reviewMode) return;
+  isPaused = true;
+  cancelAnimationFrame(gameLoopId);
+  clearInterval(timerIntervalId);
+  document.getElementById("pauseOverlay").classList.add("active");
+}
+
+function resumeGame() {
+  if (!isPaused) return;
+  isPaused = false;
+  lastFrameTime = Date.now();
+  lastSpawnTime = Date.now();
+  document.getElementById("pauseOverlay").classList.remove("active");
+  gameLoopId = requestAnimationFrame(gameLoop);
+  startTimer();
+}
+
+/* ===============================
+   結果画面
+=============================== */
+function showResultScreen() {
+  gameScreen.style.display = "none";
+  document.getElementById("resultScore").textContent = score;
+  document.getElementById("resultMaxCombo").textContent = maxCombo;
+  document.getElementById("resultWrongCount").textContent = wrongAnswers.length;
+
+  const ul = document.getElementById("wrongList");
+  ul.innerHTML = "";
+  wrongAnswers.forEach(wa => {
+    const li = document.createElement("li");
+    li.textContent = `「${wa.word}」→ 正解: ${wa.correctType}`;
+    ul.appendChild(li);
+  });
+
+  document.getElementById("reviewButton").style.display =
+    wrongAnswers.length > 0 ? "inline-block" : "none";
+  document.getElementById("resultScreen").style.display = "block";
+}
+
+/* ===============================
+   復習モード
+=============================== */
+function startReviewMode() {
+  reviewMode = true;
+  reviewQueue = [...wrongAnswers];
+  reviewIndex = 0;
+
+  document.getElementById("resultScreen").style.display = "none";
+  gameScreen.style.display = "block";
+  gameOver = false;
+  fallingWords = [];
+  landedWords = [];
+
+  playArea.innerHTML = "";
+  playArea.appendChild(createSortingArea());
+
+  timerDisplay.textContent = "復習モード";
+  comboDisplay.textContent = "";
+  maxComboDisplay.textContent = "";
+  returnButton.textContent = "復習を終える";
+
+  showNextReviewWord();
+}
+
+function showNextReviewWord() {
+  playArea.querySelectorAll(".word").forEach(w => w.remove());
+  fallingWords = [];
+
+  if (reviewIndex >= reviewQueue.length) {
+    endReviewMode(true);
+    return;
+  }
+
+  scoreDisplay.textContent = `${reviewIndex + 1} / ${reviewQueue.length}`;
+
+  const item = reviewQueue[reviewIndex];
+  const wordDiv = document.createElement("div");
+  wordDiv.classList.add("word");
+  wordDiv.textContent = item.word;
+  wordDiv.dataset.type = item.correctType;
+  wordDiv.id = generateUniqueId();
+  wordDiv.dataset.locked = "false";
+  wordDiv.dataset.penalized = "false";
+  wordDiv.style.whiteSpace = "nowrap";
+  wordDiv.style.position = "absolute";
+  wordDiv.style.visibility = "hidden";
+  wordDiv.style.top = "-30px";
+  wordDiv.style.left = "0px";
+  playArea.appendChild(wordDiv);
+
+  const w = wordDiv.offsetWidth;
+  const x = (playArea.clientWidth - w) / 2;
+  const y = Math.floor(playArea.clientHeight * 0.25);
+  wordDiv.style.left = x + "px";
+  wordDiv.style.top = y + "px";
+  wordDiv.style.visibility = "visible";
+
+  fallingWords = [{ element: wordDiv, x, y, speed: 0 }];
+  wordDiv.addEventListener("mousedown", handleMouseDown);
+  wordDiv.addEventListener("touchstart", handleTouchStart);
+}
+
+function endReviewMode(completed) {
+  reviewMode = false;
+  returnButton.textContent = "Return to START";
+  gameScreen.style.display = "none";
+  startScreen.style.display = "block";
+  showLocalRanking();
+  unlockZoom();
+  if (completed) alert("復習完了！全問正解しました！");
+}
+
 /* ===============================
    DOM取得
 =============================== */
@@ -562,6 +697,34 @@ function handleMouseUp(e) {
   const wordElem = currentDrag.element;
   wordElem.classList.remove("dragging");
   const top = parseInt(wordElem.style.top);
+
+  if (reviewMode) {
+    if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
+      const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+      const columnWidth = playArea.clientWidth / selectedTypes.size;
+      const columnIndex = Math.floor(dropX / columnWidth);
+      const dropCategory = Array.from(selectedTypes)[columnIndex];
+      if (wordElem.dataset.type === dropCategory) {
+        wordElem.classList.add("correct");
+        wordElem.dataset.locked = "true";
+        setTimeout(() => { reviewIndex++; showNextReviewWord(); }, 500);
+      } else {
+        wordElem.classList.add("wrong");
+        setTimeout(() => wordElem.classList.remove("wrong"), 500);
+        const fw = fallingWords[0];
+        if (fw) {
+          const x = (playArea.clientWidth - wordElem.offsetWidth) / 2;
+          const y = Math.floor(playArea.clientHeight * 0.25);
+          fw.x = x; fw.y = y;
+          wordElem.style.left = x + "px";
+          wordElem.style.top = y + "px";
+        }
+      }
+    }
+    currentDrag = null;
+    return;
+  }
+
   if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
     const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
     const columnWidth = playArea.clientWidth / selectedTypes.size;
@@ -577,6 +740,7 @@ function handleMouseUp(e) {
       currentCombo = 0;
       updateComboDisplay();
       showPenaltyEffect(parseInt(wordElem.style.left) + wordElem.offsetWidth / 2, parseInt(wordElem.style.top) - 20);
+      wrongAnswers.push({ word: wordElem.textContent, correctType: wordElem.dataset.type });
     }
   }
   currentDrag = null;
@@ -634,6 +798,7 @@ function gameLoop() {
           showPenaltyEffect(word.x + word.element.offsetWidth / 2, newY - 20);
           currentCombo = 0;
           updateComboDisplay();
+          wrongAnswers.push({ word: word.element.textContent, correctType: word.element.dataset.type });
         }
         let landingY = playArea.clientHeight - wordHeight;
         landedWords.forEach((lw) => {
@@ -718,15 +883,14 @@ function getPlayerName() {
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(gameLoopId);
+  clearInterval(timerIntervalId);
   fallingWords.forEach((word) => { word.element.style.opacity = 0.5; });
 
   const username = getPlayerName();
   saveLocalScore(username, score);
   saveGlobalScore(username, score);
 
-  gameScreen.style.display = "none";
-  startScreen.style.display = "block";
-  showLocalRanking();
+  showResultScreen();
 }
 
 function initGame() {
@@ -735,12 +899,17 @@ function initGame() {
     return;
   }
 
+  resetAndLockZoom();
+
   clearInterval(timerIntervalId);
   cancelAnimationFrame(gameLoopId);
   remainingTime = TIME_LIMIT;
   score = 0;
   currentCombo = 0;
   maxCombo = 0;
+  wrongAnswers = [];
+  isPaused = false;
+  reviewMode = false;
   updateComboDisplay();
   fallingWords = [];
   landedWords = [];
@@ -748,12 +917,14 @@ function initGame() {
   lastFrameTime = Date.now();
   gameOver = false;
 
+  returnButton.textContent = "Return to START";
+  document.getElementById("resultScreen").style.display = "none";
+
   playArea.innerHTML = "";
   playArea.appendChild(createSortingArea());
   updateTimerDisplay();
   updateScoreDisplay();
   gameLoopId = requestAnimationFrame(gameLoop);
-  gameLoop();
   startTimer();
   gameScreen.style.display = "block";
   startScreen.style.display = "none";
@@ -768,10 +939,15 @@ document.addEventListener("touchmove", handleTouchMove, { passive: false });
 document.addEventListener("touchend", handleTouchEnd);
 
 returnButton.addEventListener("click", () => {
+  if (reviewMode) {
+    endReviewMode(false);
+    return;
+  }
   clearInterval(timerIntervalId);
   cancelAnimationFrame(gameLoopId);
   gameScreen.style.display = "none";
   startScreen.style.display = "block";
+  unlockZoom();
 });
 
 startButton.addEventListener("click", () => { initGame(); });
@@ -823,6 +999,15 @@ document.getElementById("changeNameButton").addEventListener("click", () => {
 });
 
 document.getElementById("globalResetButton").addEventListener("click", globalResetRanking);
+document.getElementById("pauseButton").addEventListener("click", pauseGame);
+document.getElementById("resumeButton").addEventListener("click", resumeGame);
+document.getElementById("reviewButton").addEventListener("click", startReviewMode);
+document.getElementById("resultReturnButton").addEventListener("click", () => {
+  document.getElementById("resultScreen").style.display = "none";
+  startScreen.style.display = "block";
+  showLocalRanking();
+  unlockZoom();
+});
 
 /* ===============================
    初期化

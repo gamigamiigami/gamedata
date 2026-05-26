@@ -28,6 +28,58 @@ document.addEventListener("DOMContentLoaded", () => {
   resetRankingButton.parentNode.appendChild(globalResetBtn);
   globalResetBtn.addEventListener("click", globalResetRanking);
 
+  // ポーズボタンをヘッダーに動的生成
+  const header = document.getElementById("header");
+  if (header) {
+    const pauseBtn = document.createElement("button");
+    pauseBtn.id = "pauseButton";
+    pauseBtn.textContent = "⏸";
+    pauseBtn.style.cssText = "padding:4px 10px; font-size:16px; cursor:pointer; background:#555; color:#fff; border:1px solid #999; border-radius:4px;";
+    pauseBtn.addEventListener("click", pauseGame);
+    header.appendChild(pauseBtn);
+  }
+
+  // ポーズオーバーレイを動的生成
+  const pauseOverlay = document.createElement("div");
+  pauseOverlay.id = "pauseOverlay";
+  pauseOverlay.style.cssText = "display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; z-index:200;";
+  pauseOverlay.innerHTML = `
+    <div style="background:#333; border:2px solid #fed000; border-radius:12px; padding:40px 60px; text-align:center;">
+      <p style="font-size:24px; margin:0 0 20px; color:#fed000;">一時停止中</p>
+      <button id="resumeButton" style="padding:10px 30px; font-size:18px; cursor:pointer; background:#fed000; color:#000; border:none; border-radius:6px; font-weight:bold;">▶ 再開</button>
+    </div>`;
+  document.body.appendChild(pauseOverlay);
+  pauseOverlay.querySelector("#resumeButton").addEventListener("click", resumeGame);
+
+  // 結果画面を動的生成
+  const resultScreen = document.createElement("div");
+  resultScreen.id = "resultScreen";
+  resultScreen.style.cssText = "display:none; text-align:center; padding:20px; margin-top:40px; color:#fff;";
+  resultScreen.innerHTML = `
+    <h2 style="color:#fed000;">ゲーム結果</h2>
+    <div id="resultStats" style="font-size:20px; margin:20px 0; line-height:2;">
+      <p>スコア: <span id="resultScore" style="font-weight:bold; color:#fed000; font-size:26px;"></span></p>
+      <p>最大コンボ: <span id="resultMaxCombo" style="font-weight:bold; color:#fed000; font-size:26px;"></span></p>
+      <p>間違えた問題: <span id="resultWrongCount" style="font-weight:bold; color:#fed000; font-size:26px;"></span> 問</p>
+    </div>
+    <div id="wrongListContainer" style="max-height:280px; overflow-y:auto; margin:10px auto; width:90%; max-width:500px; background:#333; border-radius:8px; padding:12px 16px; text-align:left;">
+      <h3 style="color:#fed000; margin:0 0 10px; text-align:center;">間違えた単語</h3>
+      <ul id="wrongList" style="list-style:none; padding:0; margin:0;"></ul>
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:16px;">
+      <button id="reviewButton" style="padding:10px 25px; font-size:16px; cursor:pointer; background:#fed000; color:#000; border:none; border-radius:6px; font-weight:bold;">📝 復習モード</button>
+      <button id="resultReturnButton" style="padding:10px 25px; font-size:16px; cursor:pointer; border-radius:6px;">スタートに戻る</button>
+    </div>`;
+  document.body.appendChild(resultScreen);
+  resultScreen.querySelector("#reviewButton").addEventListener("click", startReviewMode);
+  resultScreen.querySelector("#resultReturnButton").addEventListener("click", () => {
+    resultScreen.style.display = "none";
+    document.getElementById("startScreen").style.display = "block";
+    unlockZoom();
+    updateRankings();
+    displayRanking();
+  });
+
   let showingAlt = false;
   if (table2) table2.style.display = "none";
 
@@ -98,6 +150,152 @@ async function globalResetRanking() {
     alert("リセット失敗: " + e.message);
     console.error(e);
   }
+}
+
+/* ===============================
+   ズームリセット
+=============================== */
+function resetAndLockZoom() {
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+}
+function unlockZoom() {
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0');
+}
+
+/* ===============================
+   ポーズ
+=============================== */
+let isPaused = false;
+
+function pauseGame() {
+  if (isPaused || gameOver) return;
+  isPaused = true;
+  cancelAnimationFrame(gameLoopId);
+  clearInterval(timerIntervalId);
+  const ol = document.getElementById("pauseOverlay");
+  if (ol) { ol.style.display = "flex"; }
+}
+
+function resumeGame() {
+  if (!isPaused) return;
+  isPaused = false;
+  lastFrameTime = Date.now();
+  lastSpawnTime = Date.now();
+  const ol = document.getElementById("pauseOverlay");
+  if (ol) { ol.style.display = "none"; }
+  gameLoopId = requestAnimationFrame(gameLoop);
+  startTimer();
+}
+
+/* ===============================
+   間違い記録・結果・復習
+=============================== */
+let wrongAnswers = [];
+let reviewMode = false;
+let reviewQueue = [];
+let reviewIndex = 0;
+
+function showResultScreen() {
+  const gs = document.getElementById("gameScreen");
+  const rs = document.getElementById("resultScreen");
+  if (gs) gs.style.display = "none";
+  if (!rs) return;
+
+  const el = (id) => rs.querySelector("#" + id) || document.getElementById(id);
+  el("resultScore").textContent = score;
+  el("resultMaxCombo").textContent = maxCombo;
+  el("resultWrongCount").textContent = wrongAnswers.length;
+
+  const ul = el("wrongList");
+  ul.innerHTML = "";
+  wrongAnswers.forEach(wa => {
+    const li = document.createElement("li");
+    li.style.cssText = "padding:6px 4px; border-bottom:1px solid #555; font-size:16px;";
+    li.textContent = `「${wa.word}」→ 正解: ${wa.correctType}`;
+    ul.appendChild(li);
+  });
+
+  const reviewBtn = el("reviewButton");
+  if (reviewBtn) reviewBtn.style.display = wrongAnswers.length > 0 ? "inline-block" : "none";
+  rs.style.display = "block";
+}
+
+function startReviewMode() {
+  reviewMode = true;
+  reviewQueue = [...wrongAnswers];
+  reviewIndex = 0;
+
+  const rs = document.getElementById("resultScreen");
+  if (rs) rs.style.display = "none";
+  gameOver = false;
+  fallingWords = [];
+  landedWords = [];
+
+  const gs = document.getElementById("gameScreen");
+  if (gs) gs.style.display = "block";
+
+  playArea.innerHTML = "";
+  playArea.appendChild(createSortingArea());
+
+  const timerDisplay  = document.getElementById("timer");
+  const scoreDisplay  = document.getElementById("score");
+  const comboDisplay  = document.getElementById("combo");
+  const maxComboDisplay = document.getElementById("maxCombo");
+  const returnButton  = document.getElementById("returnButton");
+  if (timerDisplay) timerDisplay.textContent = "復習モード";
+  if (comboDisplay) comboDisplay.textContent = "";
+  if (maxComboDisplay) maxComboDisplay.textContent = "";
+  if (returnButton) { returnButton.textContent = "復習を終える"; returnButton._reviewMode = true; }
+
+  showNextReviewWord();
+}
+
+function showNextReviewWord() {
+  playArea.querySelectorAll(".word").forEach(w => w.remove());
+  fallingWords = [];
+
+  const scoreDisplay = document.getElementById("score");
+  const returnButton = document.getElementById("returnButton");
+
+  if (reviewIndex >= reviewQueue.length) {
+    reviewMode = false;
+    if (returnButton) { returnButton.textContent = "Return to START"; returnButton._reviewMode = false; }
+    const gs = document.getElementById("gameScreen");
+    const ss = document.getElementById("startScreen");
+    if (gs) gs.style.display = "none";
+    if (ss) ss.style.display = "block";
+    unlockZoom();
+    updateRankings();
+    displayRanking();
+    alert("復習完了！全問正解しました！");
+    return;
+  }
+
+  if (scoreDisplay) scoreDisplay.textContent = `${reviewIndex + 1} / ${reviewQueue.length}`;
+
+  const item = reviewQueue[reviewIndex];
+  const wordDiv = document.createElement("div");
+  wordDiv.classList.add("word");
+  wordDiv.textContent = item.word;
+  wordDiv.dataset.type = item.correctType;
+  wordDiv.id = "review_" + reviewIndex;
+  wordDiv.dataset.locked = "false";
+  wordDiv.dataset.penalized = "false";
+  wordDiv.style.cssText = "white-space:nowrap; position:absolute; visibility:hidden; top:-30px; left:0;";
+  playArea.appendChild(wordDiv);
+
+  const w = wordDiv.offsetWidth;
+  const x = (playArea.clientWidth - w) / 2;
+  const y = Math.floor(playArea.clientHeight * 0.25);
+  wordDiv.style.left = x + "px";
+  wordDiv.style.top  = y + "px";
+  wordDiv.style.visibility = "visible";
+
+  fallingWords = [{ element: wordDiv, x, y, speed: 0 }];
+  wordDiv.addEventListener("mousedown", handleMouseDown);
+  wordDiv.addEventListener("touchstart", handleTouchStart);
 }
 
 /* ===============================
@@ -423,14 +621,11 @@ if (bonusToggleButton) {
    ゲーム初期化（外部公開）
 =============================== */
 export function initGame(wordData) {
-  // 外部から渡されたデータを保持
   currentWordData = wordData;
-
-  // カテゴリ生成
   categories = [...new Set(currentWordData.map(item => item.type))];
-
-  // 落下速度をカテゴリ数に応じて調整
   FALL_SPEED = Math.min(300 / categories.length, 50);
+
+  resetAndLockZoom();
 
   clearInterval(timerIntervalId);
   cancelAnimationFrame(gameLoopId);
@@ -439,6 +634,9 @@ export function initGame(wordData) {
   score = 0;
   currentCombo = 0;
   maxCombo = 0;
+  wrongAnswers = [];
+  isPaused = false;
+  reviewMode = false;
 
   updateComboDisplay();
 
@@ -449,6 +647,11 @@ export function initGame(wordData) {
   lastFrameTime = Date.now();
   gameOver = false;
 
+  const rs = document.getElementById("resultScreen");
+  if (rs) rs.style.display = "none";
+  const rb = document.getElementById("returnButton");
+  if (rb) { rb.textContent = "Return to START"; rb._reviewMode = false; }
+
   playArea.innerHTML = "";
   playArea.appendChild(createSortingArea());
 
@@ -456,7 +659,6 @@ export function initGame(wordData) {
   updateScoreDisplay();
 
   gameLoopId = requestAnimationFrame(gameLoop);
-  gameLoop();
   startTimer();
 
   gameScreen.style.display = "block";
@@ -468,11 +670,22 @@ export function initGame(wordData) {
    UIイベント
 =============================== */
 returnButton.addEventListener("click", () => {
+  if (reviewMode) {
+    reviewMode = false;
+    returnButton.textContent = "Return to START";
+    gameScreen.style.display = "none";
+    startScreen.style.display = "block";
+    unlockZoom();
+    updateRankings();
+    displayRanking();
+    return;
+  }
   clearInterval(timerIntervalId);
   cancelAnimationFrame(gameLoopId);
 
   gameScreen.style.display = "none";
   startScreen.style.display = "block";
+  unlockZoom();
 
   showUpdatedMedal();
 });
@@ -736,8 +949,35 @@ function handleMouseUp(e) {
   if (!currentDrag) return;
   const wordElem = currentDrag.element;
   wordElem.classList.remove("dragging");
-
   const top = parseInt(wordElem.style.top);
+
+  if (reviewMode) {
+    if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
+      const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+      const columnWidth = playArea.clientWidth / categories.length;
+      const columnIndex = Math.floor(dropX / columnWidth);
+      const dropCategory = categories[columnIndex];
+      if (wordElem.dataset.type === dropCategory) {
+        wordElem.classList.add("correct");
+        wordElem.dataset.locked = "true";
+        setTimeout(() => { reviewIndex++; showNextReviewWord(); }, 500);
+      } else {
+        wordElem.classList.add("wrong");
+        setTimeout(() => wordElem.classList.remove("wrong"), 500);
+        const fw = fallingWords[0];
+        if (fw) {
+          const x = (playArea.clientWidth - wordElem.offsetWidth) / 2;
+          const y = Math.floor(playArea.clientHeight * 0.25);
+          fw.x = x; fw.y = y;
+          wordElem.style.left = x + "px";
+          wordElem.style.top  = y + "px";
+        }
+      }
+    }
+    currentDrag = null;
+    return;
+  }
+
   if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
     const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
     const columnWidth = playArea.clientWidth / categories.length;
@@ -751,9 +991,9 @@ function handleMouseUp(e) {
       remainingTime -= PENALTY_TIME;
       updateTimerDisplay();
       wordElem.dataset.penalized = "true";
-      // 誤答時はCOMBOをリセット
       currentCombo = 0;
       updateComboDisplay();
+      wrongAnswers.push({ word: wordElem.textContent, correctType: wordElem.dataset.type });
     }
   }
   currentDrag = null;
@@ -830,9 +1070,9 @@ function gameLoop() {
           const effectX = word.x + word.element.offsetWidth / 2;
           const effectY = newY - 20;
           showPenaltyEffect(effectX, effectY);
-          // 誤答時はCOMBOをリセット
           currentCombo = 0;
           updateComboDisplay();
+          wrongAnswers.push({ word: word.element.textContent, correctType: word.element.dataset.type });
         }
         let landingY = playArea.clientHeight - wordHeight;
         landedWords.forEach((lw) => {
@@ -915,10 +1155,10 @@ function startTimer() {
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(gameLoopId);
+  clearInterval(timerIntervalId);
   fallingWords.forEach((word) => {
     word.element.style.opacity = 0.5;
   });
-  alert("GAME OVER!\nスコア: " + score);
 
   if (score >= 1000) {
     incrementPlayCount();
@@ -945,26 +1185,8 @@ if (!username) {
 
   saveScore(username, score);
   saveToFirebase(username, score);
-  console.log("Saving score for:", username, "Score:", score);
 
-  gameScreen.style.display = "none";
-  startScreen.style.display = "block";
-
-  showUpdatedMedal();
-
-  const table1 = document.getElementById("ranking-table");
-  const table2 = document.getElementById("alt-ranking-table");
-  const toggleButton = document.getElementById("rankingToggleButton");
-  const resetRankingButton = document.getElementById("resetRankingButton");
-  const changeNameButton = document.getElementById("changeNameButton");
-  const globalResetButton = document.getElementById("globalResetButton");
-
-  table1.style.display = "table";
-  table2.style.display = "none";
-  toggleButton.textContent = "My ベストスコア";
-  resetRankingButton.style.display = "inline-block";
-  if (changeNameButton) changeNameButton.style.display = "inline-block";
-  if (globalResetButton) globalResetButton.style.display = "none";
+  showResultScreen();
 }
 
 /* ===============================
