@@ -250,7 +250,7 @@ async function displayGlobalRanking() {
 =============================== */
 const _EJS_PK  = "njxurV_IW84nYD01w";    // アカウント → Account → Public Key
 const _EJS_SVC = "service_0eqi1dy";    // Email Services → Service ID
-const _EJS_TPL = "YOUR_TEMPLATE_ID";   // Email Templates → Template ID
+const _EJS_TPL = "template_6c3mcbm";   // Email Templates → Template ID
 
 let _ejsReady = false;
 async function _loadEmailJS() {
