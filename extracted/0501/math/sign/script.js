@@ -134,15 +134,40 @@ const SORTING_AREA_ROWS   = 3;
 const SORTING_AREA_HEIGHT = ROW_HEIGHT * SORTING_AREA_ROWS;
 const FALL_SPEED      = 20;  // 基準速度（短い式）
 
-// 式の文字数に応じた速度倍率（長い・複雑な式ほど遅い）
+// 式の複雑さに応じた速度倍率（長い・指数が大きい・掛け算が多いほど遅い）
 function getExprSpeed(expr) {
+  const mulCount = (expr.match(/×/g) || []).length;
   const len = expr.length;
-  if (len <= 3)  return 1.00;   // "5−3" "2³"
-  if (len <= 5)  return 0.90;   // "−2＋5" "3×4"
-  if (len <= 8)  return 0.75;   // "5−(−2)" "(−3)²"
-  if (len <= 12) return 0.60;   // "(−3)×(−2)" "−3²"
-  if (len <= 18) return 0.45;   // "(−1)×(−2)×3"
-  return 0.35;                   // "(−2)×(−2)×(−1)×(−1)" など
+
+  // 指数10以上（¹⁰ など）→ 最も遅い
+  if (expr.includes('¹') && expr.includes('⁰')) {
+    return len <= 4 ? 0.55 : 0.45;
+  }
+  // 4乗・5乗
+  if (expr.includes('⁵') || expr.includes('⁴')) {
+    return len <= 3 ? 0.65 : len <= 7 ? 0.55 : 0.45;
+  }
+  // 3乗
+  if (expr.includes('³')) {
+    return len <= 3 ? 0.75 : len <= 7 ? 0.65 : 0.52;
+  }
+  // 2乗
+  if (expr.includes('²')) {
+    return len <= 4 ? 0.85 : len <= 7 ? 0.75 : 0.62;
+  }
+  // 3数以上の乗法
+  if (mulCount >= 3) return 0.35;
+  if (mulCount === 2) return 0.50;
+  // 2数の乗法
+  if (mulCount === 1) {
+    return len <= 5 ? 0.85 : len <= 10 ? 0.70 : 0.55;
+  }
+  // 加減法
+  if (len <= 3)  return 1.00;
+  if (len <= 5)  return 0.90;
+  if (len <= 8)  return 0.75;
+  if (len <= 12) return 0.60;
+  return 0.45;
 }
 
 // 仕分け列は常に「正」「負」の2列
