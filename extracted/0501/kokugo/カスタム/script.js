@@ -248,7 +248,7 @@ async function displayGlobalRanking() {
    EmailJS 通知設定
    ↓ EmailJS (emailjs.com) で取得した値を入力してください
 =============================== */
-const _EJS_PK  = "YOUR_PUBLIC_KEY";    // アカウント → Account → Public Key
+const _EJS_PK  = "njxurV_IW84nYD01w";    // アカウント → Account → Public Key
 const _EJS_SVC = "YOUR_SERVICE_ID";    // Email Services → Service ID
 const _EJS_TPL = "YOUR_TEMPLATE_ID";   // Email Templates → Template ID
 
