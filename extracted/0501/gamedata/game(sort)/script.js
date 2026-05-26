@@ -42,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ポーズオーバーレイを動的生成
   const pauseOverlay = document.createElement("div");
   pauseOverlay.id = "pauseOverlay";
-  pauseOverlay.style.cssText = "display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; z-index:200;";
+  pauseOverlay.style.cssText = "display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#000; align-items:center; justify-content:center; z-index:200;";
   pauseOverlay.innerHTML = `
     <div style="background:#333; border:2px solid #fed000; border-radius:12px; padding:40px 60px; text-align:center;">
       <p style="font-size:24px; margin:0 0 20px; color:#fed000;">一時停止中</p>

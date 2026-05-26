@@ -127,7 +127,7 @@ function displayWidth(str) {
    ゲーム定数
 =============================== */
 const TIME_LIMIT      = 60;
-const SPAWN_INTERVAL  = 2000;
+const SPAWN_INTERVAL  = 3500;
 const PENALTY_TIME    = 3;
 const ROW_HEIGHT      = 30;
 const SORTING_AREA_ROWS   = 3;
