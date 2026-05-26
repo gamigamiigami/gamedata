@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>英語不規則動詞</title>
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Firebase SDK -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+      import {
+        getFirestore, collection, addDoc, getDocs, query, orderBy, limit
+      } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyDE2tXcwqCNqQZ72ON_48-Qkd9xGfy9y0Y",
+        authDomain: "rank-cf9fe.firebaseapp.com",
+        databaseURL: "https://rank-cf9fe-default-rtdb.firebaseio.com",
+        projectId: "rank-cf9fe",
+        storageBucket: "rank-cf9fe.firebasestorage.app",
+        messagingSenderId: "45390799176",
+        appId: "1:45390799176:web:fb547734f6b29107ca537d",
+        measurementId: "G-3N3541718C"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      getAnalytics(app);
+      window.firebaseDB = getFirestore(app);
+      window.firebaseModules = { collection, addDoc, getDocs, query, orderBy, limit };
+    </script>
+  </head>
+  <body>
+    <!-- スタート画面 -->
+    <div id="startScreen" class="screen">
+      <h1>不規則動詞
+        <span class="sub">Irregular Verbs — 原形 / 過去形 / 過去分詞</span>
+      </h1>
+      <p>
+        落ちてくる動詞を <strong style="color:#3d7aff">原形</strong>・
+        <strong style="color:#ff8c1a">過去形</strong>・
+        <strong style="color:#2dba6a">過去分詞</strong> に仕分けよう！<br/>
+        ランキングでみんなと競えるぞ！
+      </p>
+      <p class="credit">Produce by igami</p>
+
+      <!-- 意味モード -->
+      <div id="optionRow">
+        <label id="meaningModeLabel">
+          <input type="checkbox" id="meaningModeCheck" />
+          意味ヒントを表示する
+        </label>
+      </div>
+      <p class="meaning-note">※ ON にすると単語に日本語訳が表示されます（初心者向け）</p>
+
+      <!-- カテゴリ選択 -->
+      <div id="categorySelection">
+        <h3>出題するカテゴリを選択してください</h3>
+        <div id="categoryCheckboxes">
+          <!-- 動的生成 -->
+        </div>
+      </div>
+
+      <div class="button-container">
+        <div class="button-row">
+          <button id="bonusToggleButton">ボーナス: OFF</button>
+          <button id="startButton">START</button>
+        </div>
+        <button id="backButton">戻る</button>
+      </div>
+
+      <div id="rankingContainer">
+        <button id="rankingToggleButton">グローバルランキング</button>
+
+        <table id="ranking-table">
+          <thead>
+            <tr><th>日付</th><th>プレイヤー名</th><th>スコア</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <table id="alt-ranking-table" style="display:none;">
+          <colgroup>
+            <col style="width: 10%" />
+            <col style="width: 45%" />
+            <col style="width: 25%" />
+          </colgroup>
+          <thead>
+            <tr><th>順位</th><th>プレイヤー名</th><th>スコア</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <button id="resetRankingButton">リセット</button>
+        <button id="changeNameButton">名前変更</button>
+        <button id="globalResetButton" style="display:none;">グローバルリセット</button>
+      </div>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="gameScreen" class="screen" style="display: none">
+      <div id="header">
+        <div id="timer">Time: 60</div>
+        <div id="score">Score: 0</div>
+        <div id="combo">Combo: 0</div>
+        <div id="maxCombo">Max: 0</div>
+        <button id="pauseButton">⏸</button>
+      </div>
+      <div id="playArea"></div>
+      <button id="returnButton">Return to START</button>
+    </div>
+
+    <!-- ポーズオーバーレイ -->
+    <div id="pauseOverlay">
+      <div id="pauseBox">
+        <p>一時停止中</p>
+        <button id="resumeButton">▶ 再開</button>
+      </div>
+    </div>
+
+    <!-- 結果画面 -->
+    <div id="resultScreen" class="screen" style="display: none">
+      <h2>ゲーム結果</h2>
+      <div id="resultStats">
+        <p>スコア: <span id="resultScore"></span></p>
+        <p>最大コンボ: <span id="resultMaxCombo"></span></p>
+        <p>間違えた問題: <span id="resultWrongCount"></span> 問</p>
+      </div>
+      <div id="wrongListContainer">
+        <h3>間違えた動詞</h3>
+        <ul id="wrongList"></ul>
+      </div>
+      <div class="button-container">
+        <button id="reviewButton">📝 復習モード</button>
+        <button id="resultReturnButton">スタートに戻る</button>
+      </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
