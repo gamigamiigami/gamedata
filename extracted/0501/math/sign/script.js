@@ -132,7 +132,18 @@ const PENALTY_TIME    = 3;
 const ROW_HEIGHT      = 30;
 const SORTING_AREA_ROWS   = 3;
 const SORTING_AREA_HEIGHT = ROW_HEIGHT * SORTING_AREA_ROWS;
-const FALL_SPEED      = 20;
+const FALL_SPEED      = 20;  // 基準速度（短い式）
+
+// 式の文字数に応じた速度倍率（長い・複雑な式ほど遅い）
+function getExprSpeed(expr) {
+  const len = expr.length;
+  if (len <= 3)  return 1.00;   // "5−3" "2³"
+  if (len <= 5)  return 0.90;   // "−2＋5" "3×4"
+  if (len <= 8)  return 0.75;   // "5−(−2)" "(−3)²"
+  if (len <= 12) return 0.60;   // "(−3)×(−2)" "−3²"
+  if (len <= 18) return 0.45;   // "(−1)×(−2)×3"
+  return 0.35;                   // "(−2)×(−2)×(−1)×(−1)" など
+}
 
 // 仕分け列は常に「正」「負」の2列
 const SORT_CATEGORIES = [
@@ -553,7 +564,8 @@ function spawnWord(presetX) {
   wordDiv.addEventListener("mousedown", handleMouseDown);
   wordDiv.addEventListener("touchstart", handleTouchStart);
 
-  fallingWords.push({ element: wordDiv, x, y: -40, speed: FALL_SPEED });
+  const speedMult = getExprSpeed(data.expr);
+  fallingWords.push({ element: wordDiv, x, y: -40, speed: FALL_SPEED * speedMult, speedMult });
 }
 
 function lockWord(wordElem, dropCategory) {
@@ -693,7 +705,7 @@ function gameLoop() {
 
   fallingWords.forEach(word => {
     if (word.element.dataset.locked === "true") return;
-    let currentSpeed = FALL_SPEED + 10 * Math.floor(score / 500);
+    let currentSpeed = word.speed + 3 * Math.floor(score / 500) * (word.speedMult || 1);
     let newY = word.y + currentSpeed * delta;
     const wordHeight    = word.element.offsetHeight;
     const decisionLineY = getDecisionLineY();
