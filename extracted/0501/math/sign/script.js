@@ -629,6 +629,7 @@ let currentDrag = null;
 function handleMouseDown(e) {
   const wordElem = e.currentTarget;
   if (wordElem.dataset.locked === "true") return;
+  if (wordElem.dataset.penalized === "true") return;
   e.preventDefault();
   const rect   = wordElem.getBoundingClientRect();
   const offsetX = e.clientX - rect.left;
