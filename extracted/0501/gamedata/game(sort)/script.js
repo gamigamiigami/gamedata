@@ -186,7 +186,7 @@ window.displayAltRanking = async function(limitNum = 30) {
    ↓ EmailJS (emailjs.com) で取得した値を入力してください
 =============================== */
 const _EJS_PK  = "njxurV_IW84nYD01w";    // アカウント → Account → Public Key
-const _EJS_SVC = "YOUR_SERVICE_ID";    // Email Services → Service ID
+const _EJS_SVC = "service_0eqi1dy";    // Email Services → Service ID
 const _EJS_TPL = "YOUR_TEMPLATE_ID";   // Email Templates → Template ID
 
 let _ejsReady = false;
