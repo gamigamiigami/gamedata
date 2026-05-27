@@ -1,3 +1,29 @@
+const _AH = "bfd86db114080042e8d40ec387b2cd01ed7a9d261c2d503c17e1e724a7b303a4";
+async function _verifyPw(input) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("") === _AH;
+}
+async function globalResetRanking() {
+  const pw = prompt("管理者パスワードを入力してください：");
+  if (pw === null) return;
+  const ok = await _verifyPw(pw);
+  if (!ok) { alert("パスワードが違います"); return; }
+  if (!confirm("グローバルランキングをリセットします。\nこの操作は取り消せません。よろしいですか？")) return;
+  const db = window.firebaseDB;
+  const mods = window.firebaseModules;
+  if (!db || !mods) { alert("Firebase未接続"); return; }
+  const { getDocs, collection } = mods;
+  try {
+    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js");
+    const snap = await getDocs(collection(db, BAMBOO_COLLECTION));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    alert("グローバルランキングをリセットしました");
+    displayBambooGlobal();
+  } catch (e) {
+    alert("リセット失敗: " + e.message);
+  }
+}
+
 /*******************************************************
  * ページ全体でのテキスト選択とスクロールを無効化
  *******************************************************/
@@ -782,11 +808,13 @@ function showBambooLocalRanking() {
   const globalTable = document.getElementById("alt-ranking-table");
   const resetBtn = document.getElementById("resetRankingButton");
   const changeNameBtn = document.getElementById("changeNameButton");
+  const globalResetBtn = document.getElementById("globalResetButton");
   if (!localTable) return;
   localTable.style.display = "table";
   globalTable.style.display = "none";
   resetBtn.style.display = "inline-block";
   changeNameBtn.style.display = "inline-block";
+  if (globalResetBtn) globalResetBtn.style.display = "none";
   displayBambooLocal();
   bambooRankingState = "local";
   document.getElementById("rankingToggleButton").textContent = "グローバルランキング";
@@ -797,11 +825,13 @@ function showBambooGlobalRanking() {
   const globalTable = document.getElementById("alt-ranking-table");
   const resetBtn = document.getElementById("resetRankingButton");
   const changeNameBtn = document.getElementById("changeNameButton");
+  const globalResetBtn = document.getElementById("globalResetButton");
   if (!localTable) return;
   localTable.style.display = "none";
   globalTable.style.display = "table";
   resetBtn.style.display = "none";
   changeNameBtn.style.display = "none";
+  if (globalResetBtn) globalResetBtn.style.display = "inline-block";
   displayBambooGlobal();
   bambooRankingState = "global";
   document.getElementById("rankingToggleButton").textContent = "My ベストスコア";
@@ -839,5 +869,10 @@ document.addEventListener("DOMContentLoaded", () => {
       );
       if (name) localStorage.setItem("playerName", name);
     });
+  }
+
+  const globalResetBtn = document.getElementById("globalResetButton");
+  if (globalResetBtn) {
+    globalResetBtn.addEventListener("click", globalResetRanking);
   }
 });
