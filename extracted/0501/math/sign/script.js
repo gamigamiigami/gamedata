@@ -244,9 +244,15 @@ function showResultScreen() {
 
   const ul = document.getElementById("wrongList");
   ul.innerHTML = "";
+  const wrongMap = new Map();
   wrongAnswers.forEach(wa => {
+    if (wrongMap.has(wa.expr)) wrongMap.get(wa.expr).count++;
+    else wrongMap.set(wa.expr, { ...wa, count: 1 });
+  });
+  wrongMap.forEach(wa => {
     const li = document.createElement("li");
-    li.textContent = `${wa.expr}  →  正解: ${wa.correctType}`;
+    const countStr = wa.count > 1 ? ` <span style="color:#f90;font-weight:bold;">×${wa.count}</span>` : "";
+    li.innerHTML = `${wa.expr}  →  <strong>${wa.correctType}</strong>${countStr}`;
     ul.appendChild(li);
   });
 

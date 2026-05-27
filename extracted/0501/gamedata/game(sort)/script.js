@@ -210,10 +210,16 @@ function showResultScreen() {
 
   const ul = el("wrongList");
   ul.innerHTML = "";
+  const wrongMap = new Map();
   wrongAnswers.forEach(wa => {
+    if (wrongMap.has(wa.word)) wrongMap.get(wa.word).count++;
+    else wrongMap.set(wa.word, { ...wa, count: 1 });
+  });
+  wrongMap.forEach(wa => {
     const li = document.createElement("li");
     li.style.cssText = "padding:6px 4px; border-bottom:1px solid #555; font-size:16px;";
-    li.textContent = `「${wa.word}」→ 正解: ${wa.correctType}`;
+    const countStr = wa.count > 1 ? ` <span style="color:#f90;font-weight:bold;">×${wa.count}</span>` : "";
+    li.innerHTML = `「${wa.word}」→ <strong>${wa.correctType}</strong>${countStr}`;
     ul.appendChild(li);
   });
 

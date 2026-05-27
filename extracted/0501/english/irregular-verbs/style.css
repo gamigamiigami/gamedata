@@ -475,6 +475,11 @@ h3 {
   font-size: 13px;
   margin-left: 4px;
 }
+.wrong-count {
+  color: #f90;
+  font-weight: bold;
+  margin-left: 6px;
+}
 
 #reviewButton {
   padding: 10px 25px;

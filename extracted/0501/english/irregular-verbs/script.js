@@ -233,9 +233,15 @@ function showResultScreen() {
 
   const ul = document.getElementById("wrongList");
   ul.innerHTML = "";
+  const wrongMap = new Map();
   wrongAnswers.forEach(wa => {
+    if (wrongMap.has(wa.word)) wrongMap.get(wa.word).count++;
+    else wrongMap.set(wa.word, { ...wa, count: 1 });
+  });
+  wrongMap.forEach(wa => {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="wrong-word">${wa.word}</span> → 正解: <strong>${wa.correctType}</strong> <span class="wrong-note">(${wa.base} / ${wa.meaning})</span>`;
+    const countStr = wa.count > 1 ? ` <span class="wrong-count">×${wa.count}</span>` : "";
+    li.innerHTML = `<span class="wrong-word">${wa.word}</span> → <strong>${wa.correctType}</strong> <span class="wrong-note">(${wa.base} / ${wa.meaning})</span>${countStr}`;
     ul.appendChild(li);
   });
 
