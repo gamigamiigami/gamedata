@@ -985,10 +985,12 @@ function handleMouseUp(e) {
     const columnIndex = Math.floor(dropX / columnWidth);
     const dropCategory = categories[columnIndex];
 
-    if (wordElem.dataset.type === dropCategory) {
+    if (wordElem.dataset.type === dropCategory && wordElem.dataset.penalized !== "true") {
       lockWord(wordElem, dropCategory);
     } else if (wordElem.dataset.penalized !== "true") {
       wordElem.classList.add("wrong");
+      wordElem.style.pointerEvents = "none";
+      currentDrag = null;
       remainingTime -= PENALTY_TIME;
       updateTimerDisplay();
       wordElem.dataset.penalized = "true";
@@ -1065,6 +1067,11 @@ function gameLoop() {
       } else {
         if (word.element.dataset.penalized !== "true") {
           word.element.classList.add("wrong");
+          word.element.style.pointerEvents = "none";
+          if (currentDrag && currentDrag.element === word.element) {
+            word.element.classList.remove("dragging");
+            currentDrag = null;
+          }
           remainingTime -= PENALTY_TIME;
           updateTimerDisplay();
           word.element.dataset.penalized = "true";
