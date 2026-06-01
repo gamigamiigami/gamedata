@@ -702,7 +702,8 @@ function handleMouseMove(e) {
   const wordElem = currentDrag.element;
   const elemWidth = wordElem.offsetWidth;
   const elemHeight = wordElem.offsetHeight;
-  newX = Math.max(0, Math.min(newX, playArea.clientWidth - elemWidth));
+  // ポインターがエリア内に収まれば、タイルが端を超えても OK
+  newX = Math.max(-(elemWidth - 20), Math.min(newX, playArea.clientWidth - 20));
   newY = Math.max(0, Math.min(newY, playArea.clientHeight - elemHeight));
   wordElem.style.left = newX + "px";
   wordElem.style.top = newY + "px";
@@ -721,9 +722,10 @@ function handleMouseUp(e) {
 
   if (reviewMode) {
     if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
-      const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+      const playAreaRect = playArea.getBoundingClientRect();
+      const ptrX = (e.clientX !== undefined) ? e.clientX - playAreaRect.left : parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
       const columnWidth = playArea.clientWidth / selectedTypes.size;
-      const columnIndex = Math.floor(dropX / columnWidth);
+      const columnIndex = Math.max(0, Math.min(Math.floor(ptrX / columnWidth), selectedTypes.size - 1));
       const dropCategory = Array.from(selectedTypes)[columnIndex];
       if (wordElem.dataset.type === dropCategory) {
         wordElem.classList.add("correct");
@@ -747,9 +749,10 @@ function handleMouseUp(e) {
   }
 
   if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
-    const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+    const playAreaRect = playArea.getBoundingClientRect();
+    const ptrX = (e.clientX !== undefined) ? e.clientX - playAreaRect.left : parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
     const columnWidth = playArea.clientWidth / selectedTypes.size;
-    const columnIndex = Math.floor(dropX / columnWidth);
+    const columnIndex = Math.max(0, Math.min(Math.floor(ptrX / columnWidth), selectedTypes.size - 1));
     const dropCategory = Array.from(selectedTypes)[columnIndex];
     if (wordElem.dataset.type === dropCategory && wordElem.dataset.penalized !== "true") {
       lockWord(wordElem, dropCategory);
