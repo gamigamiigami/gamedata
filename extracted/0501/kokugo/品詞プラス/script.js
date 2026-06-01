@@ -558,18 +558,29 @@ function updateComboDisplay() {
 }
 
 function createSortingArea() {
-  const sortingOverlay = document.createElement("div");
-  sortingOverlay.id = "sortingAreaOverlay";
+  const overlay = document.createElement("div");
+  overlay.id = "sortingAreaOverlay";
+
+  // ラベルは常に最前面の専用バーに表示（積みブロックに埋もれない）
+  const labelBar = document.createElement("div");
+  labelBar.id = "sortingLabelBar";
 
   Array.from(selectedTypes).forEach((category) => {
-    const column = document.createElement("div");
-    column.classList.add("sorting-column");
-    column.dataset.category = category;
-    column.innerHTML = `<span class="sorting-label">${category}</span>`;
-    sortingOverlay.appendChild(column);
+    const col = document.createElement("div");
+    col.classList.add("sorting-column");
+    col.dataset.category = category;
+    overlay.appendChild(col);
+
+    const cell = document.createElement("div");
+    cell.classList.add("sorting-label-cell");
+    cell.textContent = category;
+    labelBar.appendChild(cell);
   });
 
-  return sortingOverlay;
+  const frag = document.createDocumentFragment();
+  frag.appendChild(overlay);
+  frag.appendChild(labelBar);
+  return frag;
 }
 
 function getDecisionLineY() {
@@ -678,6 +689,20 @@ function showPenaltyEffect(x, y) {
 }
 
 /* ===============================
+   黄色単語の中心X座標（playArea基準）を返す
+=============================== */
+function getTargetWordX(wordElem) {
+  const targetSpan = wordElem.querySelector('.target-word');
+  const paRect = playArea.getBoundingClientRect();
+  if (targetSpan) {
+    const spRect = targetSpan.getBoundingClientRect();
+    const cx = spRect.left + spRect.width / 2 - paRect.left;
+    return Math.max(0, Math.min(cx, playArea.clientWidth - 1));
+  }
+  return parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+}
+
+/* ===============================
    ドラッグ＆ドロップ処理
 =============================== */
 let currentDrag = null;
@@ -690,7 +715,14 @@ function handleMouseDown(e) {
   const rect = wordElem.getBoundingClientRect();
   const offsetX = e.clientX - rect.left;
   const offsetY = e.clientY - rect.top;
-  currentDrag = { element: wordElem, offsetX, offsetY };
+  // 黄色ハイライト語の中心位置（タイル左端からの距離）を記録
+  const targetSpan = wordElem.querySelector('.target-word');
+  let targetOffsetX = wordElem.offsetWidth / 2;
+  if (targetSpan) {
+    const spanRect = targetSpan.getBoundingClientRect();
+    targetOffsetX = spanRect.left - rect.left + spanRect.width / 2;
+  }
+  currentDrag = { element: wordElem, offsetX, offsetY, targetOffsetX };
   wordElem.classList.add("dragging");
 }
 
@@ -700,10 +732,10 @@ function handleMouseMove(e) {
   let newX = e.clientX - playAreaRect.left - currentDrag.offsetX;
   let newY = e.clientY - playAreaRect.top - currentDrag.offsetY;
   const wordElem = currentDrag.element;
-  const elemWidth = wordElem.offsetWidth;
   const elemHeight = wordElem.offsetHeight;
-  // ポインターがエリア内に収まれば、タイルが端を超えても OK
-  newX = Math.max(-(elemWidth - 20), Math.min(newX, playArea.clientWidth - 20));
+  // 黄色単語がエリア左端〜右端に届くようにタイルの移動範囲を設定
+  const tox = currentDrag.targetOffsetX;
+  newX = Math.max(-tox, Math.min(newX, playArea.clientWidth - tox));
   newY = Math.max(0, Math.min(newY, playArea.clientHeight - elemHeight));
   wordElem.style.left = newX + "px";
   wordElem.style.top = newY + "px";
@@ -722,10 +754,9 @@ function handleMouseUp(e) {
 
   if (reviewMode) {
     if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
-      const playAreaRect = playArea.getBoundingClientRect();
-      const ptrX = (e.clientX !== undefined) ? e.clientX - playAreaRect.left : parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+      const dropX = getTargetWordX(wordElem);
       const columnWidth = playArea.clientWidth / selectedTypes.size;
-      const columnIndex = Math.max(0, Math.min(Math.floor(ptrX / columnWidth), selectedTypes.size - 1));
+      const columnIndex = Math.max(0, Math.min(Math.floor(dropX / columnWidth), selectedTypes.size - 1));
       const dropCategory = Array.from(selectedTypes)[columnIndex];
       if (wordElem.dataset.type === dropCategory) {
         wordElem.classList.add("correct");
@@ -749,10 +780,9 @@ function handleMouseUp(e) {
   }
 
   if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
-    const playAreaRect = playArea.getBoundingClientRect();
-    const ptrX = (e.clientX !== undefined) ? e.clientX - playAreaRect.left : parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+    const dropX = getTargetWordX(wordElem);
     const columnWidth = playArea.clientWidth / selectedTypes.size;
-    const columnIndex = Math.max(0, Math.min(Math.floor(ptrX / columnWidth), selectedTypes.size - 1));
+    const columnIndex = Math.max(0, Math.min(Math.floor(dropX / columnWidth), selectedTypes.size - 1));
     const dropCategory = Array.from(selectedTypes)[columnIndex];
     if (wordElem.dataset.type === dropCategory && wordElem.dataset.penalized !== "true") {
       lockWord(wordElem, dropCategory);
