@@ -831,6 +831,8 @@ function gameLoop() {
 
   fallingWords.forEach((word) => {
     if (word.element.dataset.locked === "true") return;
+    // ドラッグ中はゲームループで位置・判定を更新しない（handleMouseUp の黄色語座標で判定）
+    if (currentDrag && currentDrag.element === word.element) return;
     let currentSpeed = FALL_SPEED + 8 * Math.floor(score / 500);
     let newY = word.y + currentSpeed * delta;
     const wordHeight = word.element.offsetHeight;
