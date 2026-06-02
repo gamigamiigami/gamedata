@@ -20,6 +20,20 @@ body {
   overflow-y: auto;
 }
 
+#howto {
+  background: #333;
+  border: 1px solid #fed000;
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin: 10px auto;
+  max-width: 480px;
+  font-size: 14px;
+  line-height: 1.8;
+  text-align: left;
+}
+
+#howto p { margin: 4px 0; }
+
 #header {
   width: 400px;
   display: flex;
@@ -80,36 +94,6 @@ h2 {
 h3 {
   color: #fed000;
   margin: 10px 0 6px;
-}
-
-#typeSelection h3 {
-  font-size: 1em;
-  margin-bottom: 8px;
-}
-
-#typeCheckboxes {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin: 0 auto 10px;
-  max-width: 560px;
-}
-
-#typeCheckboxes div {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: #333;
-  border: 1px solid #fed000;
-  border-radius: 5px;
-  padding: 5px 10px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-#typeCheckboxes label {
-  cursor: pointer;
 }
 
 /* ランキング */
@@ -179,7 +163,7 @@ h3 {
   width: 90%;
   max-width: 900px;
   aspect-ratio: 9 / 5;
-  background: linear-gradient(to bottom, #800, #200);
+  background: linear-gradient(to bottom, #003366, #000d1a);
   border: 2px solid #fff;
   overflow: hidden;
   margin: 0 auto 10px auto;
@@ -231,11 +215,8 @@ h3 {
 .sorting-column:nth-child(5)  { background: rgba(255, 105, 180, 0.3); }
 .sorting-column:nth-child(6)  { background: rgba(80, 200, 255, 0.3); }
 .sorting-column:nth-child(7)  { background: rgba(180, 255, 80, 0.3); }
-.sorting-column:nth-child(8)  { background: rgba(255, 120, 40, 0.3); }
-.sorting-column:nth-child(9)  { background: rgba(200, 200, 0, 0.3); }
-.sorting-column:nth-child(10) { background: rgba(220, 80, 200, 0.3); }
 
-/* 品詞ラベルバー（常に最前面、積みブロックの上に表示） */
+/* 品詞ラベルバー */
 #sortingLabelBar {
   position: absolute;
   bottom: 0;
@@ -267,7 +248,7 @@ h3 {
   padding: 6px 12px;
   background: #fff;
   color: #222;
-  border: 1px solid #888;
+  border: 2px solid #888;
   border-radius: 5px;
   cursor: grab;
   user-select: none;
@@ -276,6 +257,13 @@ h3 {
   white-space: nowrap;
   line-height: 1.5;
 }
+
+/* ペアカラー */
+.pair-color-0 { border-color: #4FC3F7; box-shadow: 0 0 4px #4FC3F7; }
+.pair-color-1 { border-color: #81C784; box-shadow: 0 0 4px #81C784; }
+.pair-color-2 { border-color: #FFB74D; box-shadow: 0 0 4px #FFB74D; }
+.pair-color-3 { border-color: #F48FB1; box-shadow: 0 0 4px #F48FB1; }
+.pair-color-4 { border-color: #CE93D8; box-shadow: 0 0 4px #CE93D8; }
 
 /* 文中のターゲット語ハイライト */
 .target-word {
@@ -330,6 +318,26 @@ h3 {
   100% { transform: translateY(-30px); opacity: 0; }
 }
 
+.pair-bonus-effect {
+  position: absolute;
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  background: rgba(255, 140, 0, 0.9);
+  border-radius: 6px;
+  padding: 4px 10px;
+  text-shadow: 1px 1px 2px #000;
+  pointer-events: none;
+  z-index: 5;
+  animation: pair-bonus-fade 1.2s forwards;
+}
+
+@keyframes pair-bonus-fade {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  40%  { transform: translateY(-20px) scale(1.15); opacity: 1; }
+  100% { transform: translateY(-60px) scale(0.9); opacity: 0; }
+}
+
 #returnButton {
   padding: 10px 20px;
   font-size: 16px;
@@ -347,57 +355,6 @@ h3 {
   border: 1px solid #999;
   border-radius: 4px;
   align-self: center;
-}
-
-#hintToggle {
-  padding: 4px 8px;
-  font-size: 14px;
-  cursor: pointer;
-  background: #333;
-  color: #fed000;
-  border: 1px solid #fed000;
-  border-radius: 4px;
-  align-self: center;
-}
-
-#hintPanel {
-  width: 90%;
-  max-width: 900px;
-  background: rgba(15, 15, 15, 0.97);
-  border: 1px solid #fed000;
-  border-radius: 6px;
-  padding: 8px 12px;
-  margin: 0 auto 6px auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-height: 130px;
-  overflow-y: auto;
-  box-sizing: border-box;
-}
-
-.hint-item {
-  background: #2a2a2a;
-  border-radius: 4px;
-  padding: 5px 8px;
-  font-size: 11px;
-  color: #ccc;
-  border-left: 3px solid #fed000;
-  min-width: 130px;
-  flex: 1;
-  max-width: 230px;
-  line-height: 1.5;
-}
-
-.hint-item strong {
-  color: #fed000;
-  display: block;
-  font-size: 13px;
-  margin-bottom: 2px;
-}
-
-.hint-item small {
-  color: #aaa;
 }
 
 /* コンボエフェクト */

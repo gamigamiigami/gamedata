@@ -89,22 +89,6 @@ function displayWidth(str) {
 }
 
 /* ===============================
-   品詞ヒント辞書
-=============================== */
-const typeHints = {
-  "助詞":   "付属語・活用なし。自立語に付き意味関係を示す。<br><small>例：は・が・に・で・と・から・だけ・ので・ながら</small>",
-  "助動詞": "付属語・活用あり。用言に付いて意味を添える。<br><small>例：た・ない・だ・そうだ・らしい・ようだ・たい・られ</small>",
-  "感動詞": "自立語・独立語。感動・呼びかけ・応答を表す。<br><small>例：ああ・えっ・よし・さあ・はい・おい・ねえ</small>",
-  "接続詞": "自立語・活用なし。文や節をつなぐ。<br><small>例：しかし・でも・だから・そして・または・つまり</small>",
-  "連体詞": "自立語・活用なし。体言（名詞）だけを修飾する。<br><small>例：この・その・ある・おかしな・大きな・ほんの</small>",
-  "副詞":   "自立語・活用なし。主に用言（動詞・形容詞）を修飾。<br><small>例：とても・ゆっくり・もっと・まだ・きっと</small>",
-  "名詞":   "自立語・活用なし。主語になれる。物事の名称。<br><small>例：流れ・訪れ・努力・天気・読書・歩き・響き</small>",
-  "形容動詞": "自立語・活用あり。言い切りが「だ」。状態・性質を表す。<br><small>例：静かだ・元気だ・丁寧に・上品な・清潔だ</small>",
-  "形容詞": "自立語・活用あり。言い切りが「い」。状態・性質を表す。<br><small>例：美しい・険しい・赤い・楽しい・寒い・ない</small>",
-  "動詞":   "自立語・活用あり。動作・変化・存在を表す。<br><small>例：歩き・流れ・泳ぐ・輝い・読む・走り・揺れ</small>",
-};
-
-/* ===============================
    文の中のターゲット語をハイライト
 =============================== */
 function buildTileHTML(sentence, word) {
@@ -118,20 +102,33 @@ function buildTileHTML(sentence, word) {
 }
 
 /* ===============================
-   グローバル変数の定義
+   品詞の列順（品詞プラスと同じ優先順位）
 =============================== */
-const TIME_LIMIT = 60;
-const FALL_SPEED = 15;
-const SPAWN_INTERVAL = 4000;
+const TYPE_ORDER = ["助詞","助動詞","感動詞","接続詞","連体詞","副詞","名詞","形容動詞","形容詞","動詞"];
+
+// wordData（ペア配列）から使用する品詞を抽出
+const _seenTypes = new Set();
+wordData.forEach(pair => { _seenTypes.add(pair.a.type); _seenTypes.add(pair.b.type); });
+const selectedTypes = new Set(TYPE_ORDER.filter(t => _seenTypes.has(t)));
+
+/* ===============================
+   グローバル変数
+=============================== */
+const TIME_LIMIT   = 60;
+const FALL_SPEED   = 15;
+const SPAWN_INTERVAL = 5000;
 const PENALTY_TIME = 3;
-const ROW_HEIGHT = 30;
-const SORTING_AREA_ROWS = 3;
+const ROW_HEIGHT   = 30;
+const SORTING_AREA_ROWS   = 3;
 const SORTING_AREA_HEIGHT = ROW_HEIGHT * SORTING_AREA_ROWS;
+const BASE_SCORE   = 100;
+const PAIR_BONUS   = 150;
 
 let remainingTime = TIME_LIMIT;
 let score = 0;
 let currentCombo = 0;
 let maxCombo = 0;
+let pairCompleteCount = 0;
 let fallingWords = [];
 let landedWords = [];
 let lastSpawnTime = Date.now();
@@ -140,7 +137,7 @@ let gameLoopId;
 let timerIntervalId;
 let lastFrameTime = Date.now();
 let wordIdCounter = 0;
-let selectedTypes = new Set();
+let pairIdCounter = 0;
 let bonusEnabled = false;
 
 let wrongAnswers = [];
@@ -148,7 +145,9 @@ let isPaused = false;
 let reviewMode = false;
 let reviewQueue = [];
 let reviewIndex = 0;
-let hintVisible = false;
+
+// pairId -> { correctCount, resolvedCount }
+const pairTracker = new Map();
 
 /* ===============================
    ズームリセット
@@ -190,6 +189,7 @@ function showResultScreen() {
   gameScreen.style.display = "none";
   document.getElementById("resultScore").textContent = score;
   document.getElementById("resultMaxCombo").textContent = maxCombo;
+  document.getElementById("resultPairCount").textContent = pairCompleteCount;
   document.getElementById("resultWrongCount").textContent = wrongAnswers.length;
 
   const ul = document.getElementById("wrongList");
@@ -256,6 +256,7 @@ function showNextReviewWord() {
   wordDiv.dataset.type = item.correctType;
   wordDiv.dataset.word = item.word;
   wordDiv.dataset.sentence = item.sentence;
+  wordDiv.dataset.pairId = "-1";
   wordDiv.id = generateUniqueId();
   wordDiv.dataset.locked = "false";
   wordDiv.dataset.penalized = "false";
@@ -291,55 +292,26 @@ function endReviewMode(completed) {
 /* ===============================
    DOM取得
 =============================== */
-const playArea = document.getElementById('playArea');
-const timerDisplay = document.getElementById('timer');
-const scoreDisplay = document.getElementById('score');
-const comboDisplay = document.getElementById('combo');
+const playArea        = document.getElementById('playArea');
+const timerDisplay    = document.getElementById('timer');
+const scoreDisplay    = document.getElementById('score');
+const comboDisplay    = document.getElementById('combo');
 const maxComboDisplay = document.getElementById('maxCombo');
-const startScreen = document.getElementById('startScreen');
-const gameScreen = document.getElementById('gameScreen');
-const returnButton = document.getElementById('returnButton');
-const startButton = document.getElementById('startButton');
+const startScreen     = document.getElementById('startScreen');
+const gameScreen      = document.getElementById('gameScreen');
+const returnButton    = document.getElementById('returnButton');
+const startButton     = document.getElementById('startButton');
 const bonusToggleButton = document.getElementById('bonusToggleButton');
-const typeCheckboxesContainer = document.getElementById('typeCheckboxes');
-const hintToggleBtn = document.getElementById('hintToggle');
-
-/* ===============================
-   品詞の種類を取得
-=============================== */
-const availableTypes = [...new Set(wordData.map(item => item.type))];
-
-/* ===============================
-   ヒントパネル
-=============================== */
-function buildHintPanel() {
-  const panel = document.getElementById("hintPanel");
-  panel.innerHTML = "";
-  Array.from(selectedTypes).forEach(type => {
-    const hint = typeHints[type];
-    if (!hint) return;
-    const item = document.createElement("div");
-    item.className = "hint-item";
-    item.innerHTML = `<strong>${type}</strong>${hint}`;
-    panel.appendChild(item);
-  });
-}
-
-function resetHintPanel() {
-  hintVisible = false;
-  document.getElementById("hintPanel").style.display = "none";
-  hintToggleBtn.textContent = "💡";
-}
 
 /* ===============================
    ローカルランキング
 =============================== */
 function getLocalKey() {
-  return "rankings品詞プラス" + (bonusEnabled ? "" : "_nobonus");
+  return "rankings品詞比較" + (bonusEnabled ? "" : "_nobonus");
 }
 
 function getCollectionName() {
-  return "ranks品詞プラス" + (bonusEnabled ? "" : "_nobonus");
+  return "ranks品詞比較" + (bonusEnabled ? "" : "_nobonus");
 }
 
 const specialEntries = [
@@ -469,30 +441,21 @@ async function logViolation(username) {
   if (db) {
     const { addDoc, collection } = getFbModules();
     addDoc(collection(db, "violations"), {
-      name:       username,
-      game:       "品詞プラス",
-      date:       new Date().toISOString(),
-      deviceId:   deviceId,
-      deviceInfo: deviceInfo,
+      name: username, game: "品詞比較",
+      date: new Date().toISOString(), deviceId, deviceInfo,
     }).catch(() => {});
   }
 
   _loadEmailJS().then(() => {
     emailjs.send(_EJS_SVC, _EJS_TPL, {
-      bad_name:    username,
-      game:        "品詞プラス",
-      device_id:   deviceId,
-      device_info: deviceInfo,
-      date:        dateStr,
+      bad_name: username, game: "品詞比較",
+      device_id: deviceId, device_info: deviceInfo, date: dateStr,
     }).catch(() => {});
   }).catch(() => {});
 }
 
 async function saveGlobalScore(username, score) {
-  if (containsBadWord(username)) {
-    logViolation(username);
-    return;
-  }
+  if (containsBadWord(username)) { logViolation(username); return; }
   const db = getDb();
   if (!db) return;
   const { addDoc, collection } = getFbModules();
@@ -500,10 +463,7 @@ async function saveGlobalScore(username, score) {
   const deviceId = localStorage.getItem("deviceId");
   try {
     await addDoc(collection(db, getCollectionName()), {
-      player:   username,
-      score:    score,
-      date:     today,
-      deviceId: deviceId
+      player: username, score, date: today, deviceId
     });
   } catch (e) {
     console.error("Firestore 保存エラー:", e);
@@ -540,54 +500,15 @@ function showGlobalRanking() {
 }
 
 /* ===============================
-   チェックボックス生成
-=============================== */
-function createTypeCheckboxes() {
-  typeCheckboxesContainer.innerHTML = '';
-  availableTypes.forEach(type => {
-    const div = document.createElement('div');
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.id = `type-${type}`;
-    checkbox.value = type;
-    checkbox.checked = true;
-
-    const label = document.createElement('label');
-    label.htmlFor = `type-${type}`;
-    label.textContent = type;
-
-    div.appendChild(checkbox);
-    div.appendChild(label);
-    typeCheckboxesContainer.appendChild(div);
-
-    selectedTypes.add(type);
-
-    checkbox.addEventListener('change', (e) => {
-      if (e.target.checked) selectedTypes.add(type);
-      else selectedTypes.delete(type);
-    });
-  });
-}
-
-/* ===============================
    ゲーム関連の関数
 =============================== */
-function generateUniqueId() {
-  return "word_" + wordIdCounter++;
-}
+function generateUniqueId() { return "word_" + wordIdCounter++; }
 
-function updateTimerDisplay() {
-  timerDisplay.textContent = "Time: " + remainingTime;
-}
-
-function updateScoreDisplay() {
-  scoreDisplay.textContent = "Score: " + score;
-}
-
+function updateTimerDisplay()  { timerDisplay.textContent  = "Time: " + remainingTime; }
+function updateScoreDisplay()  { scoreDisplay.textContent  = "Score: " + score; }
 function updateComboDisplay() {
-  comboDisplay.textContent = "Combo: " + currentCombo;
+  comboDisplay.textContent    = "Combo: " + currentCombo;
   maxComboDisplay.textContent = "Max: " + maxCombo;
-
   if (currentCombo > 0 && currentCombo % 50 === 0) {
     comboDisplay.classList.add("combo-effect-50");
     setTimeout(() => comboDisplay.classList.remove("combo-effect-50"), 700);
@@ -598,14 +519,12 @@ function updateComboDisplay() {
 }
 
 function createSortingArea() {
-  const overlay = document.createElement("div");
+  const overlay  = document.createElement("div");
   overlay.id = "sortingAreaOverlay";
-
-  // ラベルは常に最前面の専用バーに表示（積みブロックに埋もれない）
   const labelBar = document.createElement("div");
   labelBar.id = "sortingLabelBar";
 
-  Array.from(selectedTypes).forEach((category) => {
+  Array.from(selectedTypes).forEach(category => {
     const col = document.createElement("div");
     col.classList.add("sorting-column");
     col.dataset.category = category;
@@ -626,67 +545,102 @@ function createSortingArea() {
 function getDecisionLineY() {
   const baseLine = playArea.clientHeight - SORTING_AREA_HEIGHT;
   if (landedWords.length === 0) return baseLine;
-  const highestLandedY = Math.min(...landedWords.map((lw) => lw.y));
+  const highestLandedY = Math.min(...landedWords.map(lw => lw.y));
   return Math.min(baseLine, highestLandedY);
 }
 
-function spawnWord(presetX) {
-  const filteredWords = wordData.filter(word => selectedTypes.has(word.type));
-  if (filteredWords.length === 0) return;
+function showPenaltyEffect(x, y) {
+  const effect = document.createElement("div");
+  effect.classList.add("penalty-effect");
+  effect.textContent = "-3s";
+  effect.style.left = x + "px";
+  effect.style.top  = y + "px";
+  playArea.appendChild(effect);
+  setTimeout(() => effect.remove(), 1000);
+}
 
-  const data = filteredWords[Math.floor(Math.random() * filteredWords.length)];
+function showPairBonusEffect(x, y) {
+  const effect = document.createElement("div");
+  effect.className  = "pair-bonus-effect";
+  effect.textContent = `ペア完成! +${PAIR_BONUS}`;
+  effect.style.left  = Math.max(0, x - 60) + "px";
+  effect.style.top   = Math.max(0, y) + "px";
+  playArea.appendChild(effect);
+  setTimeout(() => effect.remove(), 1200);
+}
+
+/* ===============================
+   ペア追跡
+=============================== */
+function onTileCorrect(pairId, wordElem) {
+  const pt = pairTracker.get(pairId);
+  if (!pt) return;
+  pt.correctCount++;
+  pt.resolvedCount++;
+  if (pt.correctCount === 2) {
+    score += PAIR_BONUS;
+    pairCompleteCount++;
+    updateScoreDisplay();
+    const left = parseInt(wordElem.style.left) || 0;
+    const top  = parseInt(wordElem.style.top)  || 0;
+    showPairBonusEffect(left, top - 30);
+  }
+  if (pt.resolvedCount >= 2) pairTracker.delete(pairId);
+}
+
+function onTileWrong(pairId) {
+  const pt = pairTracker.get(pairId);
+  if (!pt) return;
+  pt.resolvedCount++;
+  if (pt.resolvedCount >= 2) pairTracker.delete(pairId);
+}
+
+/* ===============================
+   タイル生成・スポーン
+=============================== */
+function createTileDiv(data, pairId, colorClass) {
   const wordDiv = document.createElement("div");
   wordDiv.classList.add("word");
+  if (colorClass) wordDiv.classList.add(colorClass);
   wordDiv.innerHTML = buildTileHTML(data.sentence, data.word);
-  wordDiv.dataset.type = data.type;
-  wordDiv.dataset.word = data.word;
+  wordDiv.dataset.type     = data.type;
+  wordDiv.dataset.word     = data.word;
   wordDiv.dataset.sentence = data.sentence;
+  wordDiv.dataset.pairId   = pairId;
   wordDiv.id = generateUniqueId();
-  wordDiv.dataset.locked = "false";
+  wordDiv.dataset.locked   = "false";
   wordDiv.dataset.penalized = "false";
   wordDiv.style.whiteSpace = "nowrap";
-  wordDiv.style.position = "absolute";
+  wordDiv.style.position   = "absolute";
   wordDiv.style.left = "0px";
-  wordDiv.style.top = "-50px";
+  wordDiv.style.top  = "-50px";
   wordDiv.style.visibility = "hidden";
+  return wordDiv;
+}
 
+function placeTile(wordDiv, preferX) {
   playArea.appendChild(wordDiv);
   const measuredWidth = wordDiv.offsetWidth;
+  const margin = 8;
+  let x = preferX;
 
-  const margin = 10;
-  let x;
-  const maxAttempts = 10;
-  let attempts = 0;
-
-  if (presetX !== undefined) {
-    x = presetX;
-    if (x < margin) x = margin;
-    if (x + measuredWidth > playArea.clientWidth - margin) {
-      x = playArea.clientWidth - measuredWidth - margin;
-    }
-    let overlap = false;
-    for (const word of fallingWords) {
-      if (x < word.x + word.element.offsetWidth && x + measuredWidth > word.x) {
-        overlap = true;
-        break;
-      }
-    }
-    if (overlap) presetX = undefined;
+  // Clamp to play area
+  if (x < margin) x = margin;
+  if (x + measuredWidth > playArea.clientWidth - margin) {
+    x = playArea.clientWidth - measuredWidth - margin;
   }
 
-  if (presetX === undefined) {
-    do {
+  // Check overlap with existing falling words
+  let attempts = 0;
+  let overlap = true;
+  while (overlap && attempts < 8) {
+    overlap = fallingWords.some(w =>
+      x < w.x + w.element.offsetWidth && x + measuredWidth > w.x
+    );
+    if (overlap) {
       x = margin + Math.random() * (playArea.clientWidth - measuredWidth - 2 * margin);
-      let overlap = false;
-      for (const word of fallingWords) {
-        if (x < word.x + word.element.offsetWidth && x + measuredWidth > word.x) {
-          overlap = true;
-          break;
-        }
-      }
-      if (!overlap) break;
       attempts++;
-    } while (attempts < maxAttempts);
+    }
   }
 
   wordDiv.style.left = x + "px";
@@ -696,9 +650,28 @@ function spawnWord(presetX) {
   wordDiv.addEventListener("mousedown", handleMouseDown);
   wordDiv.addEventListener("touchstart", handleTouchStart);
 
-  fallingWords.push({ element: wordDiv, x: x, y: -50, speed: FALL_SPEED });
+  fallingWords.push({ element: wordDiv, x, y: -50, speed: FALL_SPEED });
 }
 
+function spawnPair() {
+  if (wordData.length === 0) return;
+
+  const pair     = wordData[Math.floor(Math.random() * wordData.length)];
+  const pairId   = pairIdCounter++;
+  const colorClass = `pair-color-${pairId % 5}`;
+  pairTracker.set(pairId, { correctCount: 0, resolvedCount: 0 });
+
+  const divA = createTileDiv(pair.a, pairId, colorClass);
+  const divB = createTileDiv(pair.b, pairId, colorClass);
+
+  const halfW = playArea.clientWidth / 2;
+  placeTile(divA, halfW * 0.08);
+  placeTile(divB, halfW + halfW * 0.08);
+}
+
+/* ===============================
+   タイルをロック（正解時）
+=============================== */
 function lockWord(wordElem, dropCategory) {
   if (wordElem.dataset.locked === "true") return;
   wordElem.dataset.locked = "true";
@@ -706,26 +679,20 @@ function lockWord(wordElem, dropCategory) {
   const correct = wordElem.dataset.type === dropCategory;
   if (correct) {
     wordElem.classList.add("correct");
-    score += selectedTypes.size * 20;
+    score += BASE_SCORE;
     if (bonusEnabled) remainingTime += 1;
     currentCombo++;
     if (currentCombo > maxCombo) maxCombo = currentCombo;
     updateComboDisplay();
     updateTimerDisplay();
     updateScoreDisplay();
-    setTimeout(() => { wordElem.remove(); }, 500);
-  }
-  fallingWords = fallingWords.filter((w) => w.element !== wordElem);
-}
 
-function showPenaltyEffect(x, y) {
-  const effect = document.createElement("div");
-  effect.classList.add("penalty-effect");
-  effect.textContent = "-3s";
-  effect.style.left = x + "px";
-  effect.style.top = y + "px";
-  playArea.appendChild(effect);
-  setTimeout(() => { effect.remove(); }, 1000);
+    const pairId = parseInt(wordElem.dataset.pairId);
+    if (!isNaN(pairId) && pairId >= 0) onTileCorrect(pairId, wordElem);
+
+    setTimeout(() => wordElem.remove(), 500);
+  }
+  fallingWords = fallingWords.filter(w => w.element !== wordElem);
 }
 
 /* ===============================
@@ -749,13 +716,12 @@ let currentDrag = null;
 
 function handleMouseDown(e) {
   const wordElem = e.currentTarget;
-  if (wordElem.dataset.locked === "true") return;
+  if (wordElem.dataset.locked    === "true") return;
   if (wordElem.dataset.penalized === "true") return;
   e.preventDefault();
   const rect = wordElem.getBoundingClientRect();
   const offsetX = e.clientX - rect.left;
   const offsetY = e.clientY - rect.top;
-  // 黄色ハイライト語の中心位置（タイル左端からの距離）を記録
   const targetSpan = wordElem.querySelector('.target-word');
   let targetOffsetX = wordElem.offsetWidth / 2;
   if (targetSpan) {
@@ -770,20 +736,16 @@ function handleMouseMove(e) {
   if (!currentDrag) return;
   const playAreaRect = playArea.getBoundingClientRect();
   let newX = e.clientX - playAreaRect.left - currentDrag.offsetX;
-  let newY = e.clientY - playAreaRect.top - currentDrag.offsetY;
-  const wordElem = currentDrag.element;
+  let newY = e.clientY - playAreaRect.top  - currentDrag.offsetY;
+  const wordElem  = currentDrag.element;
   const elemHeight = wordElem.offsetHeight;
-  // 黄色単語がエリア左端〜右端に届くようにタイルの移動範囲を設定
   const tox = currentDrag.targetOffsetX;
   newX = Math.max(-tox, Math.min(newX, playArea.clientWidth - tox));
   newY = Math.max(0, Math.min(newY, playArea.clientHeight - elemHeight));
   wordElem.style.left = newX + "px";
-  wordElem.style.top = newY + "px";
-  const fallingWord = fallingWords.find((w) => w.element === wordElem);
-  if (fallingWord) {
-    fallingWord.x = newX;
-    fallingWord.y = newY;
-  }
+  wordElem.style.top  = newY + "px";
+  const fw = fallingWords.find(w => w.element === wordElem);
+  if (fw) { fw.x = newX; fw.y = newY; }
 }
 
 function handleMouseUp(e) {
@@ -795,9 +757,9 @@ function handleMouseUp(e) {
   if (reviewMode) {
     if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
       const dropX = getTargetWordX(wordElem);
-      const columnWidth = playArea.clientWidth / selectedTypes.size;
-      const columnIndex = Math.max(0, Math.min(Math.floor(dropX / columnWidth), selectedTypes.size - 1));
-      const dropCategory = Array.from(selectedTypes)[columnIndex];
+      const colW  = playArea.clientWidth / selectedTypes.size;
+      const colIdx = Math.max(0, Math.min(Math.floor(dropX / colW), selectedTypes.size - 1));
+      const dropCategory = Array.from(selectedTypes)[colIdx];
       if (wordElem.dataset.type === dropCategory) {
         wordElem.classList.add("correct");
         wordElem.dataset.locked = "true";
@@ -811,7 +773,7 @@ function handleMouseUp(e) {
           const y = Math.floor(playArea.clientHeight * 0.25);
           fw.x = x; fw.y = y;
           wordElem.style.left = x + "px";
-          wordElem.style.top = y + "px";
+          wordElem.style.top  = y + "px";
         }
       }
     }
@@ -821,9 +783,10 @@ function handleMouseUp(e) {
 
   if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
     const dropX = getTargetWordX(wordElem);
-    const columnWidth = playArea.clientWidth / selectedTypes.size;
-    const columnIndex = Math.max(0, Math.min(Math.floor(dropX / columnWidth), selectedTypes.size - 1));
-    const dropCategory = Array.from(selectedTypes)[columnIndex];
+    const colW  = playArea.clientWidth / selectedTypes.size;
+    const colIdx = Math.max(0, Math.min(Math.floor(dropX / colW), selectedTypes.size - 1));
+    const dropCategory = Array.from(selectedTypes)[colIdx];
+
     if (wordElem.dataset.type === dropCategory && wordElem.dataset.penalized !== "true") {
       lockWord(wordElem, dropCategory);
     } else if (wordElem.dataset.penalized !== "true") {
@@ -835,8 +798,13 @@ function handleMouseUp(e) {
       wordElem.dataset.penalized = "true";
       currentCombo = 0;
       updateComboDisplay();
-      showPenaltyEffect(parseInt(wordElem.style.left) + wordElem.offsetWidth / 2, parseInt(wordElem.style.top) - 20);
+      showPenaltyEffect(
+        parseInt(wordElem.style.left) + wordElem.offsetWidth / 2,
+        parseInt(wordElem.style.top) - 20
+      );
       wrongAnswers.push({ sentence: wordElem.dataset.sentence, word: wordElem.dataset.word, correctType: wordElem.dataset.type });
+      const pairId = parseInt(wordElem.dataset.pairId);
+      if (!isNaN(pairId) && pairId >= 0) onTileWrong(pairId);
     }
   }
   currentDrag = null;
@@ -847,13 +815,11 @@ function handleTouchStart(e) {
   e.preventDefault();
   handleMouseDown({ currentTarget: e.currentTarget, clientX: touch.clientX, clientY: touch.clientY, preventDefault: e.preventDefault.bind(e) });
 }
-
 function handleTouchMove(e) {
   if (!currentDrag) return;
   const touch = e.touches[0];
   handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
 }
-
 function handleTouchEnd(e) {
   if (!currentDrag) return;
   const touch = e.changedTouches[0];
@@ -865,27 +831,27 @@ function handleTouchEnd(e) {
 =============================== */
 function gameLoop() {
   if (gameOver) return;
-  const now = Date.now();
+  const now   = Date.now();
   const delta = (now - lastFrameTime) / 1000;
   lastFrameTime = now;
 
-  fallingWords.forEach((word) => {
+  fallingWords.forEach(word => {
     if (word.element.dataset.locked === "true") return;
-    // ドラッグ中はゲームループで位置・判定を更新しない（handleMouseUp の黄色語座標で判定）
     if (currentDrag && currentDrag.element === word.element) return;
+
     let currentSpeed = FALL_SPEED + 8 * Math.floor(score / 500);
     let newY = word.y + currentSpeed * delta;
-    const wordHeight = word.element.offsetHeight;
+    const wordHeight    = word.element.offsetHeight;
     const decisionLineY = getDecisionLineY();
 
     if (newY >= decisionLineY) {
-      const dropX = word.x + word.element.offsetWidth / 2;
-      const columnWidth = playArea.clientWidth / selectedTypes.size;
-      const columnIndex = Math.floor(dropX / columnWidth);
-      const dropCategory = Array.from(selectedTypes)[columnIndex];
+      const dropX    = word.x + word.element.offsetWidth / 2;
+      const colW     = playArea.clientWidth / selectedTypes.size;
+      const colIdx   = Math.floor(dropX / colW);
+      const dropCat  = Array.from(selectedTypes)[colIdx];
 
-      if (word.element.dataset.type === dropCategory) {
-        lockWord(word.element, dropCategory);
+      if (word.element.dataset.type === dropCat) {
+        lockWord(word.element, dropCat);
         return;
       } else {
         if (word.element.dataset.penalized !== "true") {
@@ -902,14 +868,15 @@ function gameLoop() {
           currentCombo = 0;
           updateComboDisplay();
           wrongAnswers.push({ sentence: word.element.dataset.sentence, word: word.element.dataset.word, correctType: word.element.dataset.type });
+          const pairId = parseInt(word.element.dataset.pairId);
+          if (!isNaN(pairId) && pairId >= 0) onTileWrong(pairId);
         }
+
         let landingY = playArea.clientHeight - wordHeight;
-        landedWords.forEach((lw) => {
-          const wordLeft = word.x;
-          const wordRight = word.x + word.element.offsetWidth;
-          const lwLeft = lw.x;
-          const lwRight = lw.x + lw.element.offsetWidth;
-          if (!(wordRight < lwLeft || wordLeft > lwRight)) {
+        landedWords.forEach(lw => {
+          const wL = word.x, wR = word.x + word.element.offsetWidth;
+          const lL = lw.x,  lR = lw.x + lw.element.offsetWidth;
+          if (!(wR < lL || wL > lR)) {
             const candidate = lw.y - wordHeight;
             if (candidate < landingY) landingY = candidate;
           }
@@ -929,27 +896,17 @@ function gameLoop() {
     word.element.style.top = word.y + "px";
   });
 
-  fallingWords = fallingWords.filter((word) => !word.landed && !word.remove);
+  fallingWords = fallingWords.filter(w => !w.landed && !w.remove);
 
   const sortingOverlay = document.getElementById("sortingAreaOverlay");
   if (sortingOverlay) {
-    const currentDecisionLine = getDecisionLineY();
-    sortingOverlay.style.top = currentDecisionLine + "px";
-    sortingOverlay.style.height = playArea.clientHeight - currentDecisionLine + "px";
+    const dl = getDecisionLineY();
+    sortingOverlay.style.top    = dl + "px";
+    sortingOverlay.style.height = playArea.clientHeight - dl + "px";
   }
 
   if (now - lastSpawnTime > SPAWN_INTERVAL) {
-    let spawnCount = 1 + Math.floor(score / 1500);
-    if (spawnCount > 1) {
-      const tileWidth = 200;
-      const totalSpace = playArea.clientWidth - tileWidth;
-      const spacing = totalSpace / (spawnCount - 1);
-      for (let i = 0; i < spawnCount; i++) {
-        spawnWord(i * spacing);
-      }
-    } else {
-      spawnWord();
-    }
+    spawnPair();
     lastSpawnTime = now;
   }
 
@@ -972,11 +929,8 @@ function getPlayerName() {
   if (!name) {
     while (true) {
       name = prompt("プレイヤー名を入力してください（全角8文字・半角16文字以内）") || "名無し";
-      if (displayWidth(name) > 16) {
-        alert("全角8文字（半角16文字）以内で入力してください");
-      } else {
-        break;
-      }
+      if (displayWidth(name) > 16) alert("全角8文字（半角16文字）以内で入力してください");
+      else break;
     }
     localStorage.setItem("playerName", name);
   }
@@ -987,7 +941,7 @@ function endGame() {
   gameOver = true;
   cancelAnimationFrame(gameLoopId);
   clearInterval(timerIntervalId);
-  fallingWords.forEach((word) => { word.element.style.opacity = 0.5; });
+  fallingWords.forEach(word => { word.element.style.opacity = 0.5; });
 
   const username = getPlayerName();
   saveLocalScore(username, score);
@@ -997,33 +951,29 @@ function endGame() {
 }
 
 function initGame() {
-  if (selectedTypes.size === 0) {
-    alert("少なくとも1つの品詞を選択してください！");
-    return;
-  }
-
   resetAndLockZoom();
 
   clearInterval(timerIntervalId);
   cancelAnimationFrame(gameLoopId);
-  remainingTime = TIME_LIMIT;
-  score = 0;
-  currentCombo = 0;
-  maxCombo = 0;
-  wrongAnswers = [];
-  isPaused = false;
-  reviewMode = false;
+  remainingTime    = TIME_LIMIT;
+  score            = 0;
+  currentCombo     = 0;
+  maxCombo         = 0;
+  pairCompleteCount = 0;
+  wrongAnswers     = [];
+  isPaused         = false;
+  reviewMode       = false;
   updateComboDisplay();
-  fallingWords = [];
-  landedWords = [];
-  lastSpawnTime = Date.now() - 3800;
-  lastFrameTime = Date.now();
-  gameOver = false;
+  fallingWords     = [];
+  landedWords      = [];
+  pairTracker.clear();
+  lastSpawnTime    = Date.now() - 4500;
+  lastFrameTime    = Date.now();
+  gameOver         = false;
 
   returnButton.textContent = "Return to START";
   document.getElementById("resultScreen").style.display = "none";
 
-  resetHintPanel();
   playArea.innerHTML = "";
   playArea.appendChild(createSortingArea());
   updateTimerDisplay();
@@ -1043,10 +993,7 @@ document.addEventListener("touchmove", handleTouchMove, { passive: false });
 document.addEventListener("touchend", handleTouchEnd);
 
 returnButton.addEventListener("click", () => {
-  if (reviewMode) {
-    endReviewMode(false);
-    return;
-  }
+  if (reviewMode) { endReviewMode(false); return; }
   clearInterval(timerIntervalId);
   cancelAnimationFrame(gameLoopId);
   gameScreen.style.display = "none";
@@ -1054,11 +1001,9 @@ returnButton.addEventListener("click", () => {
   unlockZoom();
 });
 
-startButton.addEventListener("click", () => { initGame(); });
+startButton.addEventListener("click", () => initGame());
 
-document.getElementById("backButton").addEventListener("click", () => {
-  window.history.back();
-});
+document.getElementById("backButton").addEventListener("click", () => window.history.back());
 
 bonusToggleButton.addEventListener("click", () => {
   bonusEnabled = !bonusEnabled;
@@ -1084,13 +1029,9 @@ document.getElementById("changeNameButton").addEventListener("click", () => {
   while (true) {
     newName = prompt("新しい名前を入力してください（全角8文字・半角16文字以内）");
     if (newName === null) return;
-    if (newName.trim() === "") {
-      alert("空の名前は使えません");
-    } else if (displayWidth(newName) > 16) {
-      alert("全角8文字（半角16文字）以内で入力してください");
-    } else {
-      break;
-    }
+    if (newName.trim() === "") alert("空の名前は使えません");
+    else if (displayWidth(newName) > 16) alert("全角8文字（半角16文字）以内で入力してください");
+    else break;
   }
   localStorage.setItem("playerName", newName);
   alert(`名前を「${newName}」に変更しました`);
@@ -1098,19 +1039,6 @@ document.getElementById("changeNameButton").addEventListener("click", () => {
 
 document.getElementById("globalResetButton").addEventListener("click", globalResetRanking);
 document.getElementById("pauseButton").addEventListener("click", pauseGame);
-
-hintToggleBtn.addEventListener("click", () => {
-  const panel = document.getElementById("hintPanel");
-  hintVisible = !hintVisible;
-  if (hintVisible) {
-    buildHintPanel();
-    panel.style.display = "flex";
-    hintToggleBtn.textContent = "✕";
-  } else {
-    panel.style.display = "none";
-    hintToggleBtn.textContent = "💡";
-  }
-});
 document.getElementById("resumeButton").addEventListener("click", resumeGame);
 document.getElementById("reviewButton").addEventListener("click", startReviewMode);
 document.getElementById("resultReturnButton").addEventListener("click", () => {
@@ -1123,5 +1051,4 @@ document.getElementById("resultReturnButton").addEventListener("click", () => {
 /* ===============================
    初期化
 =============================== */
-createTypeCheckboxes();
 showLocalRanking();

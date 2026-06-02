@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>品詞+ | 文脈で品詞を仕分けよう</title>
+    <title>品詞比較 | 同じ言葉の品詞を見比べよう</title>
     <link rel="stylesheet" href="style.css" />
 
     <!-- Firebase SDK -->
@@ -40,12 +40,12 @@
   <body>
     <!-- スタート画面 -->
     <div id="startScreen" class="screen">
-      <h1>品詞+<span class="sub">文の中の言葉の品詞を当てよう</span></h1>
+      <h1>品詞比較<span class="sub">同じ言葉でも品詞が変わる！</span></h1>
       <p class="credit">Produce by igami</p>
 
-      <div id="typeSelection">
-        <h3>出題する品詞を選択</h3>
-        <div id="typeCheckboxes"></div>
+      <div id="howto">
+        <p>🔗 同じ色の枠のタイルはペア（同じ言葉・別の品詞）</p>
+        <p>✨ 両方を正しい品詞に仕分けると<strong>ペアボーナス</strong>！</p>
       </div>
 
       <div class="button-container">
@@ -99,10 +99,8 @@
         <div id="score">Score: 0</div>
         <div id="combo">Combo: 0</div>
         <div id="maxCombo">Max: 0</div>
-        <button id="hintToggle">💡</button>
         <button id="pauseButton">⏸</button>
       </div>
-      <div id="hintPanel" style="display:none"></div>
       <div id="playArea"></div>
       <button id="returnButton">Return to START</button>
     </div>
@@ -121,6 +119,7 @@
       <div id="resultStats">
         <p>スコア: <span id="resultScore"></span></p>
         <p>最大コンボ: <span id="resultMaxCombo"></span></p>
+        <p>ペア完成: <span id="resultPairCount"></span> 組</p>
         <p>間違えた問題: <span id="resultWrongCount"></span> 問</p>
       </div>
       <div id="wrongListContainer">
