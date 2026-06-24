@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI問題作成プロンプト生成ツール｜IOgames</title>
+    <style>
+      :root {
+        --bg: #222222;
+        --panel: #2e2e2e;
+        --panel2: #383838;
+        --accent: #fed000;
+        --text: #ffffff;
+        --muted: #b8b8b8;
+        --border: #555555;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Arial, sans-serif;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.7;
+      }
+      .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+      h1 {
+        font-size: 22px;
+        color: var(--accent);
+        margin: 0 0 6px;
+      }
+      .lead { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+      .back {
+        display: inline-block;
+        margin-bottom: 16px;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .back:hover { color: var(--accent); }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 18px;
+      }
+      label.field { display: block; margin-bottom: 16px; }
+      label.field > .lbl {
+        display: block;
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 6px;
+      }
+      label.field > .hint { font-weight: normal; color: var(--muted); font-size: 12px; }
+      select, input[type="text"], input[type="number"], textarea {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 15px;
+        background: var(--panel2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-family: inherit;
+      }
+      textarea { resize: vertical; min-height: 64px; }
+      select:focus, input:focus, textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .row { display: flex; gap: 14px; flex-wrap: wrap; }
+      .row > label.field { flex: 1; min-width: 160px; }
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+      }
+      .btn-primary {
+        width: 100%;
+        padding: 14px;
+        font-size: 17px;
+        background: var(--accent);
+        color: #000;
+      }
+      .btn-primary:hover { background: #ffe14d; }
+      .btn-sub {
+        padding: 9px 16px;
+        font-size: 14px;
+        background: var(--panel2);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .btn-sub:hover { border-color: var(--accent); color: var(--accent); }
+      #outputCard { display: none; }
+      #output {
+        width: 100%;
+        min-height: 280px;
+        font-family: "SF Mono", Consolas, "Courier New", monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre;
+        overflow-x: auto;
+      }
+      .out-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .out-head h2 { font-size: 16px; margin: 0; color: var(--accent); }
+      #copyStatus { font-size: 13px; color: #7ed957; }
+      .steps { font-size: 13px; color: var(--muted); margin: 14px 0 0; padding-left: 18px; }
+      .steps li { margin-bottom: 4px; }
+      .error { color: #ff6b6b; font-size: 13px; margin-top: 8px; min-height: 18px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="back" href="../index.html">← 先生向けページに戻る</a>
+      <h1>AI問題作成プロンプト生成ツール</h1>
+      <p class="lead">
+        分類ゲームの問題（worddata.js）をAIに作らせるためのプロンプトを自動生成します。<br />
+        生成された文章をコピーして、ChatGPTやClaudeなどに貼り付けるだけ。費用はかかりません。
+      </p>
+
+      <div class="card">
+        <label class="field">
+          <span class="lbl">教科</span>
+          <select id="subject">
+            <option value="国語">国語</option>
+            <option value="数学">数学</option>
+            <option value="理科">理科</option>
+            <option value="社会">社会</option>
+            <option value="英語">英語</option>
+            <option value="家庭科">家庭科</option>
+            <option value="その他">その他</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="lbl">学習目標・単元 <span class="hint">（何を学ばせたいか。学年も入れると精度が上がります）</span></span>
+          <input type="text" id="goal" placeholder="例：中学1年・地理・世界の気候帯を区別できるようになる" />
+        </label>
+
+        <label class="field">
+          <span class="lbl">分類カテゴリー <span class="hint">（落とし分ける箱。「/」または「,」で区切る）</span></span>
+          <input type="text" id="categories" placeholder="例：熱帯 / 乾燥帯 / 温帯 / 冷帯 / 寒帯" />
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span class="lbl">問題数</span>
+            <input type="number" id="count" value="50" min="1" max="300" />
+          </label>
+          <label class="field">
+            <span class="lbl">単語の例 <span class="hint">（任意・あればAIが方向性をつかみやすい）</span></span>
+            <input type="text" id="examples" placeholder="例：サバナ気候, 砂漠気候, 地中海性気候" />
+          </label>
+        </div>
+
+        <button class="btn-primary" id="generateBtn">プロンプトを生成する</button>
+        <div class="error" id="error"></div>
+      </div>
+
+      <div class="card" id="outputCard">
+        <div class="out-head">
+          <h2>生成されたプロンプト</h2>
+          <div>
+            <button class="btn-sub" id="copyBtn">コピー</button>
+            <span id="copyStatus"></span>
+          </div>
+        </div>
+        <textarea id="output" readonly spellcheck="false"></textarea>
+        <ol class="steps">
+          <li>上の「コピー」を押す</li>
+          <li>ChatGPT や Claude などのAIに貼り付けて送信</li>
+          <li>出てきた <code>const wordData = ...</code> を <code>worddata.js</code> として保存</li>
+        </ol>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        // カテゴリー文字列を配列に（ / 、, 、読点いずれでも区切れる）
+        function parseCategories(raw) {
+          return raw
+            .split(/[\/,、]/)
+            .map(function (s) { return s.trim(); })
+            .filter(function (s) { return s.length > 0; });
+        }
+
+        function buildPrompt(opts) {
+          var cats = opts.categories;
+          var catLine = cats.join(" / ");
+          var sampleType = cats[0];
+          var exampleLine = opts.examples
+            ? "【単語の例】" + opts.examples + "\n"
+            : "";
+
+          var lines = [
+            "あなたは中学生向けの学習教材を作るプロの教育者です。",
+            "「上から落ちてくる言葉を正しいカテゴリーの箱に仕分けるゲーム」の問題データを作成してください。",
+            "",
+            "【教科】" + opts.subject,
+            "【学習目標・単元】" + opts.goal,
+            "【分類カテゴリー】" + catLine,
+            "【問題数】" + opts.count + "問",
+            exampleLine + "",
+            "【出力のルール】",
+            "・下記の JavaScript（worddata.js）の形式 *のみ* を出力してください。解説や前置きは書かないでください。",
+            "・\"word\" は画面に落ちてくる言葉です。中学生が読める表記にしてください。",
+            "・\"type\" は上の【分類カテゴリー】のいずれかと一字一句そろえてください（表記ゆれ禁止）。",
+            "・同じ word の重複は避け、各カテゴリーになるべく均等に振り分けてください。",
+            "・全部で " + opts.count + " 個の要素を作ってください。",
+            "",
+            "const wordData = [",
+            "  { \"word\": \"（例）\", \"type\": \"" + sampleType + "\" },",
+            "  // …ここに合計 " + opts.count + " 問…",
+            "];",
+            "",
+            "export default wordData;"
+          ];
+          return lines.join("\n");
+        }
+
+        var els = {
+          subject: document.getElementById("subject"),
+          goal: document.getElementById("goal"),
+          categories: document.getElementById("categories"),
+          count: document.getElementById("count"),
+          examples: document.getElementById("examples"),
+          generateBtn: document.getElementById("generateBtn"),
+          outputCard: document.getElementById("outputCard"),
+          output: document.getElementById("output"),
+          copyBtn: document.getElementById("copyBtn"),
+          copyStatus: document.getElementById("copyStatus"),
+          error: document.getElementById("error")
+        };
+
+        function generate() {
+          els.error.textContent = "";
+          els.copyStatus.textContent = "";
+
+          var goal = els.goal.value.trim();
+          var cats = parseCategories(els.categories.value);
+          var count = parseInt(els.count.value, 10);
+
+          if (!goal) {
+            els.error.textContent = "「学習目標・単元」を入力してください。";
+            return;
+          }
+          if (cats.length < 2) {
+            els.error.textContent = "「分類カテゴリー」を2つ以上、/ または , で区切って入力してください。";
+            return;
+          }
+          if (!count || count < 1) {
+            count = 50;
+            els.count.value = 50;
+          }
+
+          var prompt = buildPrompt({
+            subject: els.subject.value,
+            goal: goal,
+            categories: cats,
+            count: count,
+            examples: els.examples.value.trim()
+          });
+
+          els.output.value = prompt;
+          els.outputCard.style.display = "block";
+          return prompt;
+        }
+
+        function copyOutput() {
+          var text = els.output.value;
+          if (!text) return;
+
+          function done() {
+            els.copyStatus.textContent = "コピーしました！";
+            setTimeout(function () { els.copyStatus.textContent = ""; }, 2000);
+          }
+
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, fallbackCopy);
+          } else {
+            fallbackCopy();
+          }
+
+          function fallbackCopy() {
+            els.output.removeAttribute("readonly");
+            els.output.focus();
+            els.output.select();
+            try {
+              document.execCommand("copy");
+              done();
+            } catch (e) {
+              els.copyStatus.textContent = "手動でコピーしてください";
+            }
+            els.output.setAttribute("readonly", "readonly");
+          }
+        }
+
+        els.generateBtn.addEventListener("click", generate);
+        els.copyBtn.addEventListener("click", copyOutput);
+
+        // テスト用に内部関数を公開（本番動作には影響しない）
+        window.__promptTool = { parseCategories: parseCategories, buildPrompt: buildPrompt, generate: generate };
+      })();
+    </script>
+  </body>
+</html>

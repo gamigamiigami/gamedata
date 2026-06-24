@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>先生の方へ｜IOgames</title>
+    <style>
+      :root {
+        --bg: #222222;
+        --panel: #2e2e2e;
+        --panel2: #383838;
+        --accent: #fed000;
+        --text: #ffffff;
+        --muted: #b8b8b8;
+        --border: #555555;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Arial, sans-serif;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.8;
+      }
+      .wrap { max-width: 820px; margin: 0 auto; padding: 24px 16px 70px; }
+      a { color: var(--accent); }
+      .back { display: inline-block; margin-bottom: 14px; color: var(--muted); text-decoration: none; font-size: 14px; }
+      .back:hover { color: var(--accent); }
+      header.hero { margin-bottom: 28px; }
+      header.hero h1 { font-size: 26px; color: var(--accent); margin: 0 0 10px; }
+      header.hero p { margin: 0 0 8px; font-size: 15px; }
+      header.hero .who { color: var(--muted); font-size: 14px; }
+      h2.sec {
+        font-size: 19px;
+        margin: 34px 0 14px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid var(--accent);
+      }
+      .steps { display: flex; gap: 12px; flex-wrap: wrap; }
+      .step {
+        flex: 1; min-width: 200px;
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: 12px; padding: 16px 18px;
+      }
+      .step .num {
+        display: inline-block; width: 28px; height: 28px; line-height: 28px;
+        text-align: center; border-radius: 50%;
+        background: var(--accent); color: #000; font-weight: bold; margin-bottom: 6px;
+      }
+      .step h3 { font-size: 15px; margin: 4px 0 6px; }
+      .step p { font-size: 13px; color: var(--muted); margin: 0; }
+      .tools { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+      .tool-card {
+        flex: 1; min-width: 240px;
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: 12px; padding: 18px; text-decoration: none; color: var(--text);
+        display: block;
+      }
+      .tool-card:hover { border-color: var(--accent); }
+      .tool-card h3 { color: var(--accent); margin: 0 0 6px; font-size: 16px; }
+      .tool-card p { margin: 0; font-size: 13px; color: var(--muted); }
+      .subject-block { margin-bottom: 22px; }
+      .subject-head {
+        display: flex; align-items: center; gap: 10px;
+        font-size: 17px; font-weight: bold; margin-bottom: 8px;
+      }
+      .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+      table.games {
+        width: 100%; border-collapse: collapse; font-size: 14px;
+        background: var(--panel); border-radius: 10px; overflow: hidden;
+      }
+      table.games th, table.games td {
+        text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border);
+      }
+      table.games th { background: var(--panel2); color: var(--muted); font-weight: bold; font-size: 13px; }
+      table.games tr:last-child td { border-bottom: none; }
+      table.games a.play {
+        display: inline-block; padding: 5px 14px; background: var(--accent); color: #000;
+        border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 13px; white-space: nowrap;
+      }
+      table.games a.play:hover { background: #ffe14d; }
+      .grade-cell { color: var(--accent); white-space: nowrap; }
+      .note {
+        background: var(--panel); border: 1px dashed var(--border); border-radius: 10px;
+        padding: 14px 16px; font-size: 13px; color: var(--muted); margin-top: 8px;
+      }
+      .count { color: var(--muted); font-size: 13px; font-weight: normal; }
+      @media (max-width: 560px) {
+        table.games th:nth-child(2), table.games td:nth-child(2) { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="back" href="../index.html">← IOgames トップに戻る</a>
+
+      <header class="hero">
+        <h1>先生の方へ</h1>
+        <p>
+          IOgames は、中学生がスキマ時間に遊びながら学べる無料の学習ゲーム集です。<br />
+          スマホ・タブレット・PC のブラウザですぐに遊べます。アプリのインストールも、生徒の名前登録も不要です。
+        </p>
+        <p class="who">
+          とくに「授業だけでは足りない」「基礎がなかなか定着しない」生徒の<strong>基礎固め</strong>に向いています。
+          上位層の発展学習ではなく、勉強が苦手な生徒が平均点に近づくための“入口”として設計しています。
+        </p>
+      </header>
+
+      <h2 class="sec">授業での使い方（3ステップ）</h2>
+      <div class="steps">
+        <div class="step">
+          <span class="num">1</span>
+          <h3>ゲームのURLを共有</h3>
+          <p>使いたいゲームのリンクを、黒板に投影したり、学習支援アプリやQRで生徒に配ります。</p>
+        </div>
+        <div class="step">
+          <span class="num">2</span>
+          <h3>生徒がその場でプレイ</h3>
+          <p>生徒は自分の端末で開くだけ。ログイン不要、1ゲーム約1分。短時間で何度も挑戦できます。</p>
+        </div>
+        <div class="step">
+          <span class="num">3</span>
+          <h3>復習モードで弱点を確認</h3>
+          <p>間違えた問題はゲーム後に一覧表示され、復習モードでその場でやり直せます。</p>
+        </div>
+      </div>
+
+      <h2 class="sec">先生向けツール</h2>
+      <div class="tools">
+        <a class="tool-card" href="prompt-generator/index.html">
+          <h3>AI問題作成プロンプト生成ツール →</h3>
+          <p>学ばせたい単元とカテゴリーを入力すると、AIに渡すだけで分類ゲームの問題ができるプロンプトを自動生成します。費用ゼロ。</p>
+        </a>
+        <div class="tool-card" style="cursor: default;">
+          <h3 style="color: var(--muted);">学校登録（準備中）</h3>
+          <p>学校コードでログインすると、ランキングを学校内だけにしたり、先生が作った自作問題を生徒に配れるようになります（今後公開予定）。</p>
+        </div>
+      </div>
+
+      <h2 class="sec">ゲーム一覧 <span class="count" id="gameCount"></span></h2>
+      <div id="catalog"></div>
+      <div class="note">
+        学年・単元はおすすめの目安です。基礎の確認用なので、上の学年の復習にも、下の学年の予習にも使えます。
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        // ゲームカタログ（学年・単元の単一ソース）
+        var CATALOG = [
+          { subject: "国語", title: "自立付属仕分けゲーム", path: "../kokugo/2/①/index.html", grade: "中1〜", unit: "文法：自立語・付属語" },
+          { subject: "国語", title: "活用仕分けゲーム", path: "../kokugo/2/②/index.html", grade: "中2〜", unit: "文法：活用する語・しない語" },
+          { subject: "国語", title: "品詞仕分けゲーム１", path: "../kokugo/2/③/index.html", grade: "中1〜", unit: "文法：品詞の分類（基礎）" },
+          { subject: "国語", title: "品詞仕分けゲーム２", path: "../kokugo/2/④/index.html", grade: "中2〜", unit: "文法：品詞の分類（応用）" },
+          { subject: "国語", title: "品詞仕分けゲーム鬼", path: "../kokugo/2/⑤/index.html", grade: "中3〜", unit: "文法：品詞の分類（難）" },
+          { subject: "国語", title: "品詞+", path: "../kokugo/品詞プラス/index.html", grade: "中1〜3", unit: "文法：10品詞の分類（発展）" },
+          { subject: "国語", title: "品詞比較", path: "../kokugo/品詞比較/index.html", grade: "中1〜3", unit: "文法：紛らわしい品詞の識別" },
+          { subject: "国語", title: "品詞カスタム", path: "../kokugo/カスタム/index.html", grade: "中1〜3", unit: "文法：品詞（先生が自由設定）" },
+          { subject: "国語", title: "文節区切り（竹の節）", path: "../kokugo/1/⓪/index.html", grade: "中1〜", unit: "文法：文を文節に区切る" },
+          { subject: "国語", title: "単語区切り（竹の節）", path: "../kokugo/1/①/index.html", grade: "中1〜", unit: "文法：文を単語に区切る" },
+          { subject: "国語", title: "用言の活用パズル Pro", path: "../kokugo/4/index.html", grade: "中2〜", unit: "文法：用言の活用形" },
+          { subject: "国語", title: "用言の活用パズル Pro（別問題）", path: "../kokugo/6/index.html", grade: "中2〜", unit: "文法：用言の活用形" },
+
+          { subject: "理科", title: "セキツイ動物 分類ゲーム", path: "../rika/1/セキツイ動物/index.html", grade: "中1", unit: "生物：セキツイ動物の分類" },
+          { subject: "理科", title: "示準化石 分類ゲーム", path: "../rika/1/示準化石/index.html", grade: "中1", unit: "地学：示準化石と地質年代" },
+          { subject: "理科", title: "示準化石 分類ゲーム（イラスト版）", path: "../rika/1/示準化石_イラストver/index.html", grade: "中1", unit: "地学：示準化石（イラスト）" },
+          { subject: "理科", title: "単体・化合物 分類ゲーム", path: "../rika/2/単体・化合物①/index.html", grade: "中2", unit: "化学：単体・化合物・混合物" },
+          { subject: "理科", title: "イオン分類ゲーム ～easy～", path: "../rika/3/イオン/イオンeasy/index.html", grade: "中3", unit: "化学：イオン（基礎）" },
+          { subject: "理科", title: "イオン分類ゲーム ～nomal～", path: "../rika/3/イオン/イオンnomal/index.html", grade: "中3", unit: "化学：イオン（標準）" },
+          { subject: "理科", title: "イオン分類ゲーム ～hard～", path: "../rika/3/イオン/イオンhard/index.html", grade: "中3", unit: "化学：イオン（応用）" },
+
+          { subject: "社会", title: "都道府県・地方分けゲーム", path: "../syakai/地理/①/index.html", grade: "中1〜2", unit: "地理：都道府県と地方" },
+          { subject: "社会", title: "県庁所在地・地方分けゲーム", path: "../syakai/地理/②/index.html", grade: "中1〜2", unit: "地理：県庁所在地" },
+          { subject: "社会", title: "世界の国・州分けゲーム", path: "../syakai/地理/③/index.html", grade: "中1〜2", unit: "地理：世界の州" },
+          { subject: "社会", title: "世界の国・気候区分分けゲーム", path: "../syakai/地理/④/index.html", grade: "中1〜2", unit: "地理：世界の気候区分" },
+          { subject: "社会", title: "歴史・時代分けゲーム", path: "../syakai/歴史/①/index.html", grade: "中1〜3", unit: "歴史：時代区分" },
+
+          { subject: "英語", title: "不規則動詞", path: "../english/irregular-verbs/index.html", grade: "中2〜3", unit: "英語：不規則動詞の変化型" },
+
+          { subject: "数学", title: "正負の符号", path: "../math/sign/index.html", grade: "中1", unit: "数学：正負の数の符号判断" },
+
+          { subject: "家庭科", title: "食品群に強くなろうゲーム", path: "../kateika/index.html", grade: "中1〜2", unit: "家庭科：6つの食品群" }
+        ];
+
+        var SUBJECT_COLOR = {
+          "国語": "#ffda07",
+          "理科": "#00791c",
+          "英語": "#dc3545",
+          "数学": "#20bbbb",
+          "社会": "#9e00fa",
+          "家庭科": "#fd7e14"
+        };
+        var SUBJECT_ORDER = ["国語", "数学", "英語", "理科", "社会", "家庭科"];
+
+        function el(tag, attrs, html) {
+          var e = document.createElement(tag);
+          if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
+          if (html != null) e.innerHTML = html;
+          return e;
+        }
+
+        function render() {
+          var root = document.getElementById("catalog");
+          var groups = {};
+          CATALOG.forEach(function (g) {
+            (groups[g.subject] = groups[g.subject] || []).push(g);
+          });
+
+          SUBJECT_ORDER.forEach(function (subject) {
+            var list = groups[subject];
+            if (!list) return;
+            var color = SUBJECT_COLOR[subject] || "#fed000";
+
+            var block = el("div", { class: "subject-block" });
+            var head = el("div", { class: "subject-head" });
+            head.appendChild(el("span", { class: "dot", style: "background:" + color }));
+            head.appendChild(document.createTextNode(subject + "（" + list.length + "）"));
+            block.appendChild(head);
+
+            var table = el("table", { class: "games" });
+            table.appendChild(el("tr", null,
+              "<th>ゲーム</th><th>単元</th><th>対象</th><th></th>"));
+
+            list.forEach(function (g) {
+              var tr = el("tr");
+              tr.appendChild(el("td", null, g.title));
+              tr.appendChild(el("td", null, g.unit));
+              tr.appendChild(el("td", { class: "grade-cell" }, g.grade));
+              var td = el("td");
+              var a = el("a", { class: "play", href: g.path }, "あそぶ");
+              td.appendChild(a);
+              tr.appendChild(td);
+              table.appendChild(tr);
+            });
+
+            block.appendChild(table);
+            root.appendChild(block);
+          });
+
+          document.getElementById("gameCount").textContent = "（全" + CATALOG.length + "ゲーム）";
+        }
+
+        render();
+        window.__teachersCatalog = CATALOG;
+      })();
+    </script>
+  </body>
+</html>
