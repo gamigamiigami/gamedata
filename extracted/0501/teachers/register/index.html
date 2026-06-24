@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>学校登録｜IOgames</title>
+    <style>
+      :root {
+        --bg:#222; --panel:#2e2e2e; --panel2:#383838; --accent:#fed000;
+        --text:#fff; --muted:#b8b8b8; --border:#555; --err:#ff6b6b; --ok:#7ed957;
+      }
+      *{box-sizing:border-box}
+      body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,Arial,sans-serif;
+        margin:0;background:var(--bg);color:var(--text);line-height:1.8}
+      .wrap{max-width:680px;margin:0 auto;padding:24px 16px 70px}
+      a{color:var(--accent)}
+      .back{display:inline-block;margin-bottom:14px;color:var(--muted);text-decoration:none;font-size:14px}
+      .back:hover{color:var(--accent)}
+      h1{font-size:22px;color:var(--accent);margin:0 0 6px}
+      .lead{color:var(--muted);font-size:14px;margin:0 0 8px}
+      .privacy{background:var(--panel);border:1px dashed var(--border);border-radius:10px;
+        padding:12px 14px;font-size:12.5px;color:var(--muted);margin:14px 0 22px}
+      .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px}
+      label.field{display:block;margin-bottom:18px}
+      .lbl{display:block;font-size:14px;font-weight:bold;margin-bottom:6px}
+      .req{color:var(--accent);font-size:12px;margin-left:6px}
+      .hint{font-weight:normal;color:var(--muted);font-size:12px}
+      input[type=text],input[type=email],select{width:100%;padding:10px 12px;font-size:15px;
+        background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:inherit}
+      input:focus,select:focus{outline:none;border-color:var(--accent)}
+      .subjects{display:flex;flex-wrap:wrap;gap:8px}
+      .subjects label{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);
+        border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:14px;cursor:pointer}
+      .subjects input{accent-color:var(--accent)}
+      button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;font-weight:bold}
+      .btn-primary{width:100%;padding:14px;font-size:17px;background:var(--accent);color:#000}
+      .btn-primary:hover{background:#ffe14d}
+      .btn-primary:disabled{opacity:.6;cursor:default}
+      .msg{margin-top:12px;font-size:14px;min-height:20px}
+      .msg.error{color:var(--err)}
+      .msg.ok{color:var(--ok)}
+      #successCard{display:none;background:var(--panel);border:1px solid var(--ok);
+        border-radius:12px;padding:22px;text-align:center}
+      #successCard h2{color:var(--ok);margin:0 0 8px;font-size:18px}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="back" href="../index.html">← 先生向けページに戻る</a>
+      <h1>学校登録（申請）</h1>
+      <p class="lead">
+        学校コードを発行すると、ランキングを学校内だけにしたり、先生が作った自作問題を
+        生徒に配れるようになります（順次公開予定）。費用はかかりません。
+      </p>
+      <div class="privacy">
+        🔒 入力内容は管理者だけが確認できます（第三者は閲覧できません）。
+        生徒の個人情報は一切登録しません。連絡先メールは学校コードのご案内にのみ使用します。
+      </div>
+
+      <div class="card" id="formCard">
+        <label class="field">
+          <span class="lbl">学校名<span class="req">必須</span></span>
+          <input type="text" id="schoolName" placeholder="例：〇〇市立△△中学校" />
+        </label>
+
+        <label class="field">
+          <span class="lbl">都道府県</span>
+          <select id="prefecture"></select>
+        </label>
+
+        <div class="field">
+          <span class="lbl">使う教科 <span class="hint">（複数選択可）</span></span>
+          <div class="subjects" id="subjects"></div>
+        </div>
+
+        <label class="field">
+          <span class="lbl">担当者名 <span class="hint">（任意）</span></span>
+          <input type="text" id="contactName" placeholder="例：山田 太郎" />
+        </label>
+
+        <label class="field">
+          <span class="lbl">連絡先メールアドレス<span class="req">必須</span></span>
+          <input type="email" id="email" placeholder="例：teacher@example.ed.jp" />
+        </label>
+
+        <button class="btn-primary" id="submitBtn">この内容で申請する</button>
+        <div class="msg" id="msg"></div>
+      </div>
+
+      <div id="successCard">
+        <h2>申請を受け付けました</h2>
+        <p>管理者が確認のうえ、ご連絡先メールに学校コードをお送りします。<br />少々お待ちください。</p>
+        <a class="back" href="../index.html" style="color:var(--accent)">先生向けページに戻る</a>
+      </div>
+    </div>
+
+    <!-- 純粋ロジック（Firebaseに依存しない＝テスト可能） -->
+    <script>
+      (function () {
+        "use strict";
+        var PREFECTURES = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県","その他"];
+        var SUBJECTS = ["国語","数学","理科","社会","英語","家庭科"];
+
+        function validateEmail(s) {
+          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+        }
+
+        function validate(v) {
+          if (!v.schoolName || !v.schoolName.trim()) return { ok: false, error: "学校名を入力してください。" };
+          if (!v.email || !v.email.trim()) return { ok: false, error: "連絡先メールアドレスを入力してください。" };
+          if (!validateEmail(v.email.trim())) return { ok: false, error: "メールアドレスの形式が正しくありません。" };
+          return { ok: true };
+        }
+
+        function buildPayload(v) {
+          return {
+            schoolName: v.schoolName.trim(),
+            prefecture: v.prefecture || "",
+            subjects: Array.isArray(v.subjects) ? v.subjects : [],
+            contactName: (v.contactName || "").trim(),
+            email: v.email.trim(),
+            status: "pending",
+            createdAt: new Date().toISOString()
+          };
+        }
+
+        // DOM初期化
+        function init() {
+          var pref = document.getElementById("prefecture");
+          if (pref) {
+            pref.innerHTML = "";
+            PREFECTURES.forEach(function (p) {
+              var o = document.createElement("option");
+              o.value = p; o.textContent = p; pref.appendChild(o);
+            });
+            pref.value = "東京都";
+          }
+          var subs = document.getElementById("subjects");
+          if (subs) {
+            subs.innerHTML = "";
+            SUBJECTS.forEach(function (s) {
+              var lab = document.createElement("label");
+              var cb = document.createElement("input");
+              cb.type = "checkbox"; cb.value = s; cb.className = "subj-cb";
+              lab.appendChild(cb);
+              lab.appendChild(document.createTextNode(s));
+              subs.appendChild(lab);
+            });
+          }
+        }
+
+        function collectValues() {
+          return {
+            schoolName: (document.getElementById("schoolName") || {}).value || "",
+            prefecture: (document.getElementById("prefecture") || {}).value || "",
+            subjects: [].slice.call(document.querySelectorAll(".subj-cb:checked")).map(function (c) { return c.value; }),
+            contactName: (document.getElementById("contactName") || {}).value || "",
+            email: (document.getElementById("email") || {}).value || ""
+          };
+        }
+
+        // saveFn(payload) -> Promise。Firebase配線側から注入する。
+        function submit(saveFn) {
+          var msg = document.getElementById("msg");
+          var btn = document.getElementById("submitBtn");
+          msg.className = "msg"; msg.textContent = "";
+
+          var values = collectValues();
+          var res = validate(values);
+          if (!res.ok) { msg.className = "msg error"; msg.textContent = res.error; return Promise.resolve({ ok: false }); }
+
+          var payload = buildPayload(values);
+          if (btn) { btn.disabled = true; }
+          msg.className = "msg"; msg.textContent = "送信中…";
+
+          return Promise.resolve()
+            .then(function () { return saveFn(payload); })
+            .then(function () {
+              document.getElementById("formCard").style.display = "none";
+              document.getElementById("successCard").style.display = "block";
+              return { ok: true, payload: payload };
+            })
+            .catch(function (e) {
+              if (btn) btn.disabled = false;
+              msg.className = "msg error";
+              msg.textContent = "送信に失敗しました。時間をおいて再度お試しください。";
+              return { ok: false, error: e };
+            });
+        }
+
+        window.__register = {
+          PREFECTURES: PREFECTURES, SUBJECTS: SUBJECTS,
+          validateEmail: validateEmail, validate: validate, buildPayload: buildPayload,
+          collectValues: collectValues, submit: submit, init: init
+        };
+
+        if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+        else init();
+      })();
+    </script>
+
+    <!-- Firebase 配線（薄いグルー。失敗してもページ自体は壊れない） -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+      import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyDE2tXcwqCNqQZ72ON_48-Qkd9xGfy9y0Y",
+        authDomain: "rank-cf9fe.firebaseapp.com",
+        projectId: "rank-cf9fe",
+        storageBucket: "rank-cf9fe.firebasestorage.app",
+        messagingSenderId: "45390799176",
+        appId: "1:45390799176:web:fb547734f6b29107ca537d"
+      };
+
+      let db = null;
+      try {
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+      } catch (e) {
+        console.error("Firebase init failed", e);
+      }
+
+      const saveFn = (payload) => {
+        if (!db) return Promise.reject(new Error("no-db"));
+        return addDoc(collection(db, "school_applications"), payload);
+      };
+
+      document.getElementById("submitBtn").addEventListener("click", () => {
+        window.__register.submit(saveFn);
+      });
+    </script>
+  </body>
+</html>
