@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>管理者ダッシュボード｜IOgames</title>
+    <style>
+      :root{--bg:#222;--panel:#2e2e2e;--panel2:#383838;--accent:#fed000;
+        --text:#fff;--muted:#b8b8b8;--border:#555;--err:#ff6b6b;--ok:#7ed957}
+      *{box-sizing:border-box}
+      body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,Arial,sans-serif;
+        margin:0;background:var(--bg);color:var(--text);line-height:1.7}
+      .wrap{max-width:920px;margin:0 auto;padding:20px 16px 60px}
+      h1{font-size:20px;color:var(--accent);margin:0 0 4px}
+      .muted{color:var(--muted);font-size:13px}
+      input{padding:10px 12px;font-size:15px;background:var(--panel2);color:var(--text);
+        border:1px solid var(--border);border-radius:8px;font-family:inherit;width:100%}
+      input:focus{outline:none;border-color:var(--accent)}
+      button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;font-weight:bold}
+      .btn{padding:9px 16px;font-size:14px;background:var(--accent);color:#000}
+      .btn:hover{background:#ffe14d}
+      .btn-sub{padding:7px 12px;font-size:13px;background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+      .btn-sub:hover{border-color:var(--accent);color:var(--accent)}
+      .btn-danger{padding:7px 12px;font-size:13px;background:#3a2a2a;color:#ff9b9b;border:1px solid #6b3b3b}
+      .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px}
+      /* ログイン */
+      #loginView{max-width:380px;margin:8vh auto 0}
+      #loginView .field{margin-bottom:14px}
+      #loginView .lbl{font-size:13px;color:var(--muted);margin-bottom:5px;display:block}
+      .msg{font-size:13px;min-height:18px;margin-top:8px}
+      .msg.error{color:var(--err)} .msg.ok{color:var(--ok)}
+      /* ダッシュボード */
+      #dashView{display:none}
+      .topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);border-radius:10px;overflow:hidden}
+      th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+      th{background:var(--panel2);color:var(--muted);font-size:12px}
+      tr:last-child td{border-bottom:none}
+      .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:5px;margin:1px 2px 0 0}
+      .tag.subj{background:#3a3a2a;color:#fed000}
+      .code{font-family:Consolas,monospace;color:var(--accent);font-weight:bold;letter-spacing:1px}
+      .status-pending{color:#ffd479} .status-approved{color:var(--ok)} .status-rejected{color:#ff9b9b}
+      .empty{color:var(--muted);text-align:center;padding:26px}
+      .sec-title{font-size:15px;margin:22px 0 8px;color:var(--accent)}
+      .actions{white-space:nowrap}
+      .actions button{margin-right:6px;margin-bottom:4px}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <!-- ログイン画面 -->
+      <div id="loginView">
+        <div class="card">
+          <h1>管理者ログイン</h1>
+          <p class="muted">登録申請の確認・学校コード発行を行います。</p>
+          <div class="field">
+            <span class="lbl">メールアドレス</span>
+            <input type="email" id="adminEmail" autocomplete="username" />
+          </div>
+          <div class="field">
+            <span class="lbl">パスワード</span>
+            <input type="password" id="adminPassword" autocomplete="current-password" />
+          </div>
+          <button class="btn" id="loginBtn" style="width:100%">ログイン</button>
+          <div class="msg" id="loginMsg"></div>
+          <p class="muted" id="setupHint" style="margin-top:14px">
+            まだ設定していない場合は <code>firebase/SETUP.md</code> の手順で
+            Authを有効化し管理者アカウントを作成してください。
+          </p>
+        </div>
+      </div>
+
+      <!-- ダッシュボード -->
+      <div id="dashView">
+        <div class="topbar">
+          <div>
+            <h1>管理者ダッシュボード</h1>
+            <span class="muted" id="whoami"></span>
+          </div>
+          <div>
+            <button class="btn-sub" id="reloadBtn">再読み込み</button>
+            <button class="btn-sub" id="logoutBtn">ログアウト</button>
+          </div>
+        </div>
+        <div class="msg" id="dashMsg"></div>
+
+        <div class="sec-title">未対応の申請 <span class="muted" id="pendingCount"></span></div>
+        <div id="pendingArea"></div>
+
+        <div class="sec-title">対応済み</div>
+        <div id="doneArea"></div>
+      </div>
+    </div>
+
+    <!-- 純粋ロジック（Firebase非依存＝テスト可能） -->
+    <script>
+      (function () {
+        "use strict";
+        // 紛らわしい文字を除いた英数字（0/O/1/I/L を除外）
+        var ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+        function generateSchoolCode(rng) {
+          rng = rng || Math.random;
+          var raw = "";
+          for (var i = 0; i < 12; i++) raw += ALPHABET[Math.floor(rng() * ALPHABET.length)];
+          return raw.slice(0, 4) + "-" + raw.slice(4, 8) + "-" + raw.slice(8, 12);
+        }
+
+        function isValidCode(code) {
+          return /^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/.test(code || "");
+        }
+
+        function escapeHtml(s) {
+          return String(s == null ? "" : s)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        }
+
+        function buildApprovalMailto(app, code) {
+          var subject = "【IOgames】学校コードのご案内（" + (app.schoolName || "") + "）";
+          var origin = (typeof location !== "undefined" && location.origin) ? location.origin : "https://（サイトURL）";
+          var body =
+            (app.schoolName || "") + " ご担当者さま\n\n" +
+            "IOgames の学校登録ありがとうございます。\n" +
+            "貴校の学校コードを発行しました。\n\n" +
+            "　学校コード： " + code + "\n\n" +
+            "サイトのトップ右上「学校ログイン」からこのコードを入力すると、\n" +
+            "ランキングが学校内だけになり、先生の自作問題も使えるようになります。\n" +
+            "（コードは校内でのみ共有してください）\n\n" +
+            "サイト： " + origin + "/\n\n" +
+            "今後ともよろしくお願いいたします。\n";
+          return "mailto:" + encodeURIComponent(app.email || "") +
+            "?subject=" + encodeURIComponent(subject) +
+            "&body=" + encodeURIComponent(body);
+        }
+
+        function fmtDate(iso) {
+          if (!iso) return "";
+          var d = new Date(iso);
+          if (isNaN(d)) return escapeHtml(iso);
+          return d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate();
+        }
+
+        // 申請一覧を描画。apps: [{id, ...payload}]、handlers:{onApprove(app), onReject(app)}
+        function renderApplications(pendingEl, doneEl, apps, handlers) {
+          handlers = handlers || {};
+          var pending = apps.filter(function (a) { return (a.status || "pending") === "pending"; });
+          var done = apps.filter(function (a) { return (a.status || "pending") !== "pending"; });
+
+          // pending
+          if (!pending.length) {
+            pendingEl.innerHTML = '<div class="card empty">未対応の申請はありません。</div>';
+          } else {
+            var t = document.createElement("table");
+            t.innerHTML = "<tr><th>学校名</th><th>都道府県</th><th>教科</th><th>連絡先</th><th>申請日</th><th></th></tr>";
+            pending.forEach(function (a) {
+              var tr = document.createElement("tr");
+              var subjTags = (a.subjects || []).map(function (s) { return '<span class="tag subj">' + escapeHtml(s) + "</span>"; }).join("");
+              tr.innerHTML =
+                "<td>" + escapeHtml(a.schoolName) + (a.contactName ? '<br><span class="muted">' + escapeHtml(a.contactName) + "</span>" : "") + "</td>" +
+                "<td>" + escapeHtml(a.prefecture) + "</td>" +
+                "<td>" + subjTags + "</td>" +
+                "<td>" + escapeHtml(a.email) + "</td>" +
+                "<td>" + fmtDate(a.createdAt) + "</td>";
+              var td = document.createElement("td");
+              td.className = "actions";
+              var ap = document.createElement("button"); ap.className = "btn"; ap.textContent = "承認";
+              ap.addEventListener("click", function () { handlers.onApprove && handlers.onApprove(a); });
+              var rj = document.createElement("button"); rj.className = "btn-danger"; rj.textContent = "却下";
+              rj.addEventListener("click", function () { handlers.onReject && handlers.onReject(a); });
+              td.appendChild(ap); td.appendChild(rj);
+              tr.appendChild(td);
+              t.appendChild(tr);
+            });
+            pendingEl.innerHTML = "";
+            pendingEl.appendChild(t);
+          }
+
+          // done
+          if (!done.length) {
+            doneEl.innerHTML = '<div class="card empty">まだありません。</div>';
+          } else {
+            var t2 = document.createElement("table");
+            t2.innerHTML = "<tr><th>学校名</th><th>状態</th><th>学校コード</th><th>連絡先</th></tr>";
+            done.forEach(function (a) {
+              var tr = document.createElement("tr");
+              var st = a.status === "approved" ? '<span class="status-approved">承認済み</span>'
+                : '<span class="status-rejected">却下</span>';
+              tr.innerHTML =
+                "<td>" + escapeHtml(a.schoolName) + "</td>" +
+                "<td>" + st + "</td>" +
+                "<td>" + (a.assignedCode ? '<span class="code">' + escapeHtml(a.assignedCode) + "</span>" : "") + "</td>" +
+                "<td>" + escapeHtml(a.email) + "</td>";
+              t2.appendChild(tr);
+            });
+            doneEl.innerHTML = "";
+            doneEl.appendChild(t2);
+          }
+          return { pending: pending.length, done: done.length };
+        }
+
+        window.__admin = {
+          generateSchoolCode: generateSchoolCode,
+          isValidCode: isValidCode,
+          escapeHtml: escapeHtml,
+          buildApprovalMailto: buildApprovalMailto,
+          fmtDate: fmtDate,
+          renderApplications: renderApplications
+        };
+      })();
+    </script>
+
+    <!-- Supabase 配線（Auth + DB） -->
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+      const A = window.__admin;
+      const $ = (id) => document.getElementById(id);
+
+      let supabase;
+      try {
+        supabase = createClient(
+          'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+          'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+        );
+      } catch (e) {
+        $("loginMsg").className = "msg error";
+        $("loginMsg").textContent = "Supabaseの初期化に失敗しました。";
+      }
+
+      // ----- ログイン -----
+      $("loginBtn").addEventListener("click", async () => {
+        const msg = $("loginMsg");
+        msg.className = "msg"; msg.textContent = "ログイン中…";
+        const { error } = await supabase.auth.signInWithPassword({
+          email:    $("adminEmail").value.trim(),
+          password: $("adminPassword").value
+        });
+        if (error) {
+          msg.className = "msg error";
+          msg.textContent = "ログインに失敗しました（メール/パスワードをご確認ください）。";
+        }
+      });
+      $("adminPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginBtn").click(); });
+
+      $("logoutBtn").addEventListener("click", () => supabase.auth.signOut());
+      $("reloadBtn").addEventListener("click", () => loadApplications());
+
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (session) {
+          $("loginView").style.display = "none";
+          $("dashView").style.display = "block";
+          $("whoami").textContent = "ログイン中: " + session.user.email;
+          loadApplications();
+        } else {
+          $("dashView").style.display = "none";
+          $("loginView").style.display = "block";
+        }
+      });
+
+      // ----- 申請の読み込み -----
+      async function loadApplications() {
+        const dmsg = $("dashMsg");
+        dmsg.className = "msg"; dmsg.textContent = "読み込み中…";
+        try {
+          const { data, error } = await supabase
+            .from('school_applications')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (error) throw error;
+          const apps = (data || []).map(r => ({
+            id:          r.id,
+            schoolName:  r.school_name,
+            prefecture:  r.prefecture,
+            subjects:    r.subjects || [],
+            contactName: r.contact_name,
+            email:       r.email,
+            status:      r.status,
+            createdAt:   r.created_at
+          }));
+          const counts = A.renderApplications($("pendingArea"), $("doneArea"), apps, { onApprove, onReject });
+          $("pendingCount").textContent = "（" + counts.pending + "件）";
+          dmsg.textContent = "";
+        } catch (e) {
+          dmsg.className = "msg error";
+          dmsg.textContent = "読み込みに失敗しました。ログイン状態とSupabase設定をご確認ください。";
+        }
+      }
+
+      // ----- 承認 -----
+      async function onApprove(appDoc) {
+        const dmsg = $("dashMsg");
+        try {
+          let code = A.generateSchoolCode();
+          for (let i = 0; i < 10; i++) {
+            const { data: exists } = await supabase.from('schools').select('school_code').eq('school_code', code);
+            if (!exists || exists.length === 0) break;
+            code = A.generateSchoolCode();
+          }
+          const now = new Date().toISOString();
+          const { error: e1 } = await supabase.from('schools').upsert({
+            school_code: code,
+            school_name: appDoc.schoolName || "",
+            prefecture:  appDoc.prefecture || "",
+            created_at:  now
+          });
+          if (e1) throw e1;
+          const { error: e2 } = await supabase.from('school_private').upsert({
+            school_code:  code,
+            email:        appDoc.email || "",
+            contact_name: appDoc.contactName || ""
+          });
+          if (e2) throw e2;
+          const { error: e3 } = await supabase
+            .from('school_applications')
+            .update({ status: 'approved', assigned_code: code })
+            .eq('id', appDoc.id);
+          if (e3) throw e3;
+
+          dmsg.className = "msg ok";
+          dmsg.textContent = "学校コードを発行しました： " + code + "（連絡用メールを開きます）";
+          window.location.href = A.buildApprovalMailto(appDoc, code);
+          loadApplications();
+        } catch (e) {
+          dmsg.className = "msg error";
+          dmsg.textContent = "承認処理に失敗しました：" + (e && e.message ? e.message : e);
+        }
+      }
+
+      // ----- 却下 -----
+      async function onReject(appDoc) {
+        if (!confirm("この申請を却下しますか？")) return;
+        const { error } = await supabase
+          .from('school_applications')
+          .update({ status: 'rejected' })
+          .eq('id', appDoc.id);
+        if (error) {
+          $("dashMsg").className = "msg error";
+          $("dashMsg").textContent = "却下処理に失敗しました。";
+        } else {
+          loadApplications();
+        }
+      }
+    </script>
+  </body>
+</html>

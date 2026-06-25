@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
       const url = button.getAttribute("data-url");
-      if (!url) { alert("Coming Soon"); return; }
+      if (!url) { alert("準備中です"); return; }
       window.location.href = url;
     });
   });

@@ -128,6 +128,15 @@ h2 {
 }
 
 /* スマホ向けレスポンシブ */
+
+/* 準備中ボタン */
+.portal-button[data-url=""] {
+  opacity: 0.25;
+  cursor: not-allowed;
+  filter: grayscale(1);
+  pointer-events: none;
+  font-size: 20px;
+}
 @media (max-width: 500px) {
   .container {
     width: 95%; /* 画面幅の95%を使う */

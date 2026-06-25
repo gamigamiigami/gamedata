@@ -6,37 +6,15 @@
     <title>植物の分類ゲーム</title>
     <link rel="stylesheet" href="/gamedata/game(sort)/style.css" />
 
-    <!-- Firebase SDK -->
+    <!-- Supabase SDK -->
     <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
-      import {
-        getFirestore,
-        collection,
-        addDoc,
-        getDocs,
-        query,
-        orderBy,
-        limit
-      } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
-
-      const firebaseConfig = {
-        apiKey: "AIzaSyDE2tXcwqCNqQZ72ON_48-Qkd9xGfy9y0Y",
-        authDomain: "rank-cf9fe.firebaseapp.com",
-        databaseURL: "https://rank-cf9fe-default-rtdb.firebaseio.com",
-        projectId: "rank-cf9fe",
-        storageBucket: "rank-cf9fe.firebasestorage.app",
-        messagingSenderId: "45390799176",
-        appId: "1:45390799176:web:fb547734f6b29107ca537d",
-        measurementId: "G-3N3541718C"
-      };
-
-      const app = initializeApp(firebaseConfig);
-      const analytics = getAnalytics(app);
-      const db = getFirestore(app);
-
-      window.firebaseDB = db;
-      window.firebaseModules = { collection, addDoc, getDocs, query, orderBy, limit };
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+      try {
+        window.supabaseClient = createClient(
+          'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+          'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+        );
+      } catch(e) { console.error('Supabase init failed', e); }
     </script>
   </head>
 
