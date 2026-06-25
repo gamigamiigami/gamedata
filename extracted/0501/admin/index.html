@@ -182,7 +182,7 @@
             doneEl.innerHTML = '<div class="card empty">まだありません。</div>';
           } else {
             var t2 = document.createElement("table");
-            t2.innerHTML = "<tr><th>学校名</th><th>状態</th><th>学校コード</th><th>連絡先</th></tr>";
+            t2.innerHTML = "<tr><th>学校名</th><th>状態</th><th>学校コード</th><th>連絡先</th><th></th></tr>";
             done.forEach(function (a) {
               var tr = document.createElement("tr");
               var st = a.status === "approved" ? '<span class="status-approved">承認済み</span>'
@@ -192,6 +192,14 @@
                 "<td>" + st + "</td>" +
                 "<td>" + (a.assignedCode ? '<span class="code">' + escapeHtml(a.assignedCode) + "</span>" : "") + "</td>" +
                 "<td>" + escapeHtml(a.email) + "</td>";
+              var td = document.createElement("td");
+              td.className = "actions";
+              var dl = document.createElement("button");
+              dl.className = "btn-danger";
+              dl.textContent = "削除";
+              dl.addEventListener("click", function () { handlers.onDelete && handlers.onDelete(a); });
+              td.appendChild(dl);
+              tr.appendChild(td);
               t2.appendChild(tr);
             });
             doneEl.innerHTML = "";
@@ -353,7 +361,7 @@
             status:      r.status,
             createdAt:   r.created_at
           }));
-          const counts = A.renderApplications($("pendingArea"), $("doneArea"), apps, { onApprove, onReject });
+          const counts = A.renderApplications($("pendingArea"), $("doneArea"), apps, { onApprove, onReject, onDelete });
           $("pendingCount").textContent = "（" + counts.pending + "件）";
           dmsg.textContent = "";
         } catch (e) {
@@ -421,6 +429,44 @@
           $("dashMsg").textContent = "却下処理に失敗しました。";
         } else {
           loadApplications();
+        }
+      }
+
+      // ----- 削除 -----
+      async function onDelete(appDoc) {
+        const label = appDoc.status === "approved"
+          ? `「${appDoc.schoolName}」を削除します。\n学校コード・ランキングデータも削除されます。\nよろしいですか？`
+          : `「${appDoc.schoolName}」のログを削除しますか？`;
+        if (!confirm(label)) return;
+        const dmsg = $("dashMsg");
+        try {
+          // 申請ログを削除
+          const { error: e1 } = await supabase
+            .from('school_applications')
+            .delete()
+            .eq('id', appDoc.id);
+          if (e1) throw e1;
+
+          // 承認済みの場合は schools / school_private も削除
+          if (appDoc.status === "approved" && appDoc.assignedCode) {
+            const { error: e2 } = await supabase
+              .from('schools')
+              .delete()
+              .eq('school_code', appDoc.assignedCode);
+            if (e2) throw e2;
+            const { error: e3 } = await supabase
+              .from('school_private')
+              .delete()
+              .eq('school_code', appDoc.assignedCode);
+            if (e3) throw e3;
+          }
+
+          dmsg.className = "msg ok";
+          dmsg.textContent = "削除しました。";
+          loadApplications();
+        } catch (e) {
+          dmsg.className = "msg error";
+          dmsg.textContent = "削除に失敗しました：" + (e && e.message ? e.message : e);
         }
       }
     </script>
