@@ -45,9 +45,35 @@
       .sec-title{font-size:15px;margin:22px 0 8px;color:var(--accent)}
       .actions{white-space:nowrap}
       .actions button{margin-right:6px;margin-bottom:4px}
+      /* カスタム確認モーダル */
+      #confirmOverlay{
+        display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+        z-index:200;align-items:center;justify-content:center;padding:20px}
+      #confirmOverlay.show{display:flex}
+      #confirmBox{
+        background:var(--panel);border:1px solid var(--border);border-radius:14px;
+        padding:28px 24px;max-width:380px;width:100%;text-align:center}
+      #confirmMsg{font-size:15px;line-height:1.7;margin-bottom:22px;white-space:pre-wrap}
+      #confirmBox .btn-row{display:flex;gap:10px;justify-content:center}
+      #confirmOk{padding:10px 28px;font-size:14px;background:#ff6b6b;color:#fff;
+        border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:bold}
+      #confirmOk:hover{background:#ff4f4f}
+      #confirmCancel{padding:10px 28px;font-size:14px;background:var(--panel2);color:var(--text);
+        border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit}
+      #confirmCancel:hover{border-color:var(--accent);color:var(--accent)}
     </style>
   </head>
   <body>
+    <!-- カスタム確認ダイアログ -->
+    <div id="confirmOverlay">
+      <div id="confirmBox">
+        <div id="confirmMsg"></div>
+        <div class="btn-row">
+          <button id="confirmCancel">キャンセル</button>
+          <button id="confirmOk">削除する</button>
+        </div>
+      </div>
+    </div>
     <div class="wrap">
       <!-- ログイン画面 -->
       <div id="loginView">
@@ -225,6 +251,30 @@
 
       const A = window.__admin;
       const $ = (id) => document.getElementById(id);
+
+      // ブラウザの confirm() の代わりに使うカスタムモーダル
+      function customConfirm(message, okLabel) {
+        return new Promise(resolve => {
+          $("confirmMsg").textContent = message;
+          if (okLabel) $("confirmOk").textContent = okLabel;
+          $("confirmOverlay").classList.add("show");
+          const ok  = () => { cleanup(); resolve(true);  };
+          const ng  = () => { cleanup(); resolve(false); };
+          const esc = (e) => { if (e.key === "Escape") { cleanup(); resolve(false); } };
+          function cleanup() {
+            $("confirmOverlay").classList.remove("show");
+            $("confirmOk").removeEventListener("click", ok);
+            $("confirmCancel").removeEventListener("click", ng);
+            $("confirmOverlay").removeEventListener("click", bgClick);
+            document.removeEventListener("keydown", esc);
+          }
+          function bgClick(e) { if (e.target === $("confirmOverlay")) ng(); }
+          $("confirmOk").addEventListener("click", ok);
+          $("confirmCancel").addEventListener("click", ng);
+          $("confirmOverlay").addEventListener("click", bgClick);
+          document.addEventListener("keydown", esc);
+        });
+      }
 
       let supabase;
       try {
@@ -419,7 +469,7 @@
 
       // ----- 却下 -----
       async function onReject(appDoc) {
-        if (!confirm("この申請を却下しますか？")) return;
+        if (!await customConfirm("この申請を却下しますか？", "却下する")) return;
         const { error } = await supabase
           .from('school_applications')
           .update({ status: 'rejected' })
@@ -437,7 +487,7 @@
         const label = appDoc.status === "approved"
           ? `「${appDoc.schoolName}」を削除します。\n学校コード・ランキングデータも削除されます。\nよろしいですか？`
           : `「${appDoc.schoolName}」のログを削除しますか？`;
-        if (!confirm(label)) return;
+        if (!await customConfirm(label, "削除する")) return;
         const dmsg = $("dashMsg");
         try {
           // 申請ログを削除
