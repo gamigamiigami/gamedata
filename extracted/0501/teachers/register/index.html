@@ -232,7 +232,9 @@
         });
       }
 
-      // 申請者へ「受け付けました」メール（ベストエフォート：失敗しても申請成功は妨げない）
+      const ADMIN_EMAIL = "igamiigamiigami@gmail.com";
+
+      // 申請者へ「受け付けました」メール（ベストエフォート）
       function sendApplicantReceipt(payload) {
         const message =
           (payload.schoolName || "") + " ご担当者さま\n\n" +
@@ -253,6 +255,32 @@
         }).catch(() => {});
       }
 
+      // 管理者へ「新しい申請が届きました」通知メール（ベストエフォート）
+      function sendAdminNotification(payload) {
+        const adminUrl = "https://gamigamiigami.github.io/gamedata/admin/";
+        const message =
+          '<div style="font-family:sans-serif;max-width:540px;margin:0 auto;color:#222;">' +
+          '<h2 style="background:#222;color:#fed000;padding:14px;border-radius:8px;margin:0 0 18px;">新しい学校登録申請が届きました</h2>' +
+          '<table style="border-collapse:collapse;font-size:14px;width:100%;">' +
+          '<tr><td style="padding:6px 14px 6px 0;color:#666;white-space:nowrap;">学校名</td><td><b>' + (payload.schoolName || '') + '</b></td></tr>' +
+          '<tr><td style="padding:6px 14px 6px 0;color:#666;">都道府県</td><td>' + (payload.prefecture || '（未選択）') + '</td></tr>' +
+          '<tr><td style="padding:6px 14px 6px 0;color:#666;">教科</td><td>' + ((payload.subjects || []).join('・') || '（未選択）') + '</td></tr>' +
+          '<tr><td style="padding:6px 14px 6px 0;color:#666;">担当者</td><td>' + (payload.contactName || '（未入力）') + '</td></tr>' +
+          '<tr><td style="padding:6px 14px 6px 0;color:#666;">メール</td><td>' + (payload.email || '') + '</td></tr>' +
+          '<tr><td style="padding:6px 14px 6px 0;color:#666;">申請日時</td><td>' + (payload.createdAt || '') + '</td></tr>' +
+          '</table>' +
+          '<p style="text-align:center;margin-top:20px;">' +
+          '<a href="' + adminUrl + '" style="display:inline-block;background:#fed000;color:#000;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;">管理者ダッシュボードで確認 →</a>' +
+          '</p></div>';
+        _loadEmailJS().then(() => {
+          window.emailjs.send(_EJS_SVC, _EJS_TPL, {
+            to_email: ADMIN_EMAIL,
+            subject:  "【IOgames】新しい学校登録申請：" + (payload.schoolName || ''),
+            message:  message,
+          }).catch((e) => console.warn("管理者通知メール送信失敗", e));
+        }).catch(() => {});
+      }
+
       const saveFn = async (payload) => {
         if (!supabase) return Promise.reject(new Error("no-db"));
         const { error } = await supabase.from('school_applications').insert({
@@ -265,7 +293,8 @@
           created_at:   payload.createdAt
         });
         if (error) throw error;
-        sendApplicantReceipt(payload);   // 申請者へ受付メール
+        sendApplicantReceipt(payload);    // 申請者へ受付メール
+        sendAdminNotification(payload);   // 管理者へ通知メール
       };
 
       document.getElementById("submitBtn").addEventListener("click", () => {
