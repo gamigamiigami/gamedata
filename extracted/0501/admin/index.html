@@ -249,20 +249,51 @@
       }
       // 先生へ学校コードを送信。成功でtrue、失敗でfalse。
       async function sendCodeEmail(appDoc, code) {
+        const loginUrl = "https://gamigamiigami.github.io/gamedata/school-login/?code=" + encodeURIComponent(code);
+        const qrUrl    = "https://api.qrserver.com/v1/create-qr-code/?data=" + encodeURIComponent(loginUrl) + "&size=250x250&margin=8";
+        const name     = appDoc.schoolName || "";
+
+        // HTMLメール（EmailJSテンプレートの{{message}}を{{{message}}}に変更済みの場合のみ有効）
         const message =
-          (appDoc.schoolName || "") + " ご担当者さま\n\n" +
-          "IOgames の学校登録を承認しました。\n" +
-          "貴校の学校コードは下記のとおりです。\n\n" +
-          "　学校コード：" + code + "\n\n" +
-          "サイトのトップ右上「学校ログイン」からこのコードを入力すると、\n" +
-          "ランキングが学校内だけになり、先生の自作問題も使えるようになります。\n" +
-          "（コードは校内でのみ共有してください）\n\n" +
-          "サイト：" + SITE_URL + "\n";
+          '<div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#222;">' +
+          '<h2 style="background:#222;color:#fed000;padding:16px;border-radius:8px;margin:0 0 20px;">' +
+            'IOgames 学校登録が承認されました' +
+          '</h2>' +
+          '<p>' + name + ' ご担当者さま、</p>' +
+          '<p>学校登録ありがとうございます。貴校の学校コードを発行しました。</p>' +
+
+          '<div style="background:#f5f5f5;border-radius:10px;padding:20px;text-align:center;margin:20px 0;">' +
+            '<div style="font-size:12px;color:#666;margin-bottom:6px;">学校コード</div>' +
+            '<div style="font-size:28px;font-weight:bold;letter-spacing:4px;font-family:monospace;color:#000;">' + code + '</div>' +
+          '</div>' +
+
+          '<p style="text-align:center;font-weight:bold;">▼ このQRコードを生徒に見せてください</p>' +
+          '<div style="text-align:center;margin:12px 0 20px;">' +
+            '<img src="' + qrUrl + '" alt="学校ログインQR" width="250" height="250" style="border-radius:8px;" />' +
+          '</div>' +
+
+          '<p style="text-align:center;">' +
+            '<a href="' + loginUrl + '" style="display:inline-block;background:#fed000;color:#000;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;">' +
+              'クリックしてログイン（先生用）' +
+            '</a>' +
+          '</p>' +
+
+          '<hr style="border:none;border-top:1px solid #ddd;margin:24px 0;">' +
+          '<p style="font-size:13px;color:#666;">' +
+            '【使い方】<br>' +
+            '① 上のリンクをクリック → 自動ログイン完了<br>' +
+            '② ログイン後に「生徒用QRコードを表示する」ボタンを押す<br>' +
+            '③ 表示されたQRをプロジェクターで生徒に見せる<br>' +
+            '④ 生徒がスキャン → 学校ランキングが使えるようになります' +
+          '</p>' +
+          '<p style="font-size:12px;color:#999;">※コードは校内でのみ共有してください。</p>' +
+          '</div>';
+
         try {
           await _loadEmailJS();
           await window.emailjs.send(_EJS_SVC, _EJS_TPL, {
             to_email: appDoc.email,
-            subject:  "【IOgames】学校コードのご案内（" + (appDoc.schoolName || "") + "）",
+            subject:  "【IOgames】学校コードのご案内（" + name + "）",
             message:  message,
           });
           return true;
