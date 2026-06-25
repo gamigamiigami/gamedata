@@ -28,7 +28,10 @@ begin
     ),
     body    := jsonb_build_object(
       'from',    'IOgames <onboarding@resend.dev>',
-      'to',      jsonb_build_array('igamiigamiigami+K@gmail.com'),
+      -- Resendのテストモードは「登録アドレスぴったり」宛のみ可。
+      -- +K 付きエイリアスは弾かれるため登録アドレス本体を使う（同じ受信箱に届く）。
+      -- 将来 resend.com/domains で独自ドメインを認証すれば任意の宛先に送れる。
+      'to',      jsonb_build_array('igamiigamiigami@gmail.com'),
       'subject', '【IOgames】新しい学校申請：' || coalesce(NEW.school_name, ''),
       'html',
         '<div style="font-family:sans-serif;max-width:560px;margin:0 auto">' ||
