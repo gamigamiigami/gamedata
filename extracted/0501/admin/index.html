@@ -211,57 +211,47 @@
       })();
     </script>
 
-    <!-- Firebase 配線（Auth + Firestore） -->
+    <!-- Supabase 配線（Auth + DB） -->
     <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-      import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut }
-        from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
-      import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, query, orderBy }
-        from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
-
-      const firebaseConfig = {
-        apiKey: "AIzaSyD7ma86vV8lzcXGLxNrj2PbfhsdZiUHrs4",
-        authDomain: "gamigame915.firebaseapp.com",
-        projectId: "gamigame915",
-        storageBucket: "gamigame915.firebasestorage.app",
-        messagingSenderId: "633340854168",
-        appId: "1:633340854168:web:fb547734f6b29107ca537d"
-      };
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
       const A = window.__admin;
       const $ = (id) => document.getElementById(id);
 
-      let app, auth, db;
+      let supabase;
       try {
-        app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
+        supabase = createClient(
+          'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+          'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+        );
       } catch (e) {
         $("loginMsg").className = "msg error";
-        $("loginMsg").textContent = "Firebaseの初期化に失敗しました。";
+        $("loginMsg").textContent = "Supabaseの初期化に失敗しました。";
       }
 
       // ----- ログイン -----
       $("loginBtn").addEventListener("click", async () => {
         const msg = $("loginMsg");
         msg.className = "msg"; msg.textContent = "ログイン中…";
-        try {
-          await signInWithEmailAndPassword(auth, $("adminEmail").value.trim(), $("adminPassword").value);
-        } catch (e) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email:    $("adminEmail").value.trim(),
+          password: $("adminPassword").value
+        });
+        if (error) {
           msg.className = "msg error";
           msg.textContent = "ログインに失敗しました（メール/パスワードをご確認ください）。";
         }
       });
       $("adminPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginBtn").click(); });
 
-      $("logoutBtn").addEventListener("click", () => signOut(auth));
+      $("logoutBtn").addEventListener("click", () => supabase.auth.signOut());
       $("reloadBtn").addEventListener("click", () => loadApplications());
 
-      onAuthStateChanged(auth, (user) => {
-        if (user) {
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (session) {
           $("loginView").style.display = "none";
           $("dashView").style.display = "block";
-          $("whoami").textContent = "ログイン中: " + (user.email || user.uid);
+          $("whoami").textContent = "ログイン中: " + session.user.email;
           loadApplications();
         } else {
           $("dashView").style.display = "none";
@@ -274,19 +264,27 @@
         const dmsg = $("dashMsg");
         dmsg.className = "msg"; dmsg.textContent = "読み込み中…";
         try {
-          let snap;
-          try {
-            snap = await getDocs(query(collection(db, "school_applications"), orderBy("createdAt", "desc")));
-          } catch (_) {
-            snap = await getDocs(collection(db, "school_applications"));
-          }
-          const apps = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+          const { data, error } = await supabase
+            .from('school_applications')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (error) throw error;
+          const apps = (data || []).map(r => ({
+            id:          r.id,
+            schoolName:  r.school_name,
+            prefecture:  r.prefecture,
+            subjects:    r.subjects || [],
+            contactName: r.contact_name,
+            email:       r.email,
+            status:      r.status,
+            createdAt:   r.created_at
+          }));
           const counts = A.renderApplications($("pendingArea"), $("doneArea"), apps, { onApprove, onReject });
           $("pendingCount").textContent = "（" + counts.pending + "件）";
           dmsg.textContent = "";
         } catch (e) {
           dmsg.className = "msg error";
-          dmsg.textContent = "読み込みに失敗しました。セキュリティルールと管理者UIDの設定をご確認ください。";
+          dmsg.textContent = "読み込みに失敗しました。ログイン状態とSupabase設定をご確認ください。";
         }
       }
 
@@ -294,30 +292,31 @@
       async function onApprove(appDoc) {
         const dmsg = $("dashMsg");
         try {
-          // ユニークなコードを生成（既存と衝突しないものを最大10回試行）
           let code = A.generateSchoolCode();
           for (let i = 0; i < 10; i++) {
-            const exists = await getDocs(query(collection(db, "schools")));
-            const used = new Set(exists.docs.map((d) => d.id));
-            if (!used.has(code)) break;
+            const { data: exists } = await supabase.from('schools').select('school_code').eq('school_code', code);
+            if (!exists || exists.length === 0) break;
             code = A.generateSchoolCode();
           }
           const now = new Date().toISOString();
-          // 公開情報（メールを含めない）
-          await setDoc(doc(db, "schools", code), {
-            schoolName: appDoc.schoolName || "",
-            prefecture: appDoc.prefecture || "",
-            code: code, active: true, createdAt: now
+          const { error: e1 } = await supabase.from('schools').upsert({
+            school_code: code,
+            school_name: appDoc.schoolName || "",
+            prefecture:  appDoc.prefecture || "",
+            created_at:  now
           });
-          // 非公開情報（管理者のみ）
-          await setDoc(doc(db, "school_private", code), {
-            schoolName: appDoc.schoolName || "",
-            email: appDoc.email || "",
-            contactName: appDoc.contactName || "",
-            createdAt: now
+          if (e1) throw e1;
+          const { error: e2 } = await supabase.from('school_private').upsert({
+            school_code:  code,
+            email:        appDoc.email || "",
+            contact_name: appDoc.contactName || ""
           });
-          // 申請を承認済みに
-          await updateDoc(doc(db, "school_applications", appDoc.id), { status: "approved", assignedCode: code });
+          if (e2) throw e2;
+          const { error: e3 } = await supabase
+            .from('school_applications')
+            .update({ status: 'approved', assigned_code: code })
+            .eq('id', appDoc.id);
+          if (e3) throw e3;
 
           dmsg.className = "msg ok";
           dmsg.textContent = "学校コードを発行しました： " + code + "（連絡用メールを開きます）";
@@ -332,12 +331,15 @@
       // ----- 却下 -----
       async function onReject(appDoc) {
         if (!confirm("この申請を却下しますか？")) return;
-        try {
-          await updateDoc(doc(db, "school_applications", appDoc.id), { status: "rejected" });
-          loadApplications();
-        } catch (e) {
+        const { error } = await supabase
+          .from('school_applications')
+          .update({ status: 'rejected' })
+          .eq('id', appDoc.id);
+        if (error) {
           $("dashMsg").className = "msg error";
           $("dashMsg").textContent = "却下処理に失敗しました。";
+        } else {
+          loadApplications();
         }
       }
     </script>

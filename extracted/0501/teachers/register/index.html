@@ -199,31 +199,32 @@
       })();
     </script>
 
-    <!-- Firebase 配線（薄いグルー。失敗してもページ自体は壊れない） -->
+    <!-- Supabase 配線 -->
     <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-      import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyD7ma86vV8lzcXGLxNrj2PbfhsdZiUHrs4",
-        authDomain: "gamigame915.firebaseapp.com",
-        projectId: "gamigame915",
-        storageBucket: "gamigame915.firebasestorage.app",
-        messagingSenderId: "633340854168",
-        appId: "1:633340854168:web:fb547734f6b29107ca537d"
-      };
-
-      let db = null;
+      let supabase = null;
       try {
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
+        supabase = createClient(
+          'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+          'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+        );
       } catch (e) {
-        console.error("Firebase init failed", e);
+        console.error("Supabase init failed", e);
       }
 
-      const saveFn = (payload) => {
-        if (!db) return Promise.reject(new Error("no-db"));
-        return addDoc(collection(db, "school_applications"), payload);
+      const saveFn = async (payload) => {
+        if (!supabase) return Promise.reject(new Error("no-db"));
+        const { error } = await supabase.from('school_applications').insert({
+          school_name:  payload.schoolName,
+          prefecture:   payload.prefecture,
+          subjects:     payload.subjects,
+          contact_name: payload.contactName,
+          email:        payload.email,
+          status:       payload.status,
+          created_at:   payload.createdAt
+        });
+        if (error) throw error;
       };
 
       document.getElementById("submitBtn").addEventListener("click", () => {

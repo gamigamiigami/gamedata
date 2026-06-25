@@ -99,9 +99,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// --- Firestore 操作用関数等 ---
-function getDb() { return window.firebaseDB; }
-function getModules() { return window.firebaseModules; }
+// --- Supabase 操作用関数 ---
+function getSupabase() { return window.supabaseClient; }
 
 /* ===============================
    パスワード認証（SHA-256）
@@ -137,13 +136,14 @@ async function globalResetRanking() {
   if (!ok) { alert("パスワードが違います"); return; }
   if (!confirm("グローバルランキングをリセットします。\nこの操作は取り消せません。よろしいですか？")) return;
 
-  const db = getDb();
-  if (!db) { alert("Firebase未接続"); return; }
-  const { getDocs, collection } = getModules();
+  const supabase = getSupabase();
+  if (!supabase) { alert("DB未接続"); return; }
   try {
-    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js");
-    const snap = await getDocs(collection(db, getFirestoreCollectionName()));
-    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    const { error } = await supabase
+      .from('global_rankings')
+      .delete()
+      .eq('game_key', getFirestoreCollectionName());
+    if (error) throw error;
     alert("グローバルランキングをリセットしました");
     await window.displayAltRanking();
   } catch (e) {
@@ -343,45 +343,39 @@ function getFirestoreCollectionName() {
   return "ranks" + title + (bonusEnabled ? "" : "_nobonus");
 }
 
-// Firestore から上位 N 件を取得して #alt-ranking-table に描画
+// Supabase から上位 N 件を取得して #alt-ranking-table に描画
 window.displayAltRanking = async function(limitNum = 30) {
   const tbody       = document.querySelector("#alt-ranking-table tbody");
   tbody.innerHTML   = "<tr><td colspan='3'>読み込み中...</td></tr>";
   const seenDevices = new Set();
-  const db = getDb();
-  if (!db) {
-    tbody.innerHTML = "<tr><td colspan='3'>Firebase未接続</td></tr>";
+  const supabase    = getSupabase();
+  if (!supabase) {
+    tbody.innerHTML = "<tr><td colspan='3'>DB未接続</td></tr>";
     return;
   }
-  const { getDocs, query, collection, orderBy, limit } = getModules();
   try {
-    const qSnap = await getDocs(
-      query(
-        collection(db, getFirestoreCollectionName()),
-        orderBy("score", "desc"),
-        limit(limitNum * 100) // 重複排除用に多めに取得
-      )
-    );
+    const { data, error } = await supabase
+      .from('global_rankings')
+      .select('player, score, device_id')
+      .eq('game_key', getFirestoreCollectionName())
+      .order('score', { ascending: false })
+      .limit(limitNum * 100);
+    if (error) throw error;
     tbody.innerHTML = "";
     let count = 0;
-    for (const docSnap of qSnap.docs) {
-      const { player, score, deviceId } = docSnap.data();
-      if (seenDevices.has(deviceId)) continue;
-      seenDevices.add(deviceId);
+    for (const row of (data || [])) {
+      if (seenDevices.has(row.device_id)) continue;
+      seenDevices.add(row.device_id);
       count++;
       if (count > limitNum) break;
       const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${count}</td>
-        <td>${player}</td>
-        <td>${score}</td>
-      `;
+      tr.innerHTML = `<td>${count}</td><td>${row.player}</td><td>${row.score}</td>`;
       tbody.appendChild(tr);
     }
     if (count === 0) tbody.innerHTML = "<tr><td colspan='3'>データなし</td></tr>";
   } catch (e) {
     tbody.innerHTML = "<tr><td colspan='3'>取得エラー</td></tr>";
-    console.error("Firestore 読み込みエラー:", e);
+    console.error("Supabase 読み込みエラー:", e);
   }
 };
 
@@ -405,23 +399,21 @@ async function _loadEmailJS() {
   });
 }
 
-// 禁止ワード使用を violations コレクションに記録し、メール通知（ユーザーには通知しない）
+// 禁止ワード使用を violations テーブルに記録し、メール通知（ユーザーには通知しない）
 async function logViolation(username) {
   const deviceId   = localStorage.getItem("deviceId") || "unknown";
   const deviceInfo = `${screen.width}×${screen.height} / ${navigator.userAgent}`;
   const dateStr    = new Date().toLocaleString("ja-JP");
 
-  // Firestore に記録
-  const db = getDb();
-  if (db) {
-    const { addDoc, collection } = getModules();
-    addDoc(collection(db, "violations"), {
-      name:       username,
-      game:       title,
-      date:       new Date().toISOString(),
-      deviceId:   deviceId,
-      deviceInfo: deviceInfo,
-    }).catch(() => {});
+  const supabase = getSupabase();
+  if (supabase) {
+    supabase.from('violations').insert({
+      name:        username,
+      game:        title,
+      date:        new Date().toISOString(),
+      device_id:   deviceId,
+      device_info: deviceInfo,
+    }).then(() => {}).catch(() => {});
   }
 
   // メール通知（EmailJS）
@@ -436,26 +428,27 @@ async function logViolation(username) {
   }).catch(() => {});
 }
 
-// Firestore にスコアを保存（deviceId も添付）
-async function saveToFirebase(username, score) {
+// Supabase にスコアを保存（device_id も添付）
+async function saveToSupabase(username, score) {
   if (containsBadWord(username)) {
     logViolation(username);
     return;
   }
   const today    = new Date().toISOString().slice(0, 10);
   const deviceId = localStorage.getItem("deviceId");
-  const db = getDb();
-  if (!db) return;
-  const { addDoc, collection } = getModules();
+  const supabase = getSupabase();
+  if (!supabase) return;
   try {
-    await addDoc(collection(db, getFirestoreCollectionName()), {
-      date:     today,
-      player:   username,
-      score:    score,
-      deviceId: deviceId
+    const { error } = await supabase.from('global_rankings').insert({
+      game_key:  getFirestoreCollectionName(),
+      date:      today,
+      player:    username,
+      score:     score,
+      device_id: deviceId
     });
+    if (error) console.error("Supabase 保存エラー:", error);
   } catch (e) {
-    console.error("Firestore 保存エラー:", e);
+    console.error("Supabase 保存エラー:", e);
   }
 }
 
@@ -1198,7 +1191,7 @@ if (!username) {
 
 
   saveScore(username, score);
-  saveToFirebase(username, score);
+  saveToSupabase(username, score);
 
   showResultScreen();
 }

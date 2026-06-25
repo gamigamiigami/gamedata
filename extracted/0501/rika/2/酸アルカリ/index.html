@@ -6,37 +6,15 @@
     <title>酸・アルカリ・中性 仕分けゲーム</title>
     <link rel="stylesheet" href="/gamedata/game(sort)/style.css" />
 
-    <!-- Firebase SDK -->
+    <!-- Supabase SDK -->
     <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
-      import {
-        getFirestore,
-        collection,
-        addDoc,
-        getDocs,
-        query,
-        orderBy,
-        limit
-      } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
-
-      const firebaseConfig = {
-        apiKey: "AIzaSyD7ma86vV8lzcXGLxNrj2PbfhsdZiUHrs4",
-        authDomain: "gamigame915.firebaseapp.com",
-        databaseURL: "https://gamigame915-default-rtdb.firebaseio.com",
-        projectId: "gamigame915",
-        storageBucket: "gamigame915.firebasestorage.app",
-        messagingSenderId: "633340854168",
-        appId: "1:633340854168:web:fb547734f6b29107ca537d",
-        measurementId: "G-3N3541718C"
-      };
-
-      const app = initializeApp(firebaseConfig);
-      const analytics = getAnalytics(app);
-      const db = getFirestore(app);
-
-      window.firebaseDB = db;
-      window.firebaseModules = { collection, addDoc, getDocs, query, orderBy, limit };
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+      try {
+        window.supabaseClient = createClient(
+          'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+          'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+        );
+      } catch(e) { console.error('Supabase init failed', e); }
     </script>
   </head>
 
