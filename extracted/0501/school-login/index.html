@@ -23,16 +23,16 @@
         max-width:420px; width:100%;
       }
       h1 { color:var(--accent); font-size:22px; margin:0 0 6px; }
-      .sub { color:var(--muted); font-size:13px; margin:0 0 24px; line-height:1.6; }
+      .sub { color:var(--muted); font-size:13px; margin:0 0 20px; line-height:1.6; }
       label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
-      input[type="text"] {
-        width:100%; padding:14px; font-size:22px; letter-spacing:4px;
+      input[type="text"], input[type="password"] {
+        width:100%; padding:14px; font-size:18px;
         text-align:center; background:var(--panel2); color:var(--text);
         border:2px solid var(--border); border-radius:10px;
         font-family:Consolas,"Courier New",monospace;
-        text-transform:uppercase;
       }
-      input[type="text"]:focus { outline:none; border-color:var(--accent); }
+      input[type="text"] { letter-spacing:4px; text-transform:uppercase; }
+      input[type="text"]:focus, input[type="password"]:focus { outline:none; border-color:var(--accent); }
       .btn {
         display:block; width:100%; padding:14px; font-size:16px;
         font-weight:bold; background:var(--accent); color:#000;
@@ -49,6 +49,13 @@
         margin-top:10px; font-family:inherit; transition:background .15s;
       }
       .btn-qr:hover { background:#3a3a1a; }
+      .btn-teacher-games {
+        display:block; width:100%; padding:12px; font-size:14px;
+        font-weight:bold; background:#2a2a3a; color:#8888ff;
+        border:1px solid #4444aa; border-radius:10px; cursor:pointer;
+        margin-top:10px; font-family:inherit; text-align:center; text-decoration:none;
+      }
+      .btn-teacher-games:hover { background:#33334a; }
       .msg { font-size:13px; min-height:20px; margin-top:12px; text-align:center; }
       .msg.error { color:var(--err); }
       .msg.ok    { color:var(--ok); }
@@ -64,6 +71,11 @@
         font-family:Consolas,monospace; color:var(--muted);
         font-size:13px; margin-top:4px; letter-spacing:2px;
       }
+      .teacher-badge {
+        display:inline-block; font-size:11px; background:#3a3a6a;
+        color:#aaaaff; border:1px solid #5555aa; border-radius:4px;
+        padding:2px 8px; margin-top:4px;
+      }
       .btn-logout {
         display:block; width:100%; padding:12px; font-size:14px;
         background:#3a2a2a; color:#ff9b9b; border:1px solid #6b3b3b;
@@ -75,7 +87,19 @@
         padding:12px 14px; font-size:12px; color:var(--muted); margin-top:16px; line-height:1.7;
       }
       .hint b { color:var(--accent); }
-
+      /* タブ */
+      .tabs {
+        display:flex; border-bottom:1px solid var(--border); margin-bottom:20px; gap:0;
+      }
+      .tab-btn {
+        flex:1; padding:10px; font-size:14px; font-weight:bold;
+        background:none; border:none; color:var(--muted); cursor:pointer;
+        border-bottom:3px solid transparent; font-family:inherit; transition:.15s;
+      }
+      .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+      .tab-btn:hover:not(.active) { color:var(--text); }
+      .tab-pane { display:none; }
+      .tab-pane.active { display:block; }
       /* QRフルスクリーンオーバーレイ */
       #qrOverlay {
         display:none; position:fixed; inset:0;
@@ -111,22 +135,56 @@
     <!-- 通常ログインフォーム -->
     <div id="loginCard" class="card">
       <h1>学校ログイン</h1>
-      <p class="sub">
-        学校コードを入力すると、ランキングが学校内の生徒だけになります。<br>
-        先生から共有されたコードを入力してください。
-      </p>
-      <label for="codeInput">学校コード（例: ABCD-EFGH-JKMN）</label>
-      <input
-        id="codeInput" type="text" maxlength="14"
-        placeholder="XXXX-XXXX-XXXX"
-        autocomplete="off" autocapitalize="characters" spellcheck="false"
-      />
-      <button id="loginBtn" class="btn">ログイン</button>
-      <div class="msg" id="msg"></div>
-      <div class="hint">
-        <b>QRコードでログインする場合</b><br>
-        先生のQRコードをスキャンすると自動的にこの画面が開き、ログインが完了します。
+      <div class="tabs">
+        <button class="tab-btn active" id="tabStudent">生徒ログイン</button>
+        <button class="tab-btn" id="tabTeacher">先生ログイン</button>
       </div>
+
+      <!-- 生徒タブ -->
+      <div id="paneStudent" class="tab-pane active">
+        <p class="sub">
+          学校コードを入力すると、ランキングが学校内の生徒だけになります。<br>
+          先生から共有されたコードを入力してください。
+        </p>
+        <label for="codeInputStudent">学校コード（例: ABCD-EFGH-JKMN）</label>
+        <input
+          id="codeInputStudent" type="text" maxlength="14"
+          placeholder="XXXX-XXXX-XXXX"
+          autocomplete="off" autocapitalize="characters" spellcheck="false"
+        />
+        <button id="loginBtnStudent" class="btn">ログイン</button>
+        <div class="msg" id="msgStudent"></div>
+        <div class="hint">
+          <b>QRコードでログインする場合</b><br>
+          先生のQRコードをスキャンすると自動的にこの画面が開き、ログインが完了します。
+        </div>
+      </div>
+
+      <!-- 先生タブ -->
+      <div id="paneTeacher" class="tab-pane">
+        <p class="sub">
+          先生専用ログインです。学校コードと管理者から発行されたパスワードを入力してください。
+        </p>
+        <div style="margin-bottom:14px;">
+          <label for="codeInputTeacher">学校コード（例: ABCD-EFGH-JKMN）</label>
+          <input
+            id="codeInputTeacher" type="text" maxlength="14"
+            placeholder="XXXX-XXXX-XXXX"
+            autocomplete="off" autocapitalize="characters" spellcheck="false"
+          />
+        </div>
+        <div style="margin-bottom:4px;">
+          <label for="teacherPasswordInput">先生パスワード（6文字）</label>
+          <input
+            id="teacherPasswordInput" type="password" maxlength="6"
+            placeholder="● ● ● ● ● ●"
+            autocomplete="current-password" spellcheck="false"
+          />
+        </div>
+        <button id="loginBtnTeacher" class="btn">先生ログイン</button>
+        <div class="msg" id="msgTeacher"></div>
+      </div>
+
       <div class="back"><a href="../">← メインポータルへ戻る</a></div>
     </div>
 
@@ -138,8 +196,10 @@
         <div class="school-label">学校</div>
         <div class="school-name" id="loggedSchoolName"></div>
         <div class="school-code" id="loggedCode"></div>
+        <div id="teacherBadgeArea"></div>
       </div>
       <a href="../" class="btn">ゲームをプレイする →</a>
+      <a id="teacherGamesLink" href="../teacher-games/" class="btn-teacher-games" style="display:none;">先生専用ゲーム管理 →</a>
       <!-- 先生用：生徒にQRを見せるボタン -->
       <button id="showQrBtn" class="btn-qr">📱 生徒用QRコードを表示する</button>
       <button id="logoutBtn" class="btn-logout">ログアウト（学校コードをリセット）</button>
@@ -170,7 +230,7 @@
       const MAX_ATTEMPTS = 5;
       const LOCK_MS = 10 * 60 * 1000;
 
-      /* ---- ロックアウト管理（localStorage） ---- */
+      /* ---- ロックアウト管理 ---- */
       function isLocked() {
         return Date.now() < parseInt(localStorage.getItem('schoolLoginLockUntil') || '0');
       }
@@ -195,7 +255,7 @@
         localStorage.removeItem('schoolLoginLockUntil');
       }
 
-      /* ---- コード入力フォーマット（XXXX-XXXX-XXXX） ---- */
+      /* ---- コードフォーマット ---- */
       function formatCode(raw) {
         const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
         if (clean.length <= 4) return clean;
@@ -203,10 +263,25 @@
         return clean.slice(0,4) + '-' + clean.slice(4,8) + '-' + clean.slice(8);
       }
 
-      function showMsg(text, type) {
-        $('msg').textContent = text;
-        $('msg').className = 'msg' + (type ? ' ' + type : '');
+      /* ---- SHA-256ハッシュ ---- */
+      async function sha256(text) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
       }
+
+      /* ---- タブ切り替え ---- */
+      $('tabStudent').addEventListener('click', () => {
+        $('tabStudent').classList.add('active');
+        $('tabTeacher').classList.remove('active');
+        $('paneStudent').classList.add('active');
+        $('paneTeacher').classList.remove('active');
+      });
+      $('tabTeacher').addEventListener('click', () => {
+        $('tabTeacher').classList.add('active');
+        $('tabStudent').classList.remove('active');
+        $('paneTeacher').classList.add('active');
+        $('paneStudent').classList.remove('active');
+      });
 
       /* ---- QR表示 ---- */
       function showQR(code, schoolName) {
@@ -216,8 +291,6 @@
         $('qrSchoolName').textContent = schoolName || code;
         $('qrCodeText').textContent   = code;
         $('qrOverlay').classList.add('show');
-
-        // QRコードをcanvasに描画
         QRCode.toCanvas($('qrCanvas'), loginUrl, {
           width: Math.min(300, window.innerWidth * 0.75),
           margin: 2,
@@ -232,11 +305,17 @@
       /* ---- 既存ログイン状態チェック ---- */
       const storedCode = localStorage.getItem('schoolCode');
       const storedName = localStorage.getItem('schoolName');
+      const storedRole = localStorage.getItem('teacherRole');
+
       if (storedCode) {
         $('loginCard').style.display    = 'none';
         $('loggedInCard').style.display = 'block';
         $('loggedSchoolName').textContent = storedName || '（名称不明）';
         $('loggedCode').textContent       = storedCode;
+        if (storedRole === 'teacher') {
+          $('teacherBadgeArea').innerHTML = '<span class="teacher-badge">先生ログイン中</span>';
+          $('teacherGamesLink').style.display = 'block';
+        }
       }
 
       $('showQrBtn').addEventListener('click', () => {
@@ -247,37 +326,39 @@
         if (!confirm('学校コードをリセットします。ランキングは全国表示に戻ります。')) return;
         localStorage.removeItem('schoolCode');
         localStorage.removeItem('schoolName');
+        localStorage.removeItem('teacherRole');
         $('loggedInCard').style.display = 'none';
         $('loginCard').style.display    = 'block';
       });
 
-      /* ---- コード入力フォーマット（タイプ中） ---- */
-      $('codeInput').addEventListener('input', e => {
+      /* ---- コード入力フォーマット ---- */
+      $('codeInputStudent').addEventListener('input', e => {
+        e.target.value = formatCode(e.target.value);
+      });
+      $('codeInputTeacher').addEventListener('input', e => {
         e.target.value = formatCode(e.target.value);
       });
 
       /* ---- QR / URL ?code= 自動ログイン ---- */
       const urlCode = new URLSearchParams(location.search).get('code');
       if (urlCode && !storedCode) {
-        $('codeInput').value = formatCode(urlCode);
-        setTimeout(tryLogin, 400);
+        $('codeInputStudent').value = formatCode(urlCode);
+        setTimeout(tryStudentLogin, 400);
       }
 
-      /* ---- ログイン処理 ---- */
-      async function tryLogin() {
+      /* ---- 生徒ログイン ---- */
+      async function tryStudentLogin() {
         if (isLocked()) {
-          showMsg('ログイン制限中です。' + lockMinLeft() + '分後に再試行してください。', 'error');
+          showMsg('msgStudent', 'ログイン制限中です。' + lockMinLeft() + '分後に再試行してください。', 'error');
           return;
         }
-
-        const code = $('codeInput').value.trim().toUpperCase();
+        const code = $('codeInputStudent').value.trim().toUpperCase();
         if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
-          showMsg('形式が正しくありません（XXXX-XXXX-XXXX）', 'error');
+          showMsg('msgStudent', '形式が正しくありません（XXXX-XXXX-XXXX）', 'error');
           return;
         }
-
-        $('loginBtn').disabled = true;
-        showMsg('確認中…', '');
+        $('loginBtnStudent').disabled = true;
+        showMsg('msgStudent', '確認中…', '');
 
         try {
           const { data } = await supabase
@@ -289,27 +370,116 @@
           if (!data) {
             recordFail();
             if (isLocked()) {
-              showMsg('5回連続で失敗しました。10分間ログインできません。', 'error');
+              showMsg('msgStudent', '5回連続で失敗しました。10分間ログインできません。', 'error');
             } else {
-              showMsg('コードが見つかりません。残り' + failsLeft() + '回試行できます。', 'error');
+              showMsg('msgStudent', 'コードが見つかりません。残り' + failsLeft() + '回試行できます。', 'error');
             }
-            $('loginBtn').disabled = false;
+            $('loginBtnStudent').disabled = false;
             return;
           }
 
           clearLock();
           localStorage.setItem('schoolCode', data.school_code);
           localStorage.setItem('schoolName', data.school_name || '');
-          showMsg('ログイン成功！ゲームページへ移動します…', 'ok');
+          localStorage.removeItem('teacherRole');
+          showMsg('msgStudent', 'ログイン成功！ゲームページへ移動します…', 'ok');
           setTimeout(() => { location.href = '../'; }, 1000);
         } catch(e) {
-          showMsg('接続エラーが発生しました。', 'error');
-          $('loginBtn').disabled = false;
+          showMsg('msgStudent', '接続エラーが発生しました。', 'error');
+          $('loginBtnStudent').disabled = false;
         }
       }
 
-      $('loginBtn').addEventListener('click', tryLogin);
-      $('codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+      /* ---- 先生ログイン ---- */
+      async function tryTeacherLogin() {
+        if (isLocked()) {
+          showMsg('msgTeacher', 'ログイン制限中です。' + lockMinLeft() + '分後に再試行してください。', 'error');
+          return;
+        }
+        const code = $('codeInputTeacher').value.trim().toUpperCase();
+        const pass = $('teacherPasswordInput').value.trim().toUpperCase();
+
+        if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
+          showMsg('msgTeacher', '学校コードの形式が正しくありません（XXXX-XXXX-XXXX）', 'error');
+          return;
+        }
+        if (!pass) {
+          showMsg('msgTeacher', 'パスワードを入力してください。', 'error');
+          return;
+        }
+
+        $('loginBtnTeacher').disabled = true;
+        showMsg('msgTeacher', '確認中…', '');
+
+        try {
+          // 学校コードを確認
+          const { data: schoolData } = await supabase
+            .from('schools')
+            .select('school_code, school_name')
+            .eq('school_code', code)
+            .maybeSingle();
+
+          if (!schoolData) {
+            recordFail();
+            if (isLocked()) {
+              showMsg('msgTeacher', '5回連続で失敗しました。10分間ログインできません。', 'error');
+            } else {
+              showMsg('msgTeacher', 'コードが見つかりません。残り' + failsLeft() + '回試行できます。', 'error');
+            }
+            $('loginBtnTeacher').disabled = false;
+            return;
+          }
+
+          // 先生パスワードハッシュを取得
+          const { data: authData } = await supabase
+            .from('teacher_auth')
+            .select('password_hash')
+            .eq('school_code', code)
+            .maybeSingle();
+
+          if (!authData) {
+            showMsg('msgTeacher', 'この学校の先生パスワードが設定されていません。管理者にお問い合わせください。', 'error');
+            $('loginBtnTeacher').disabled = false;
+            return;
+          }
+
+          // パスワードをハッシュして比較
+          const inputHash = await sha256(pass);
+          if (inputHash !== authData.password_hash) {
+            recordFail();
+            if (isLocked()) {
+              showMsg('msgTeacher', '5回連続で失敗しました。10分間ログインできません。', 'error');
+            } else {
+              showMsg('msgTeacher', 'パスワードが正しくありません。残り' + failsLeft() + '回試行できます。', 'error');
+            }
+            $('loginBtnTeacher').disabled = false;
+            return;
+          }
+
+          clearLock();
+          localStorage.setItem('schoolCode', schoolData.school_code);
+          localStorage.setItem('schoolName', schoolData.school_name || '');
+          localStorage.setItem('teacherRole', 'teacher');
+          showMsg('msgTeacher', '先生ログイン成功！ゲーム管理ページへ移動します…', 'ok');
+          setTimeout(() => { location.href = '../teacher-games/'; }, 1000);
+        } catch(e) {
+          showMsg('msgTeacher', '接続エラーが発生しました。', 'error');
+          $('loginBtnTeacher').disabled = false;
+        }
+      }
+
+      function showMsg(id, text, type) {
+        const el = $(id);
+        el.textContent = text;
+        el.className = 'msg' + (type ? ' ' + type : '');
+      }
+
+      $('loginBtnStudent').addEventListener('click', tryStudentLogin);
+      $('codeInputStudent').addEventListener('keydown', e => { if (e.key === 'Enter') tryStudentLogin(); });
+
+      $('loginBtnTeacher').addEventListener('click', tryTeacherLogin);
+      $('teacherPasswordInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryTeacherLogin(); });
+      $('codeInputTeacher').addEventListener('keydown', e => { if (e.key === 'Enter') $('teacherPasswordInput').focus(); });
     </script>
   </body>
 </html>

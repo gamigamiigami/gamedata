@@ -23,12 +23,15 @@ create policy "custom_games_select"
   on public.custom_games for select
   using (true);
 
--- 認証済みユーザー（管理者）のみ書き込み可
+-- 登録済み学校コードを持つユーザー（先生）または管理者が追加可能
 drop policy if exists "custom_games_insert" on public.custom_games;
 create policy "custom_games_insert"
   on public.custom_games for insert
-  with check (auth.uid() is not null);
+  with check (
+    exists (select 1 from public.schools where school_code = custom_games.school_code)
+  );
 
+-- 削除は管理者のみ
 drop policy if exists "custom_games_delete" on public.custom_games;
 create policy "custom_games_delete"
   on public.custom_games for delete

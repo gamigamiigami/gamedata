@@ -161,6 +161,13 @@
           return raw.slice(0, 4) + "-" + raw.slice(4, 8) + "-" + raw.slice(8, 12);
         }
 
+        function generateTeacherPassword(rng) {
+          rng = rng || Math.random;
+          var raw = "";
+          for (var i = 0; i < 6; i++) raw += ALPHABET[Math.floor(rng() * ALPHABET.length)];
+          return raw;
+        }
+
         function isValidCode(code) {
           return /^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/.test(code || "");
         }
@@ -264,6 +271,7 @@
 
         window.__admin = {
           generateSchoolCode: generateSchoolCode,
+          generateTeacherPassword: generateTeacherPassword,
           isValidCode: isValidCode,
           escapeHtml: escapeHtml,
           buildApprovalMailto: buildApprovalMailto,
@@ -304,6 +312,11 @@
         });
       }
 
+      async function hashString(text) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+      }
+
       let supabase;
       try {
         supabase = createClient(
@@ -333,44 +346,55 @@
           document.head.appendChild(s);
         });
       }
-      // 先生へ学校コードを送信。成功でtrue、失敗でfalse。
-      async function sendCodeEmail(appDoc, code) {
-        const loginUrl = "https://gamigamiigami.github.io/gamedata/school-login/?code=" + encodeURIComponent(code);
-        const qrUrl    = "https://api.qrserver.com/v1/create-qr-code/?data=" + encodeURIComponent(loginUrl) + "&size=250x250&margin=8";
-        const name     = appDoc.schoolName || "";
+      // 先生へ学校コードと先生パスワードを送信。成功でtrue、失敗でfalse。
+      async function sendCodeEmail(appDoc, code, teacherPass) {
+        const loginUrl        = "https://gamigamiigami.github.io/gamedata/school-login/?code=" + encodeURIComponent(code);
+        const teacherLoginUrl = "https://gamigamiigami.github.io/gamedata/teacher-games/";
+        const qrUrl           = "https://api.qrserver.com/v1/create-qr-code/?data=" + encodeURIComponent(loginUrl) + "&size=250x250&margin=8";
+        const name            = appDoc.schoolName || "";
 
-        // HTMLメール（EmailJSテンプレートの{{message}}を{{{message}}}に変更済みの場合のみ有効）
         const message =
           '<div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#222;">' +
           '<h2 style="background:#222;color:#fed000;padding:16px;border-radius:8px;margin:0 0 20px;">' +
             'IOgames 学校登録が承認されました' +
           '</h2>' +
           '<p>' + name + ' ご担当者さま、</p>' +
-          '<p>学校登録ありがとうございます。貴校の学校コードを発行しました。</p>' +
+          '<p>学校登録ありがとうございます。貴校の学校コードと先生専用パスワードを発行しました。</p>' +
 
           '<div style="background:#f5f5f5;border-radius:10px;padding:20px;text-align:center;margin:20px 0;">' +
-            '<div style="font-size:12px;color:#666;margin-bottom:6px;">学校コード</div>' +
+            '<div style="font-size:12px;color:#666;margin-bottom:6px;">学校コード（生徒と共有）</div>' +
             '<div style="font-size:28px;font-weight:bold;letter-spacing:4px;font-family:monospace;color:#000;">' + code + '</div>' +
           '</div>' +
 
-          '<p style="text-align:center;font-weight:bold;">▼ このQRコードを生徒に見せてください</p>' +
+          '<div style="background:#eef;border:2px solid #99b;border-radius:10px;padding:20px;text-align:center;margin:16px 0;">' +
+            '<div style="font-size:12px;color:#555;margin-bottom:6px;">先生専用パスワード（先生だけに共有）</div>' +
+            '<div style="font-size:28px;font-weight:bold;letter-spacing:6px;font-family:monospace;color:#334;">' + (teacherPass || '（未発行）') + '</div>' +
+            '<div style="font-size:12px;color:#888;margin-top:8px;">※このパスワードは大切に保管してください。再発行が必要な場合は管理者へご連絡ください。</div>' +
+          '</div>' +
+
+          '<p style="text-align:center;">' +
+            '<a href="' + teacherLoginUrl + '" style="display:inline-block;background:#334;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;margin-bottom:8px;">' +
+              '先生専用ページへ（ゲーム追加）' +
+            '</a>' +
+          '</p>' +
+          '<p style="text-align:center;">' +
+            '<a href="' + loginUrl + '" style="display:inline-block;background:#fed000;color:#000;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;">' +
+              'ポータルへ（生徒と同じ画面）' +
+            '</a>' +
+          '</p>' +
+
+          '<p style="text-align:center;font-weight:bold;margin-top:24px;">▼ 生徒用QRコード（プロジェクターで映して使用）</p>' +
           '<div style="text-align:center;margin:12px 0 20px;">' +
             '<img src="' + qrUrl + '" alt="学校ログインQR" width="250" height="250" style="border-radius:8px;" />' +
           '</div>' +
 
-          '<p style="text-align:center;">' +
-            '<a href="' + loginUrl + '" style="display:inline-block;background:#fed000;color:#000;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;">' +
-              'クリックしてログイン（先生用）' +
-            '</a>' +
-          '</p>' +
-
           '<hr style="border:none;border-top:1px solid #ddd;margin:24px 0;">' +
           '<p style="font-size:13px;color:#666;">' +
-            '【使い方】<br>' +
-            '① 上のリンクをクリック → 自動ログイン完了<br>' +
-            '② ログイン後に「生徒用QRコードを表示する」ボタンを押す<br>' +
-            '③ 表示されたQRをプロジェクターで生徒に見せる<br>' +
-            '④ 生徒がスキャン → 学校ランキングが使えるようになります' +
+            '【先生の使い方】<br>' +
+            '① 「先生専用ページへ」ボタンから学校コード＋先生パスワードでログイン<br>' +
+            '② 問題データ（AI作成も可）を貼り付けてゲームを追加<br>' +
+            '③ 「生徒用QRコードを表示」でプロジェクターに映す<br>' +
+            '④ 生徒がスキャン → 学校ランキングとカスタムゲームが使えるようになります' +
           '</p>' +
           '<p style="font-size:12px;color:#999;">※コードは校内でのみ共有してください。</p>' +
           '</div>';
@@ -430,14 +454,15 @@
             .order('created_at', { ascending: false });
           if (error) throw error;
           const apps = (data || []).map(r => ({
-            id:          r.id,
-            schoolName:  r.school_name,
-            prefecture:  r.prefecture,
-            subjects:    r.subjects || [],
-            contactName: r.contact_name,
-            email:       r.email,
-            status:      r.status,
-            createdAt:   r.created_at
+            id:           r.id,
+            schoolName:   r.school_name,
+            prefecture:   r.prefecture,
+            subjects:     r.subjects || [],
+            contactName:  r.contact_name,
+            email:        r.email,
+            status:       r.status,
+            assignedCode: r.assigned_code,
+            createdAt:    r.created_at
           }));
           const counts = A.renderApplications($("pendingArea"), $("doneArea"), apps, { onApprove, onReject, onDelete });
           $("pendingCount").textContent = "（" + counts.pending + "件）";
@@ -459,6 +484,11 @@
             if (!exists || exists.length === 0) break;
             code = A.generateSchoolCode();
           }
+
+          // 先生パスワードを生成してハッシュ
+          const teacherPass = A.generateTeacherPassword();
+          const teacherHash = await hashString(teacherPass);
+
           const now = new Date().toISOString();
           const { error: e1 } = await supabase.from('schools').upsert({
             school_code: code,
@@ -473,14 +503,23 @@
             contact_name: appDoc.contactName || ""
           });
           if (e2) throw e2;
-          const { error: e3 } = await supabase
+
+          // 先生パスワードハッシュを保存
+          const { error: e3 } = await supabase.from('teacher_auth').upsert({
+            school_code:   code,
+            password_hash: teacherHash,
+            updated_at:    now
+          });
+          if (e3) throw e3;
+
+          const { error: e4 } = await supabase
             .from('school_applications')
             .update({ status: 'approved', assigned_code: code })
             .eq('id', appDoc.id);
-          if (e3) throw e3;
+          if (e4) throw e4;
 
-          // 先生へ学校コードを自動メール送信。失敗時はmailto下書きにフォールバック。
-          const sent = await sendCodeEmail(appDoc, code);
+          // 先生へ学校コードと先生パスワードを自動メール送信。失敗時はmailto下書きにフォールバック。
+          const sent = await sendCodeEmail(appDoc, code, teacherPass);
           if (sent) {
             dmsg.className = "msg ok";
             dmsg.textContent = "学校コードを発行し、先生へメール送信しました： " + code;
