@@ -43,13 +43,14 @@
             '<a href="school-login/" style="color:#aaa;font-size:11px;text-decoration:none;border-left:1px solid #555;padding-left:8px;">変更</a>' +
             '</span>';
           // 学校専用ボタンを家庭科(col2,row3)・準備中(col4,row3)の真下中央(col3,row4)に追加
+          var isTeacher = localStorage.getItem('teacherRole') === 'teacher';
           var schoolBtn = document.createElement('button');
           schoolBtn.className = 'portal-button';
-          schoolBtn.dataset.url = 'school-games/index.html';
-          schoolBtn.style.background = '#c0392b';
+          schoolBtn.dataset.url = isTeacher ? 'teacher-games/index.html' : 'school-games/index.html';
+          schoolBtn.style.background = isTeacher ? '#2a2a8a' : '#c0392b';
           schoolBtn.style.gridColumnStart = '3';
           schoolBtn.style.gridRowStart = '4';
-          schoolBtn.innerHTML = '学校<br>専用';
+          schoolBtn.innerHTML = isTeacher ? '先生<br>管理' : '学校<br>専用';
           document.querySelector('.container').appendChild(schoolBtn);
         } else {
           area.innerHTML =
