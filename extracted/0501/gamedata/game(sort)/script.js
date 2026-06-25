@@ -28,6 +28,20 @@ document.addEventListener("DOMContentLoaded", () => {
   resetRankingButton.parentNode.appendChild(globalResetBtn);
   globalResetBtn.addEventListener("click", globalResetRanking);
 
+  // 学校ログイン中バッジをランキングエリア上部に表示
+  (function() {
+    const sc = localStorage.getItem('schoolCode');
+    const sn = localStorage.getItem('schoolName');
+    if (!sc) return;
+    const badge = document.createElement("div");
+    badge.style.cssText =
+      "font-size:12px;color:#fed000;border:1px solid #555;border-radius:6px;" +
+      "padding:4px 10px;margin-bottom:8px;display:inline-block;";
+    badge.textContent = "学校: " + (sn || sc) + " でログイン中";
+    const rc = document.getElementById("rankingContainer");
+    if (rc) rc.insertBefore(badge, rc.firstChild);
+  })();
+
   // ポーズボタンをヘッダーに動的生成
   const header = document.getElementById("header");
   if (header) {
@@ -83,6 +97,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let showingAlt = false;
   if (table2) table2.style.display = "none";
 
+  // 学校ログイン中はトグルボタンのラベルを切り替える
+  function altLabel() {
+    return getSchoolCode() ? "学校ランキング" : "グローバルランキング";
+  }
+  toggleButton.textContent = altLabel();
+
   toggleButton.addEventListener("click", async () => {
     showingAlt = !showingAlt;
 
@@ -92,15 +112,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     table1.style.display             = showingAlt ? "none"    : "table";
     table2.style.display             = showingAlt ? "table"   : "none";
-    toggleButton.textContent         = showingAlt ? "グローバルランキング" : "My ベストスコア";
+    toggleButton.textContent         = showingAlt ? "My ベストスコア" : altLabel();
     resetRankingButton.style.display = showingAlt ? "none"    : "inline-block";
-    globalResetBtn.style.display     = showingAlt ? "inline-block" : "none";
+    // 学校ログイン中はグローバルリセットボタンを非表示
+    globalResetBtn.style.display     = (showingAlt && !getSchoolCode()) ? "inline-block" : "none";
     if (changeNameButton) changeNameButton.style.display = showingAlt ? "none" : "inline-block";
   });
 });
 
 // --- Supabase 操作用関数 ---
 function getSupabase() { return window.supabaseClient; }
+
+/* 学校ログイン状態を localStorage から取得 */
+function getSchoolCode() { return localStorage.getItem('schoolCode') || null; }
+function getSchoolName() { return localStorage.getItem('schoolName') || ''; }
 
 /* ===============================
    パスワード認証（SHA-256）
@@ -344,22 +369,38 @@ function getFirestoreCollectionName() {
 }
 
 // Supabase から上位 N 件を取得して #alt-ranking-table に描画
+// 学校ログイン中: school_rankings（その学校のみ）
+// 未ログイン   : global_rankings（全国）
 window.displayAltRanking = async function(limitNum = 30) {
   const tbody       = document.querySelector("#alt-ranking-table tbody");
   tbody.innerHTML   = "<tr><td colspan='3'>読み込み中...</td></tr>";
   const seenDevices = new Set();
   const supabase    = getSupabase();
+  const schoolCode  = getSchoolCode();
+
   if (!supabase) {
     tbody.innerHTML = "<tr><td colspan='3'>DB未接続</td></tr>";
     return;
   }
   try {
-    const { data, error } = await supabase
-      .from('global_rankings')
-      .select('player, score, device_id')
-      .eq('game_key', getFirestoreCollectionName())
-      .order('score', { ascending: false })
-      .limit(limitNum * 100);
+    let query;
+    if (schoolCode) {
+      query = supabase
+        .from('school_rankings')
+        .select('player, score, device_id')
+        .eq('school_code', schoolCode)
+        .eq('game_key', getFirestoreCollectionName())
+        .order('score', { ascending: false })
+        .limit(limitNum * 100);
+    } else {
+      query = supabase
+        .from('global_rankings')
+        .select('player, score, device_id')
+        .eq('game_key', getFirestoreCollectionName())
+        .order('score', { ascending: false })
+        .limit(limitNum * 100);
+    }
+    const { data, error } = await query;
     if (error) throw error;
     tbody.innerHTML = "";
     let count = 0;
@@ -372,7 +413,10 @@ window.displayAltRanking = async function(limitNum = 30) {
       tr.innerHTML = `<td>${count}</td><td>${row.player}</td><td>${row.score}</td>`;
       tbody.appendChild(tr);
     }
-    if (count === 0) tbody.innerHTML = "<tr><td colspan='3'>データなし</td></tr>";
+    if (count === 0) {
+      const label = schoolCode ? '学校内のデータなし' : 'データなし';
+      tbody.innerHTML = `<tr><td colspan='3'>${label}</td></tr>`;
+    }
   } catch (e) {
     tbody.innerHTML = "<tr><td colspan='3'>取得エラー</td></tr>";
     console.error("Supabase 読み込みエラー:", e);
@@ -429,14 +473,16 @@ async function logViolation(username) {
 }
 
 // Supabase にスコアを保存（device_id も添付）
+// 学校ログイン中は school_rankings にも保存
 async function saveToSupabase(username, score) {
   if (containsBadWord(username)) {
     logViolation(username);
     return;
   }
-  const today    = new Date().toISOString().slice(0, 10);
-  const deviceId = localStorage.getItem("deviceId");
-  const supabase = getSupabase();
+  const today      = new Date().toISOString().slice(0, 10);
+  const deviceId   = localStorage.getItem("deviceId");
+  const supabase   = getSupabase();
+  const schoolCode = getSchoolCode();
   if (!supabase) return;
   try {
     const { error } = await supabase.from('global_rankings').insert({
@@ -447,6 +493,18 @@ async function saveToSupabase(username, score) {
       device_id: deviceId
     });
     if (error) console.error("Supabase 保存エラー:", error);
+
+    if (schoolCode) {
+      const { error: e2 } = await supabase.from('school_rankings').insert({
+        school_code: schoolCode,
+        game_key:    getFirestoreCollectionName(),
+        date:        today,
+        player:      username,
+        score:       score,
+        device_id:   deviceId
+      });
+      if (e2) console.error("学校ランキング保存エラー:", e2);
+    }
   } catch (e) {
     console.error("Supabase 保存エラー:", e);
   }

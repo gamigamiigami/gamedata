@@ -13,6 +13,8 @@
       style="position: absolute; top: 14px; right: 14px; color: #fed000; font-size: 14px; text-decoration: none; border: 1px solid #fed000; border-radius: 6px; padding: 5px 10px; z-index: 10;"
       >先生の方へ →</a
     >
+    <!-- 学校ログインボタン / ログイン済みバッジ -->
+    <div id="schoolLoginArea" style="position:absolute;top:14px;left:14px;z-index:10;font-size:13px;"></div>
     <h2>メインポータル</h2>
     <div class="container">
       <button class="portal-button" data-url="kokugo/index.html">国語</button>
@@ -24,5 +26,30 @@
       <button class="portal-button" data-url="">準備<br>中</button>
     </div>
     <script src="mainportal.js"></script>
+    <script>
+      (function () {
+        var area = document.getElementById('schoolLoginArea');
+        var code = localStorage.getItem('schoolCode');
+        var name = localStorage.getItem('schoolName');
+        // QR経由: ?school=XXXX-XXXX-XXXX
+        var urlCode = new URLSearchParams(location.search).get('school');
+        if (urlCode && !code) {
+          location.href = 'school-login/?code=' + encodeURIComponent(urlCode);
+          return;
+        }
+        if (code) {
+          area.innerHTML =
+            '<span style="color:#fed000;border:1px solid #fed000;border-radius:6px;padding:5px 10px;display:inline-flex;align-items:center;gap:8px;">' +
+            '<span style="font-size:11px;opacity:.7;">学校</span>' +
+            '<b>' + name.replace(/</g,'&lt;') + '</b>' +
+            '<a href="school-login/" style="color:#aaa;font-size:11px;text-decoration:none;border-left:1px solid #555;padding-left:8px;">変更</a>' +
+            '</span>';
+        } else {
+          area.innerHTML =
+            '<a href="school-login/" style="color:#aaa;font-size:14px;text-decoration:none;border:1px solid #555;border-radius:6px;padding:5px 10px;">' +
+            '学校ログイン</a>';
+        }
+      })();
+    </script>
   </body>
 </html>
