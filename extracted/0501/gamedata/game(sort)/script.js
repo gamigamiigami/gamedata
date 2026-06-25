@@ -893,15 +893,19 @@ function spawnWord(presetX) {
     const margin = 10;
     let x;
 
-    do {
-      x =
-        margin +
-        Math.random() * (playArea.clientWidth - width - margin * 2);
-    } while (
-      fallingWords.some(
-        w => x < w.x + w.element.offsetWidth && x + width > w.x
-      )
-    );
+    if (presetX !== undefined) {
+      // 複数スポーン時は分割位置を優先（画面外にはみ出さないようにクランプ）
+      x = Math.max(margin, Math.min(presetX, playArea.clientWidth - width - margin));
+    } else {
+      let attempts = 0;
+      do {
+        x = margin + Math.random() * (playArea.clientWidth - width - margin * 2);
+        attempts++;
+      } while (
+        attempts < 50 &&
+        fallingWords.some(w => x < w.x + w.element.offsetWidth && x + width > w.x)
+      );
+    }
 
     wordDiv.style.left = `${x}px`;
     wordDiv.style.visibility = "visible";
@@ -1051,11 +1055,16 @@ function handleMouseUp(e) {
       wordElem.style.pointerEvents = "none";
       currentDrag = null;
       remainingTime -= PENALTY_TIME;
-      updateTimerDisplay();
       wordElem.dataset.penalized = "true";
       currentCombo = 0;
       updateComboDisplay();
-      wrongAnswers.push({ word: wordElem.textContent, correctType: wordElem.dataset.type });
+      wrongAnswers.push({ word: wordElem.textContent || wordElem.dataset.type, correctType: wordElem.dataset.type });
+      if (remainingTime <= 0) {
+        clearInterval(timerIntervalId);
+        endGame();
+        return;
+      }
+      updateTimerDisplay();
     }
   }
   currentDrag = null;
@@ -1132,14 +1141,18 @@ function gameLoop() {
             currentDrag = null;
           }
           remainingTime -= PENALTY_TIME;
-          updateTimerDisplay();
           word.element.dataset.penalized = "true";
           const effectX = word.x + word.element.offsetWidth / 2;
           const effectY = newY - 20;
           showPenaltyEffect(effectX, effectY);
           currentCombo = 0;
           updateComboDisplay();
-          wrongAnswers.push({ word: word.element.textContent, correctType: word.element.dataset.type });
+          wrongAnswers.push({ word: word.element.textContent || word.element.dataset.type, correctType: word.element.dataset.type });
+          if (remainingTime <= 0 && !gameOver) {
+            endGame();
+            return;
+          }
+          updateTimerDisplay();
         }
         let landingY = playArea.clientHeight - wordHeight;
         landedWords.forEach((lw) => {
@@ -1157,8 +1170,14 @@ function gameLoop() {
           word.y = newY;
           word.element.style.top = word.y + "px";
           word.element.dataset.locked = "true";
-          landedWords.push({ element: word.element, x: word.x, y: newY });
+          const landedEntry = { element: word.element, x: word.x, y: newY };
+          landedWords.push(landedEntry);
           word.landed = true;
+          // 2.5秒後に削除して判定ラインを元に戻す
+          setTimeout(() => {
+            landedEntry.element.remove();
+            landedWords = landedWords.filter(lw => lw !== landedEntry);
+          }, 2500);
           return;
         }
       }
