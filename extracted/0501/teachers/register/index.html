@@ -213,38 +213,8 @@
         console.error("Supabase init failed", e);
       }
 
-      /* EmailJS（管理者への申請通知）
-         ※公開キーはクライアントに置いても安全な設計（EmailJS）。
-         EmailJS ダッシュボードで template_school_apply を作成してください。 */
-      const _EJS_PK  = "njxurV_IW84nYD01w";          // Public Key
-      const _EJS_SVC = "service_0eqi1dy";            // Service ID
-      const _EJS_TPL = "template_school_apply";      // 学校申請用テンプレート
-
-      let _ejsReady = false;
-      function _loadEmailJS() {
-        if (_ejsReady) return Promise.resolve();
-        return new Promise((resolve, reject) => {
-          const s = document.createElement("script");
-          s.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
-          s.onload = () => { window.emailjs.init({ publicKey: _EJS_PK }); _ejsReady = true; resolve(); };
-          s.onerror = reject;
-          document.head.appendChild(s);
-        });
-      }
-
-      // 申請通知メール（ベストエフォート：失敗しても申請成功は妨げない）
-      function notifyAdmin(payload) {
-        _loadEmailJS().then(() => {
-          window.emailjs.send(_EJS_SVC, _EJS_TPL, {
-            school_name:  payload.schoolName,
-            prefecture:   payload.prefecture || "（未選択）",
-            subjects:     (payload.subjects || []).join("・") || "（未選択）",
-            contact_name: payload.contactName || "（任意・未入力）",
-            email:        payload.email,
-            applied_at:   new Date().toLocaleString("ja-JP"),
-          }).catch((e) => console.warn("通知メール送信失敗（申請は保存済み）", e));
-        }).catch(() => {});
-      }
+      // 申請通知メールはサーバー側（Supabase pg_net トリガー → Resend）で自動送信。
+      // クライアントにはメールキーを一切置かない安全設計。
 
       const saveFn = async (payload) => {
         if (!supabase) return Promise.reject(new Error("no-db"));
@@ -258,7 +228,6 @@
           created_at:   payload.createdAt
         });
         if (error) throw error;
-        notifyAdmin(payload);   // 保存成功後に管理者へ通知
       };
 
       document.getElementById("submitBtn").addEventListener("click", () => {
