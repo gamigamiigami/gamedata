@@ -8,13 +8,11 @@
   </head>
   <body>
     <h1>IOgames</h1>
-    <a
-      href="teachers/index.html"
-      style="position: absolute; top: 14px; right: 14px; color: #fed000; font-size: 14px; text-decoration: none; border: 1px solid #fed000; border-radius: 6px; padding: 5px 10px; z-index: 10;"
-      >先生の方へ →</a
-    >
-    <!-- 学校ログインボタン / ログイン済みバッジ -->
-    <div id="schoolLoginArea" style="position:absolute;top:56px;left:10px;z-index:10;font-size:13px;"></div>
+    <!-- 右上: 先生リンク（左）＋ 学校ログイン（右）を横並びに -->
+    <div style="position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px;z-index:10;font-size:13px;">
+      <a href="teachers/index.html" style="color:#fed000;font-size:14px;text-decoration:none;border:1px solid #fed000;border-radius:6px;padding:5px 10px;white-space:nowrap;">先生の方へ →</a>
+      <div id="schoolLoginArea"></div>
+    </div>
     <h2>メインポータル</h2>
     <div class="container">
       <button class="portal-button" data-url="kokugo/index.html">国語</button>
@@ -44,13 +42,11 @@
             '<b>' + name.replace(/</g,'&lt;') + '</b>' +
             '<a href="school-login/" style="color:#aaa;font-size:11px;text-decoration:none;border-left:1px solid #555;padding-left:8px;">変更</a>' +
             '</span>';
-          // 学校専用ゲームボタンを追加
+          // 学校専用ゲームボタンを4行目中央（既存ボタンと重ならない位置）に追加
           var schoolBtn = document.createElement('button');
           schoolBtn.className = 'portal-button';
           schoolBtn.dataset.url = 'school-games/index.html';
-          schoolBtn.style.background = '#c0392b';
-          schoolBtn.style.gridColumn = '3';
-          schoolBtn.style.gridRow = '3';
+          schoolBtn.style.cssText = 'background:#c0392b;grid-column:3;grid-row:4;';
           schoolBtn.innerHTML = '学校<br>専用';
           document.querySelector('.container').appendChild(schoolBtn);
         } else {

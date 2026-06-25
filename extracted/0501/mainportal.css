@@ -28,6 +28,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(5, 70px);
   grid-template-rows: repeat(3, 130px);
+  grid-auto-rows: 130px; /* 学校専用ボタン用4行目 */
   gap: 10px;
   justify-items: center; /* 各セル内でボタンを水平中央に配置 */
   width: fit-content;
@@ -138,6 +139,7 @@ h2 {
     display: grid;
     grid-template-columns: repeat(5, 43px);
     grid-template-rows: repeat(3, 83px);
+    grid-auto-rows: 83px; /* 学校専用ボタン用4行目 */
     gap: 10px;
     width: fit-content;
   }
