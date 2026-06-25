@@ -351,8 +351,10 @@ function displayWidth(str) {
   return w;
 }
 
-// ゲームタイトル取得
-const title = document.querySelector("h1").textContent.trim();
+// ゲームタイトル取得（カスタムゲームは window.GAME_TITLE を優先）
+const title = (typeof window.GAME_TITLE !== "undefined" && window.GAME_TITLE)
+  ? window.GAME_TITLE
+  : document.querySelector("h1").textContent.trim();
 
 // ★ ボーナスON/OFFの設定 ★
 let bonusEnabled = false;
