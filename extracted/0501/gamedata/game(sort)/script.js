@@ -214,6 +214,13 @@ function resumeGame() {
   startTimer();
 }
 
+// タブ切り替え時に自動ポーズ
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && !gameOver) {
+    pauseGame();
+  }
+});
+
 /* ===============================
    間違い記録・結果・復習
 =============================== */
@@ -682,6 +689,13 @@ if (bonusToggleButton) {
 export function initGame(wordData) {
   currentWordData = wordData;
   categories = [...new Set(currentWordData.map(item => item.type))];
+
+  const minCats = window.EXPECTED_MIN_CATEGORIES;
+  if (minCats && categories.length < minCats) {
+    alert('ゲームデータが正しくありません。ページを再読み込みしてください。');
+    return;
+  }
+
   FALL_SPEED = Math.min(300 / categories.length, 50);
 
   resetAndLockZoom();
@@ -1113,7 +1127,7 @@ document.addEventListener("touchend", handleTouchEnd);
 function gameLoop() {
   if (gameOver) return;
   const now = Date.now();
-  const delta = (now - lastFrameTime) / 1000;
+  const delta = Math.min((now - lastFrameTime) / 1000, 0.1);
   lastFrameTime = now;
 
   fallingWords.forEach((word) => {
