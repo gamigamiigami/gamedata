@@ -108,6 +108,15 @@ h2 {
 }
 .container .portal-button:nth-child(7):hover { background-color: #3a5fcdcc; }
 
+
+/* 準備中ボタン */
+.portal-button[data-url=""] {
+  opacity: 0.25;
+  cursor: not-allowed;
+  filter: grayscale(1);
+  pointer-events: none;
+  font-size: 20px;
+}
 @media (max-width: 500px) {
   .container {
     grid-template-columns: repeat(5, 43px);

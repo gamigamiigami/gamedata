@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const url = button.getAttribute("data-url");
 
       if (!url) {
-        alert("Coming Soon");
+        alert("準備中です");
         return;
       }
 
