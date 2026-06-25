@@ -229,6 +229,49 @@
         $("loginMsg").textContent = "Supabaseの初期化に失敗しました。";
       }
 
+      // ----- EmailJS（承認時に先生へ学校コードを自動送信）-----
+      //   ※公開キーはクライアントに置いても安全な設計（EmailJS）。
+      const _EJS_PK  = "njxurV_IW84nYD01w";   // Public Key
+      const _EJS_SVC = "service_0eqi1dy";     // Service ID
+      const _EJS_TPL = "template_6c3mcbm";    // 汎用テンプレ（to_email/subject/message）
+      const SITE_URL = "https://gamigamiigami.github.io/gamedata/index.html";
+
+      let _ejsReady = false;
+      function _loadEmailJS() {
+        if (_ejsReady) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
+          s.onload = () => { window.emailjs.init({ publicKey: _EJS_PK }); _ejsReady = true; resolve(); };
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+      // 先生へ学校コードを送信。成功でtrue、失敗でfalse。
+      async function sendCodeEmail(appDoc, code) {
+        const message =
+          (appDoc.schoolName || "") + " ご担当者さま\n\n" +
+          "IOgames の学校登録を承認しました。\n" +
+          "貴校の学校コードは下記のとおりです。\n\n" +
+          "　学校コード：" + code + "\n\n" +
+          "サイトのトップ右上「学校ログイン」からこのコードを入力すると、\n" +
+          "ランキングが学校内だけになり、先生の自作問題も使えるようになります。\n" +
+          "（コードは校内でのみ共有してください）\n\n" +
+          "サイト：" + SITE_URL + "\n";
+        try {
+          await _loadEmailJS();
+          await window.emailjs.send(_EJS_SVC, _EJS_TPL, {
+            to_email: appDoc.email,
+            subject:  "【IOgames】学校コードのご案内（" + (appDoc.schoolName || "") + "）",
+            message:  message,
+          });
+          return true;
+        } catch (e) {
+          console.warn("コードメール送信失敗", e);
+          return false;
+        }
+      }
+
       // ----- ログイン -----
       $("loginBtn").addEventListener("click", async () => {
         const msg = $("loginMsg");
@@ -318,9 +361,16 @@
             .eq('id', appDoc.id);
           if (e3) throw e3;
 
-          dmsg.className = "msg ok";
-          dmsg.textContent = "学校コードを発行しました： " + code + "（連絡用メールを開きます）";
-          window.location.href = A.buildApprovalMailto(appDoc, code);
+          // 先生へ学校コードを自動メール送信。失敗時はmailto下書きにフォールバック。
+          const sent = await sendCodeEmail(appDoc, code);
+          if (sent) {
+            dmsg.className = "msg ok";
+            dmsg.textContent = "学校コードを発行し、先生へメール送信しました： " + code;
+          } else {
+            dmsg.className = "msg ok";
+            dmsg.textContent = "学校コードを発行しました： " + code + "（自動送信に失敗。メール下書きを開きます）";
+            window.location.href = A.buildApprovalMailto(appDoc, code);
+          }
           loadApplications();
         } catch (e) {
           dmsg.className = "msg error";

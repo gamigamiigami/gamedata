@@ -41,7 +41,12 @@ begin
         '<p><b>使う教科：</b>' || coalesce(array_to_string(NEW.subjects, '・'), '')   || '</p>' ||
         '<p><b>担当者名：</b>' || coalesce(NEW.contact_name, '')                      || '</p>' ||
         '<p><b>連絡先：</b>'   || coalesce(NEW.email, '')                             || '</p>' ||
-        '<p style="margin-top:16px">管理者ダッシュボード（/admin/）で承認してください。</p>' ||
+        '<p style="margin-top:20px">' ||
+          '<a href="https://gamigamiigami.github.io/gamedata/admin/index.html" ' ||
+          'style="display:inline-block;background:#fed000;color:#000;text-decoration:none;' ||
+          'padding:12px 24px;border-radius:8px;font-weight:bold">管理画面を開いて承認する</a>' ||
+        '</p>' ||
+        '<p style="color:#888;font-size:12px">※ログイン後、この申請の「承認」ボタンを押してください。</p>' ||
         '</div>'
     )
   );
