@@ -116,6 +116,34 @@
 
         <div class="sec-title">対応済み</div>
         <div id="doneArea"></div>
+
+        <div class="sec-title">カスタムゲーム管理</div>
+        <div id="customGameArea" class="card">
+          <div style="margin-bottom:12px;">
+            <span class="lbl" style="display:block;font-size:13px;color:var(--muted);margin-bottom:6px;">学校を選択</span>
+            <select id="cgSchoolSelect" style="padding:10px 12px;font-size:14px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;width:100%;font-family:inherit;">
+              <option value="">-- 学校を選択してください --</option>
+            </select>
+          </div>
+          <div id="cgGameList"></div>
+          <div id="cgAddForm" style="display:none;border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
+            <div style="font-size:14px;color:var(--accent);margin-bottom:12px;">新しいゲームを追加</div>
+            <div style="margin-bottom:10px;">
+              <span class="lbl" style="display:block;font-size:13px;color:var(--muted);margin-bottom:5px;">ゲームタイトル <span style="color:#f66;">*</span></span>
+              <input type="text" id="cgTitle" placeholder="例：三権分立クイズ" />
+            </div>
+            <div style="margin-bottom:10px;">
+              <span class="lbl" style="display:block;font-size:13px;color:var(--muted);margin-bottom:5px;">教科・単元（任意）</span>
+              <input type="text" id="cgSubject" placeholder="例：社会・公民" />
+            </div>
+            <div style="margin-bottom:12px;">
+              <span class="lbl" style="display:block;font-size:13px;color:var(--muted);margin-bottom:5px;">問題データ（JSON配列またはwordData.js形式）</span>
+              <textarea id="cgWordData" rows="8" style="padding:10px 12px;font-size:13px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;width:100%;font-family:Consolas,monospace;resize:vertical;box-sizing:border-box;" placeholder='[&#10;  { "word": "国会", "type": "立法" },&#10;  { "word": "内閣", "type": "行政" }&#10;]'></textarea>
+            </div>
+            <button class="btn" id="cgSaveBtn">保存する</button>
+            <span class="msg" id="cgMsg" style="margin-left:10px;font-size:13px;"></span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -414,6 +442,7 @@
           const counts = A.renderApplications($("pendingArea"), $("doneArea"), apps, { onApprove, onReject, onDelete });
           $("pendingCount").textContent = "（" + counts.pending + "件）";
           dmsg.textContent = "";
+          await loadSchoolsForCustomGames();
         } catch (e) {
           dmsg.className = "msg error";
           dmsg.textContent = "読み込みに失敗しました。ログイン状態とSupabase設定をご確認ください。";
@@ -481,6 +510,104 @@
           loadApplications();
         }
       }
+
+      // ----- カスタムゲーム管理 -----
+      let cgSchoolCode = '';
+
+      async function loadSchoolsForCustomGames() {
+        const { data } = await supabase.from('schools').select('school_code, school_name').order('school_name');
+        const sel = $('cgSchoolSelect');
+        sel.innerHTML = '<option value="">-- 学校を選択してください --</option>';
+        (data || []).forEach(s => {
+          const o = document.createElement('option');
+          o.value = s.school_code;
+          o.textContent = s.school_name + '（' + s.school_code + '）';
+          sel.appendChild(o);
+        });
+      }
+
+      async function loadCustomGames(schoolCode) {
+        const listEl = $('cgGameList');
+        const formEl = $('cgAddForm');
+        if (!schoolCode) { listEl.innerHTML = ''; formEl.style.display = 'none'; return; }
+        listEl.innerHTML = '<div class="muted" style="padding:8px 0;">読み込み中…</div>';
+        formEl.style.display = 'none';
+        const { data, error } = await supabase
+          .from('custom_games')
+          .select('id, title, subject, created_at')
+          .eq('school_code', schoolCode)
+          .order('created_at', { ascending: false });
+        if (error) { listEl.innerHTML = '<div style="color:#f66;">読み込みに失敗しました。</div>'; return; }
+        if (!data || data.length === 0) {
+          listEl.innerHTML = '<div class="muted" style="padding:8px 0 12px;">まだゲームがありません。</div>';
+        } else {
+          const t = document.createElement('table');
+          t.innerHTML = '<tr><th>タイトル</th><th>教科</th><th>追加日</th><th></th></tr>';
+          data.forEach(g => {
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+              '<td>' + A.escapeHtml(g.title) + '</td>' +
+              '<td>' + A.escapeHtml(g.subject || '') + '</td>' +
+              '<td>' + A.fmtDate(g.created_at) + '</td>';
+            const td = document.createElement('td');
+            const dl = document.createElement('button');
+            dl.className = 'btn-danger'; dl.textContent = '削除';
+            dl.addEventListener('click', () => deleteCustomGame(g.id, g.title));
+            td.appendChild(dl); tr.appendChild(td); t.appendChild(tr);
+          });
+          listEl.innerHTML = '';
+          listEl.appendChild(t);
+        }
+        formEl.style.display = 'block';
+      }
+
+      async function deleteCustomGame(id, titleText) {
+        if (!await customConfirm('「' + titleText + '」を削除しますか？', '削除する')) return;
+        const { error } = await supabase.from('custom_games').delete().eq('id', id);
+        if (error) { $('cgMsg').className = 'msg error'; $('cgMsg').textContent = '削除失敗: ' + error.message; return; }
+        await loadCustomGames(cgSchoolCode);
+      }
+
+      function parseWordDataStr(raw) {
+        let s = raw.trim();
+        s = s.replace(/^(?:const|let|var)\s+\w+\s*=\s*/, '');
+        s = s.replace(/;\s*export\s+default\s+\w+\s*;?\s*$/, '');
+        s = s.replace(/export\s+default\s+\w+\s*;?\s*$/, '');
+        s = s.replace(/;\s*$/, '').trim();
+        return JSON.parse(s);
+      }
+
+      $('cgSchoolSelect').addEventListener('change', (e) => {
+        cgSchoolCode = e.target.value;
+        $('cgMsg').textContent = '';
+        loadCustomGames(cgSchoolCode);
+      });
+
+      $('cgSaveBtn').addEventListener('click', async () => {
+        const msgEl = $('cgMsg');
+        msgEl.className = 'msg'; msgEl.textContent = '';
+        const title = $('cgTitle').value.trim();
+        const subject = $('cgSubject').value.trim();
+        const rawData = $('cgWordData').value.trim();
+        if (!cgSchoolCode) { msgEl.className = 'msg error'; msgEl.textContent = '学校を選択してください。'; return; }
+        if (!title)   { msgEl.className = 'msg error'; msgEl.textContent = 'タイトルを入力してください。'; return; }
+        if (!rawData) { msgEl.className = 'msg error'; msgEl.textContent = '問題データを入力してください。'; return; }
+        let wordData;
+        try { wordData = parseWordDataStr(rawData); } catch (e) {
+          msgEl.className = 'msg error'; msgEl.textContent = '問題データの形式が正しくありません: ' + e.message; return;
+        }
+        if (!Array.isArray(wordData) || wordData.length === 0) {
+          msgEl.className = 'msg error'; msgEl.textContent = '問題データが空か、配列ではありません。'; return;
+        }
+        msgEl.textContent = '保存中…';
+        const { error } = await supabase.from('custom_games').insert({
+          school_code: cgSchoolCode, title, subject: subject || null, word_data: wordData
+        });
+        if (error) { msgEl.className = 'msg error'; msgEl.textContent = '保存失敗: ' + error.message; return; }
+        msgEl.className = 'msg ok'; msgEl.textContent = '保存しました！';
+        $('cgTitle').value = ''; $('cgSubject').value = ''; $('cgWordData').value = '';
+        await loadCustomGames(cgSchoolCode);
+      });
 
       // ----- 削除 -----
       async function onDelete(appDoc) {
