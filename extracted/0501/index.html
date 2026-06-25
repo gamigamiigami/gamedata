@@ -8,8 +8,8 @@
   </head>
   <body>
     <h1>IOgames</h1>
-    <!-- 右上: 先生リンク（左）＋ 学校ログイン（右）を横並びに -->
-    <div style="position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px;z-index:10;font-size:13px;">
+    <!-- 右上: 先生の方へ（左）＋ 学校ログイン（右）を横並び -->
+    <div style="position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px;z-index:10;font-size:13px;flex-wrap:nowrap;">
       <a href="teachers/index.html" style="color:#fed000;font-size:14px;text-decoration:none;border:1px solid #fed000;border-radius:6px;padding:5px 10px;white-space:nowrap;">先生の方へ →</a>
       <div id="schoolLoginArea"></div>
     </div>
@@ -42,11 +42,13 @@
             '<b>' + name.replace(/</g,'&lt;') + '</b>' +
             '<a href="school-login/" style="color:#aaa;font-size:11px;text-decoration:none;border-left:1px solid #555;padding-left:8px;">変更</a>' +
             '</span>';
-          // 学校専用ゲームボタンを4行目中央（既存ボタンと重ならない位置）に追加
+          // 学校専用ボタンを家庭科(col2,row3)・準備中(col4,row3)の真下中央(col3,row4)に追加
           var schoolBtn = document.createElement('button');
           schoolBtn.className = 'portal-button';
           schoolBtn.dataset.url = 'school-games/index.html';
-          schoolBtn.style.cssText = 'background:#c0392b;grid-column:3;grid-row:4;';
+          schoolBtn.style.background = '#c0392b';
+          schoolBtn.style.gridColumnStart = '3';
+          schoolBtn.style.gridRowStart = '4';
           schoolBtn.innerHTML = '学校<br>専用';
           document.querySelector('.container').appendChild(schoolBtn);
         } else {
