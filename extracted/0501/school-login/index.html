@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>学校ログイン｜IOgames</title>
+    <style>
+      :root {
+        --bg:#222; --panel:#2e2e2e; --panel2:#383838;
+        --accent:#fed000; --text:#fff; --muted:#b8b8b8;
+        --border:#555; --err:#ff6b6b; --ok:#7ed957;
+      }
+      * { box-sizing:border-box; }
+      body {
+        font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,Arial,sans-serif;
+        margin:0; background:var(--bg); color:var(--text);
+        min-height:100vh; display:flex; flex-direction:column;
+        align-items:center; justify-content:center; padding:20px;
+      }
+      .card {
+        background:var(--panel); border:1px solid var(--border);
+        border-radius:16px; padding:32px 28px;
+        max-width:420px; width:100%;
+      }
+      h1 { color:var(--accent); font-size:22px; margin:0 0 6px; }
+      .sub { color:var(--muted); font-size:13px; margin:0 0 24px; line-height:1.6; }
+      label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+      input[type="text"] {
+        width:100%; padding:14px; font-size:22px; letter-spacing:4px;
+        text-align:center; background:var(--panel2); color:var(--text);
+        border:2px solid var(--border); border-radius:10px;
+        font-family:Consolas,"Courier New",monospace;
+        text-transform:uppercase;
+      }
+      input[type="text"]:focus { outline:none; border-color:var(--accent); }
+      .btn {
+        display:block; width:100%; padding:14px; font-size:16px;
+        font-weight:bold; background:var(--accent); color:#000;
+        border:none; border-radius:10px; cursor:pointer;
+        margin-top:16px; font-family:inherit; transition:background .15s;
+      }
+      .btn:hover { background:#ffe14d; }
+      .btn:disabled { opacity:0.4; cursor:not-allowed; }
+      .msg { font-size:13px; min-height:20px; margin-top:12px; text-align:center; }
+      .msg.error { color:var(--err); }
+      .msg.ok    { color:var(--ok); }
+      .back {
+        color:var(--muted); font-size:13px;
+        text-align:center; margin-top:20px;
+      }
+      .back a { color:var(--accent); text-decoration:none; }
+      /* ログイン済み表示 */
+      .logged-in { display:none; }
+      .logged-in .school-badge {
+        border:2px solid var(--accent); border-radius:12px;
+        padding:20px; text-align:center; margin-bottom:16px;
+      }
+      .logged-in .school-label { color:var(--muted); font-size:12px; margin-bottom:4px; }
+      .logged-in .school-name  { font-size:24px; font-weight:bold; color:var(--accent); }
+      .logged-in .school-code  {
+        font-family:Consolas,monospace; color:var(--muted);
+        font-size:13px; margin-top:4px; letter-spacing:2px;
+      }
+      .btn-logout {
+        display:block; width:100%; padding:12px; font-size:14px;
+        background:#3a2a2a; color:#ff9b9b; border:1px solid #6b3b3b;
+        border-radius:10px; cursor:pointer; font-family:inherit; margin-top:8px;
+      }
+      .btn-logout:hover { background:#4a3333; }
+      .hint {
+        background:#2a2a1a; border:1px solid #5a5a2a; border-radius:8px;
+        padding:12px 14px; font-size:12px; color:var(--muted); margin-top:16px; line-height:1.7;
+      }
+      .hint b { color:var(--accent); }
+    </style>
+  </head>
+  <body>
+
+    <!-- 通常ログインフォーム -->
+    <div id="loginCard" class="card">
+      <h1>学校ログイン</h1>
+      <p class="sub">
+        学校コードを入力すると、ランキングが学校内の生徒だけになります。<br>
+        先生から共有されたコードを入力してください。
+      </p>
+      <label for="codeInput">学校コード（例: ABCD-EFGH-JKMN）</label>
+      <input
+        id="codeInput" type="text" maxlength="14"
+        placeholder="XXXX-XXXX-XXXX"
+        autocomplete="off" autocapitalize="characters" spellcheck="false"
+      />
+      <button id="loginBtn" class="btn">ログイン</button>
+      <div class="msg" id="msg"></div>
+      <div class="hint">
+        <b>QRコードでログインする場合</b><br>
+        先生のQRコードをスキャンすると自動的にこの画面が開き、ログインが完了します。
+      </div>
+      <div class="back"><a href="../">← メインポータルへ戻る</a></div>
+    </div>
+
+    <!-- ログイン済み表示 -->
+    <div id="loggedInCard" class="card logged-in">
+      <h1>学校ログイン</h1>
+      <p class="sub">現在ログイン中です。</p>
+      <div class="school-badge">
+        <div class="school-label">学校</div>
+        <div class="school-name" id="loggedSchoolName"></div>
+        <div class="school-code" id="loggedCode"></div>
+      </div>
+      <a href="../" class="btn" style="text-align:center;text-decoration:none;display:block;">
+        ゲームをプレイする →
+      </a>
+      <button id="logoutBtn" class="btn-logout">ログアウト（学校コードをリセット）</button>
+      <div class="back"><a href="../">← メインポータルへ戻る</a></div>
+    </div>
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+      const supabase = createClient(
+        'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+        'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+      );
+
+      const $ = id => document.getElementById(id);
+      const MAX_ATTEMPTS = 5;
+      const LOCK_MS = 10 * 60 * 1000;
+
+      /* ---- ロックアウト管理（localStorage） ---- */
+      function isLocked() {
+        return Date.now() < parseInt(localStorage.getItem('schoolLoginLockUntil') || '0');
+      }
+      function lockMinLeft() {
+        const ms = parseInt(localStorage.getItem('schoolLoginLockUntil') || '0') - Date.now();
+        return Math.max(1, Math.ceil(ms / 60000));
+      }
+      function recordFail() {
+        let n = parseInt(localStorage.getItem('schoolLoginAttempts') || '0') + 1;
+        if (n >= MAX_ATTEMPTS) {
+          localStorage.setItem('schoolLoginLockUntil', String(Date.now() + LOCK_MS));
+          localStorage.removeItem('schoolLoginAttempts');
+        } else {
+          localStorage.setItem('schoolLoginAttempts', String(n));
+        }
+      }
+      function failsLeft() {
+        return MAX_ATTEMPTS - parseInt(localStorage.getItem('schoolLoginAttempts') || '0');
+      }
+      function clearLock() {
+        localStorage.removeItem('schoolLoginAttempts');
+        localStorage.removeItem('schoolLoginLockUntil');
+      }
+
+      /* ---- コード入力フォーマット（XXXX-XXXX-XXXX） ---- */
+      function formatCode(raw) {
+        const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+        if (clean.length <= 4) return clean;
+        if (clean.length <= 8) return clean.slice(0,4) + '-' + clean.slice(4);
+        return clean.slice(0,4) + '-' + clean.slice(4,8) + '-' + clean.slice(8);
+      }
+
+      function showMsg(text, type) {
+        $('msg').textContent = text;
+        $('msg').className = 'msg' + (type ? ' ' + type : '');
+      }
+
+      /* ---- 既存ログイン状態チェック ---- */
+      const storedCode = localStorage.getItem('schoolCode');
+      const storedName = localStorage.getItem('schoolName');
+      if (storedCode) {
+        $('loginCard').style.display = 'none';
+        $('loggedInCard').style.display = 'block';
+        $('loggedSchoolName').textContent = storedName || '（名称不明）';
+        $('loggedCode').textContent = storedCode;
+      }
+
+      $('logoutBtn').addEventListener('click', () => {
+        if (!confirm('学校コードをリセットします。ランキングは全国表示に戻ります。')) return;
+        localStorage.removeItem('schoolCode');
+        localStorage.removeItem('schoolName');
+        $('loggedInCard').style.display = 'none';
+        $('loginCard').style.display = 'block';
+      });
+
+      /* ---- コード入力フォーマット（タイプ中） ---- */
+      $('codeInput').addEventListener('input', e => {
+        const raw = e.target.value;
+        const formatted = formatCode(raw);
+        e.target.value = formatted;
+      });
+
+      /* ---- QR / URL ?code= 自動ログイン ---- */
+      const urlCode = new URLSearchParams(location.search).get('code');
+      if (urlCode && !storedCode) {
+        $('codeInput').value = formatCode(urlCode);
+        setTimeout(tryLogin, 400);
+      }
+
+      /* ---- ログイン処理 ---- */
+      async function tryLogin() {
+        if (isLocked()) {
+          showMsg('ログイン制限中です。' + lockMinLeft() + '分後に再試行してください。', 'error');
+          return;
+        }
+
+        const code = $('codeInput').value.trim().toUpperCase();
+        if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
+          showMsg('形式が正しくありません（XXXX-XXXX-XXXX）', 'error');
+          return;
+        }
+
+        $('loginBtn').disabled = true;
+        showMsg('確認中…', '');
+
+        try {
+          const { data, error } = await supabase
+            .from('schools')
+            .select('school_code, school_name')
+            .eq('school_code', code)
+            .maybeSingle();
+
+          if (!data) {
+            recordFail();
+            if (isLocked()) {
+              showMsg('5回連続で失敗しました。10分間ログインできません。', 'error');
+            } else {
+              showMsg('コードが見つかりません。残り' + failsLeft() + '回試行できます。', 'error');
+            }
+            $('loginBtn').disabled = false;
+            return;
+          }
+
+          clearLock();
+          localStorage.setItem('schoolCode', data.school_code);
+          localStorage.setItem('schoolName', data.school_name || '');
+          showMsg('ログイン成功！ゲームページへ移動します…', 'ok');
+          setTimeout(() => { location.href = '../'; }, 1000);
+        } catch(e) {
+          showMsg('接続エラーが発生しました。', 'error');
+          $('loginBtn').disabled = false;
+        }
+      }
+
+      $('loginBtn').addEventListener('click', tryLogin);
+      $('codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+    </script>
+  </body>
+</html>
