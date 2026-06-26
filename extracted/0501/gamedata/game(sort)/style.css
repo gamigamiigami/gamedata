@@ -427,6 +427,13 @@ h2 {
 
 }
 
+/* 誤答フェードアウト */
+.word.fading {
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+  pointer-events: none;
+}
+
 /* 落下ワード内の画像用 */
 .word img {
   display: block;
