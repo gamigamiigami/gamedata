@@ -1123,6 +1123,10 @@ function handleMouseUp(e) {
         return;
       }
       updateTimerDisplay();
+      wordElem.classList.add("fading");
+      const fw = fallingWords.find(w => w.element === wordElem);
+      if (fw) fw.landed = true;
+      setTimeout(() => { wordElem.remove(); }, 500);
     }
   }
   currentDrag = null;
@@ -1212,32 +1216,10 @@ function gameLoop() {
           }
           updateTimerDisplay();
         }
-        let landingY = playArea.clientHeight - wordHeight;
-        landedWords.forEach((lw) => {
-          const wordLeft = word.x;
-          const wordRight = word.x + word.element.offsetWidth;
-          const lwLeft = lw.x;
-          const lwRight = lw.x + lw.element.offsetWidth;
-          if (!(wordRight < lwLeft || wordLeft > lwRight)) {
-            const candidate = lw.y - wordHeight;
-            if (candidate < landingY) landingY = candidate;
-          }
-        });
-        if (newY >= landingY) {
-          newY = landingY;
-          word.y = newY;
-          word.element.style.top = word.y + "px";
-          word.element.dataset.locked = "true";
-          const landedEntry = { element: word.element, x: word.x, y: newY };
-          landedWords.push(landedEntry);
-          word.landed = true;
-          // 2.5秒後に削除して判定ラインを元に戻す
-          setTimeout(() => {
-            landedEntry.element.remove();
-            landedWords = landedWords.filter(lw => lw !== landedEntry);
-          }, 2500);
-          return;
-        }
+        word.element.classList.add("fading");
+        word.landed = true;
+        setTimeout(() => { word.element.remove(); }, 500);
+        return;
       }
     } else {
       if (newY > playArea.clientHeight) {
