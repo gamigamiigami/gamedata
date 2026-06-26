@@ -214,10 +214,17 @@ function resumeGame() {
   startTimer();
 }
 
-// タブ切り替え時に自動ポーズ
+// タブ切り替え時に自動ポーズ。タブ復帰時は自動再開（スマホ通知等の誤ポーズ防止）
+let _tabPaused = false;
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && !gameOver) {
-    pauseGame();
+  if (document.hidden) {
+    if (!isPaused && !gameOver) {
+      pauseGame();
+      _tabPaused = true;
+    }
+  } else if (_tabPaused) {
+    _tabPaused = false;
+    resumeGame();
   }
 });
 
@@ -1253,6 +1260,7 @@ function startTimer() {
    ゲーム終了処理
 =============================== */
 function endGame() {
+  if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(gameLoopId);
   clearInterval(timerIntervalId);
