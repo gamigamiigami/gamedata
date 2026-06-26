@@ -330,6 +330,7 @@ function showNextReviewWord() {
   wordDiv.dataset.penalized = "false";
   wordDiv.style.cssText = "white-space:nowrap; position:absolute; visibility:hidden; top:-30px; left:0;";
   playArea.appendChild(wordDiv);
+  fitWordSize(wordDiv); // 長い文章を1列幅に収める
 
   const w = wordDiv.offsetWidth;
   const x = (playArea.clientWidth - w) / 2;
@@ -861,6 +862,41 @@ function getDecisionLineY() {
 
 
 /* ===============================
+   長い文章を1列幅に収める
+   （短い単語は従来通り。長い文章はフォント縮小＋折り返し）
+=============================== */
+function fitWordSize(wordDiv) {
+  if (wordDiv.querySelector("img")) return; // 画像はそのまま
+
+  const cols     = Math.max(categories.length, 1);
+  const colWidth = playArea.clientWidth / cols;
+  // 1列幅を基準に、読みやすさ優先で最大1.5列分まで許容
+  const maxWidth = Math.max(90, Math.min(colWidth * 1.5, playArea.clientWidth - 20));
+
+  // まず通常（1行）状態で幅を測定
+  wordDiv.classList.remove("wide");
+  wordDiv.style.whiteSpace = "nowrap";
+  wordDiv.style.maxWidth   = "";
+  wordDiv.style.fontSize   = "";
+
+  if (wordDiv.offsetWidth <= maxWidth) return; // 短い単語は変更なし（従来通り）
+
+  // 長い文章: 折り返し＋フォント縮小で1列に収める
+  wordDiv.classList.add("wide");
+  wordDiv.style.whiteSpace = "normal";
+  wordDiv.style.maxWidth   = maxWidth + "px";
+
+  const maxHeight = playArea.clientHeight * 0.22;
+  let fs = 17;
+  wordDiv.style.fontSize = fs + "px";
+  while (fs > 11 && wordDiv.offsetHeight > maxHeight) {
+    fs -= 1;
+    wordDiv.style.fontSize = fs + "px";
+  }
+}
+
+
+/* ===============================
    単語 / 画像 共通生成（画像ロード待ち対応）
 =============================== */
 function spawnWord(presetX) {
@@ -910,6 +946,7 @@ function spawnWord(presetX) {
 
   // === 画像 or 文字の準備完了後に配置＆落下開始 ===
   contentReadyPromise.then(() => {
+    fitWordSize(wordDiv); // 長い文章を1列幅に収める
     const width = wordDiv.offsetWidth;
     const margin = 10;
     let x;

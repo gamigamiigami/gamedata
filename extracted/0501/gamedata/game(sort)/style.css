@@ -294,6 +294,29 @@ h2 {
   color: #fff;
 }
 
+/* 長い文章用：折り返し表示＋判定点（中心）マーカー */
+.word.wide {
+  box-sizing: border-box;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+  word-break: break-word;
+}
+/* どの列で判定されるかを示す中心マーカー（下向き三角）*/
+.word.wide::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid #e74c3c;
+  pointer-events: none;
+}
+
 /* ペナルティエフェクト：-3秒表示 */
 .penalty-effect {
   position: absolute;
