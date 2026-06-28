@@ -1,10 +1,10 @@
 import wordData from './worddata.js';
 
 /* ===============================
-   Firebase lazy getters
+   Supabase / 学校ログイン
 =============================== */
-function getDb() { return window.firebaseDB; }
-function getFbModules() { return window.firebaseModules; }
+function getSupabase() { return window.supabaseClient; }
+function getSchoolCode() { return localStorage.getItem('schoolCode') || null; }
 
 /* ===============================
    パスワード認証（SHA-256）
@@ -40,13 +40,14 @@ async function globalResetRanking() {
   if (!ok) { alert("パスワードが違います"); return; }
   if (!confirm("グローバルランキングをリセットします。\nこの操作は取り消せません。よろしいですか？")) return;
 
-  const db = getDb();
-  if (!db) { alert("Firebase未接続"); return; }
-  const { getDocs, collection } = getFbModules();
+  const supabase = getSupabase();
+  if (!supabase) { alert("DB未接続"); return; }
   try {
-    const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js");
-    const snap = await getDocs(collection(db, getCollectionName()));
-    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    const { error } = await supabase
+      .from('global_rankings')
+      .delete()
+      .eq('game_key', getCollectionName());
+    if (error) throw error;
     alert("グローバルランキングをリセットしました");
     displayGlobalRanking();
   } catch (e) {
@@ -383,33 +384,49 @@ async function displayGlobalRanking() {
   const tbody = document.querySelector("#alt-ranking-table tbody");
   if (!tbody) return;
   tbody.innerHTML = "<tr><td colspan='3'>読み込み中...</td></tr>";
-  const db = getDb();
-  if (!db) {
-    tbody.innerHTML = "<tr><td colspan='3'>Firebase未接続</td></tr>";
+  const supabase   = getSupabase();
+  const schoolCode = getSchoolCode();
+  if (!supabase) {
+    tbody.innerHTML = "<tr><td colspan='3'>DB未接続</td></tr>";
     return;
   }
-  const { getDocs, query, collection, orderBy, limit } = getFbModules();
   try {
-    const qSnap = await getDocs(
-      query(collection(db, getCollectionName()), orderBy("score", "desc"), limit(300))
-    );
+    let q;
+    if (schoolCode) {
+      q = supabase.from('school_rankings')
+        .select('player, score, device_id')
+        .eq('school_code', schoolCode)
+        .eq('game_key', getCollectionName())
+        .order('score', { ascending: false })
+        .limit(3000);
+    } else {
+      q = supabase.from('global_rankings')
+        .select('player, score, device_id')
+        .eq('game_key', getCollectionName())
+        .order('score', { ascending: false })
+        .limit(3000);
+    }
+    const { data, error } = await q;
+    if (error) throw error;
     tbody.innerHTML = "";
     const seenDevices = new Set();
     let count = 0;
-    for (const docSnap of qSnap.docs) {
-      const { player, score, deviceId } = docSnap.data();
-      if (deviceId && seenDevices.has(deviceId)) continue;
-      if (deviceId) seenDevices.add(deviceId);
+    for (const row of (data || [])) {
+      if (row.device_id && seenDevices.has(row.device_id)) continue;
+      if (row.device_id) seenDevices.add(row.device_id);
       count++;
       if (count > 30) break;
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${count}</td><td>${player}</td><td>${score}</td>`;
+      tr.innerHTML = `<td>${count}</td><td>${row.player}</td><td>${row.score}</td>`;
       tbody.appendChild(tr);
     }
-    if (count === 0) tbody.innerHTML = "<tr><td colspan='3'>データなし</td></tr>";
+    if (count === 0) {
+      const label = schoolCode ? '学校内のデータなし' : 'データなし';
+      tbody.innerHTML = `<tr><td colspan='3'>${label}</td></tr>`;
+    }
   } catch (e) {
     tbody.innerHTML = "<tr><td colspan='3'>取得エラー</td></tr>";
-    console.error("Firestore 読み込みエラー:", e);
+    console.error("Supabase 読み込みエラー:", e);
   }
 }
 
@@ -437,13 +454,12 @@ async function logViolation(username) {
   const deviceInfo = `${screen.width}×${screen.height} / ${navigator.userAgent}`;
   const dateStr    = new Date().toLocaleString("ja-JP");
 
-  const db = getDb();
-  if (db) {
-    const { addDoc, collection } = getFbModules();
-    addDoc(collection(db, "violations"), {
+  const supabase = getSupabase();
+  if (supabase) {
+    supabase.from('violations').insert({
       name: username, game: "品詞比較",
-      date: new Date().toISOString(), deviceId, deviceInfo,
-    }).catch(() => {});
+      date: new Date().toISOString(), device_id: deviceId, device_info: deviceInfo,
+    }).then(() => {}).catch(() => {});
   }
 
   _loadEmailJS().then(() => {
@@ -456,17 +472,24 @@ async function logViolation(username) {
 
 async function saveGlobalScore(username, score) {
   if (containsBadWord(username)) { logViolation(username); return; }
-  const db = getDb();
-  if (!db) return;
-  const { addDoc, collection } = getFbModules();
+  const supabase   = getSupabase();
+  const schoolCode = getSchoolCode();
+  if (!supabase) return;
   const today    = new Date().toISOString().slice(0, 10);
   const deviceId = localStorage.getItem("deviceId");
   try {
-    await addDoc(collection(db, getCollectionName()), {
-      player: username, score, date: today, deviceId
+    const { error } = await supabase.from('global_rankings').insert({
+      game_key: getCollectionName(), date: today, player: username, score, device_id: deviceId
     });
+    if (error) console.error("Supabase 保存エラー:", error);
+    if (schoolCode) {
+      const { error: e2 } = await supabase.from('school_rankings').insert({
+        school_code: schoolCode, game_key: getCollectionName(), date: today, player: username, score, device_id: deviceId
+      });
+      if (e2) console.error("学校ランキング保存エラー:", e2);
+    }
   } catch (e) {
-    console.error("Firestore 保存エラー:", e);
+    console.error("Supabase 保存エラー:", e);
   }
 }
 

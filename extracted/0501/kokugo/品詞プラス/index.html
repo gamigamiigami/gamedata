@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>品詞+ | 文脈で品詞を仕分けよう</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="/gamedata/game(sort)/style.css" />
+
+    <!-- ランキングキーは従来通り「品詞プラス」に固定（h1評価より前に設定） -->
+    <script>window.GAME_TITLE = "品詞プラス";</script>
 
     <!-- Supabase SDK -->
     <script type="module">
@@ -69,7 +72,6 @@
 
         <button id="resetRankingButton">リセット</button>
         <button id="changeNameButton">名前変更</button>
-        <button id="globalResetButton" style="display:none;">グローバルリセット</button>
       </div>
     </div>
 
@@ -80,40 +82,16 @@
         <div id="score">Score: 0</div>
         <div id="combo">Combo: 0</div>
         <div id="maxCombo">Max: 0</div>
-        <button id="hintToggle">💡</button>
-        <button id="pauseButton">⏸</button>
       </div>
-      <div id="hintPanel" style="display:none"></div>
       <div id="playArea"></div>
       <button id="returnButton">Return to START</button>
     </div>
 
-    <!-- ポーズオーバーレイ -->
-    <div id="pauseOverlay">
-      <div id="pauseBox">
-        <p>一時停止中</p>
-        <button id="resumeButton">▶ 再開</button>
-      </div>
-    </div>
-
-    <!-- 結果画面 -->
-    <div id="resultScreen" class="screen" style="display: none">
-      <h2>ゲーム結果</h2>
-      <div id="resultStats">
-        <p>スコア: <span id="resultScore"></span></p>
-        <p>最大コンボ: <span id="resultMaxCombo"></span></p>
-        <p>間違えた問題: <span id="resultWrongCount"></span> 問</p>
-      </div>
-      <div id="wrongListContainer">
-        <h3>間違えた問題</h3>
-        <ul id="wrongList"></ul>
-      </div>
-      <div class="button-container">
-        <button id="reviewButton">📝 復習モード</button>
-        <button id="resultReturnButton">スタートに戻る</button>
-      </div>
-    </div>
-
-    <script type="module" src="script.js"></script>
+    <!-- ゲーム起動（品詞選択 → 共通エンジン） -->
+    <script type="module">
+      import wordData from "./worddata.js";
+      import { initTypeSelectionGame } from "/gamedata/game(sort)/script.js";
+      initTypeSelectionGame(wordData, { dynamicScore: true });
+    </script>
   </body>
 </html>

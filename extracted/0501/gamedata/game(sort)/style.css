@@ -427,6 +427,55 @@ h2 {
 
 }
 
+/* 文中のターゲット語ハイライト（文章タイル用） */
+.target-word {
+  background: #fed000;
+  color: #000;
+  font-weight: bold;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.word.wrong .target-word {
+  background: #cc0000;
+  color: #fff;
+}
+
+/* h1内のサブタイトル */
+h1 .sub {
+  display: block;
+  font-size: 0.45em;
+  color: #ccc;
+  margin-top: 4px;
+  font-weight: normal;
+}
+
+/* 品詞選択（チェックボックス） */
+#typeSelection {
+  margin: 10px auto 4px;
+  max-width: 92%;
+}
+#typeSelection h3 {
+  font-size: 15px;
+  color: #fed000;
+  margin: 6px 0;
+}
+#typeCheckboxes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+}
+#typeCheckboxes > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+}
+#typeCheckboxes input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
 /* 誤答フェードアウト */
 .word.fading {
   opacity: 0;

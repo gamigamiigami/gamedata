@@ -322,7 +322,13 @@ function showNextReviewWord() {
   const item = reviewQueue[reviewIndex];
   const wordDiv = document.createElement("div");
   wordDiv.classList.add("word");
-  wordDiv.textContent = item.word;
+  if (item.sentence) {
+    wordDiv.innerHTML = buildTileHTML(item.sentence, item.word);
+    wordDiv.dataset.word = item.word;
+    wordDiv.dataset.sentence = item.sentence;
+  } else {
+    wordDiv.textContent = item.word;
+  }
   wordDiv.dataset.type = item.correctType;
   wordDiv.id = "review_" + reviewIndex;
   wordDiv.dataset.locked = "false";
@@ -624,6 +630,7 @@ let FALL_SPEED = 50; // initGameで再計算
 =============================== */
 let remainingTime = TIME_LIMIT;
 let score = 0;
+let scorePerCorrect = 100; // 正解1つあたりの得点（initGameのoptsで上書き可）
 
 // ★ COMBO関連はここで1回だけ宣言
 let currentCombo = 0;
@@ -692,9 +699,14 @@ if (bonusToggleButton) {
 /* ===============================
    ゲーム初期化（外部公開）
 =============================== */
-export function initGame(wordData) {
+export function initGame(wordData, opts = {}) {
   currentWordData = wordData;
-  categories = [...new Set(currentWordData.map(item => item.type))];
+  // 列の並び順：opts.categoryOrder があればそれを優先（品詞選択ゲーム用）
+  categories = (opts.categoryOrder && opts.categoryOrder.length)
+    ? opts.categoryOrder
+    : [...new Set(currentWordData.map(item => item.type))];
+  // 正解1つあたりの得点（既定100、品詞選択ゲームは選択数×20など）
+  scorePerCorrect = opts.scorePerCorrect || 100;
 
   const minCats = window.EXPECTED_MIN_CATEGORIES;
   if (minCats && categories.length < minCats) {
@@ -741,6 +753,61 @@ export function initGame(wordData) {
 
   gameScreen.style.display = "block";
   startScreen.style.display = "none";
+}
+
+
+/* ===============================
+   品詞選択ゲーム起動（外部公開）
+   スタート前に「出題する品詞」をチェックボックスで選ばせ、
+   選ばれた品詞だけを列・出題対象にしてゲームを開始する。
+   - opts.typeOrder  : 列の固定順（省略時は wordData の出現順）
+   - opts.dynamicScore : true で 正解=選択数×20、false(既定)で 100
+   必要なDOM: #typeCheckboxes（チェックボックス格納先）, #startButton
+=============================== */
+export function initTypeSelectionGame(wordData, opts = {}) {
+  const allTypes = (opts.typeOrder && opts.typeOrder.length)
+    ? opts.typeOrder.filter(t => wordData.some(w => w.type === t))
+    : [...new Set(wordData.map(w => w.type))];
+
+  const selected = new Set(allTypes);
+  const container = document.getElementById("typeCheckboxes");
+  if (container) {
+    container.innerHTML = "";
+    allTypes.forEach(type => {
+      const div = document.createElement("div");
+      const cb  = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = "type-" + type;
+      cb.value = type;
+      cb.checked = true;
+      const label = document.createElement("label");
+      label.htmlFor = "type-" + type;
+      label.textContent = type;
+      cb.addEventListener("change", e => {
+        if (e.target.checked) selected.add(type);
+        else selected.delete(type);
+      });
+      div.appendChild(cb);
+      div.appendChild(label);
+      container.appendChild(div);
+    });
+  }
+
+  const startBtn = document.getElementById("startButton");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (selected.size === 0) {
+        alert("少なくとも1つの品詞を選択してください！");
+        return;
+      }
+      const order    = allTypes.filter(t => selected.has(t));
+      const filtered = wordData.filter(w => selected.has(w.type));
+      initGame(filtered, {
+        categoryOrder:   order,
+        scorePerCorrect: opts.dynamicScore ? order.length * 20 : 100,
+      });
+    });
+  }
 }
 
 
@@ -891,6 +958,20 @@ function fitWordSize(wordDiv) {
 
 
 /* ===============================
+   文章タイル生成（文中の対象語をハイライト）
+   sentence 内の word を <span class="target-word"> で強調
+=============================== */
+function buildTileHTML(sentence, word) {
+  const idx = sentence.indexOf(word);
+  if (idx === -1) return sentence;
+  return (
+    sentence.slice(0, idx) +
+    `<span class="target-word">${word}</span>` +
+    sentence.slice(idx + word.length)
+  );
+}
+
+/* ===============================
    単語 / 画像 共通生成（画像ロード待ち対応）
 =============================== */
 function spawnWord(presetX) {
@@ -930,8 +1011,16 @@ function spawnWord(presetX) {
         img.onerror = resolve; // エラーでも進める
       }
     });
+  } else if (data.sentence) {
+    // 文章タイル：文中の対象語をハイライト
+    wordDiv.innerHTML = buildTileHTML(data.sentence, data.word);
+    wordDiv.dataset.word = data.word;
+    wordDiv.dataset.sentence = data.sentence;
+    wordDiv.style.whiteSpace = "nowrap";
+    contentReadyPromise = Promise.resolve();
   } else {
     wordDiv.textContent = data.word;
+    wordDiv.dataset.word = data.word;
     wordDiv.style.whiteSpace = "nowrap";
     contentReadyPromise = Promise.resolve();
   }
@@ -986,7 +1075,7 @@ function lockWord(wordElem, dropCategory) {
   const correct = wordElem.dataset.type === dropCategory;
   if (correct) {
     wordElem.classList.add("correct");
-    score += 100;
+    score += scorePerCorrect;
     if (bonusEnabled) {
       remainingTime += 1;
     }
@@ -1110,7 +1199,7 @@ function handleMouseUp(e) {
       wordElem.dataset.penalized = "true";
       currentCombo = 0;
       updateComboDisplay();
-      wrongAnswers.push({ word: wordElem.textContent || wordElem.dataset.type, correctType: wordElem.dataset.type });
+      wrongAnswers.push({ word: wordElem.dataset.word || wordElem.textContent || wordElem.dataset.type, sentence: wordElem.dataset.sentence || "", correctType: wordElem.dataset.type });
       if (remainingTime <= 0) {
         clearInterval(timerIntervalId);
         endGame();
@@ -1203,7 +1292,7 @@ function gameLoop() {
           showPenaltyEffect(effectX, effectY);
           currentCombo = 0;
           updateComboDisplay();
-          wrongAnswers.push({ word: word.element.textContent || word.element.dataset.type, correctType: word.element.dataset.type });
+          wrongAnswers.push({ word: word.element.dataset.word || word.element.textContent || word.element.dataset.type, sentence: word.element.dataset.sentence || "", correctType: word.element.dataset.type });
           if (remainingTime <= 0 && !gameOver) {
             endGame();
             return;
@@ -1359,9 +1448,8 @@ function incrementPlayCount() {
 // メダル画像を更新する関数play
 function updateMedalDisplay(playCount) {
   const medalImage = document.getElementById("medalImage");
+  if (!medalImage) return; // メダル非対応のゲーム（品詞選択ゲーム等）では何もしない
   let medalSrc = "";
-
-  console.log("updateMedalDisplay: playCount =", playCount);
 
   if (playCount >= 30) {
     medalSrc = "/images/medals/medal_gold.png";
@@ -1373,14 +1461,11 @@ function updateMedalDisplay(playCount) {
     medalSrc = "/images/medals/0.png";
   }
 
-
   if (medalSrc) {
     medalImage.src = medalSrc;
     medalImage.style.display = "inline-block";
-    console.log("→ 表示する:", medalSrc);
   } else {
     medalImage.style.display = "none";
-    console.log("→ 非表示");
   }
 }
 
