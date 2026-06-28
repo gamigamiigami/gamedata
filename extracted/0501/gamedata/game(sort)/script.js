@@ -276,7 +276,6 @@ function startReviewMode() {
   if (rs) rs.style.display = "none";
   gameOver = false;
   fallingWords = [];
-  landedWords = [];
 
   const gs = document.getElementById("gameScreen");
   if (gs) gs.style.display = "block";
@@ -631,7 +630,6 @@ let currentCombo = 0;
 let maxCombo = 0;
 
 let fallingWords = [];
-let landedWords = [];
 let lastSpawnTime = Date.now();
 let lastFrameTime = Date.now();
 let gameOver = false;
@@ -722,7 +720,6 @@ export function initGame(wordData) {
   updateComboDisplay();
 
   fallingWords = [];
-  landedWords = [];
 
   lastSpawnTime = Date.now() - 1900;
   lastFrameTime = Date.now();
@@ -853,11 +850,8 @@ function createSortingArea() {
    判定ラインY座標
 =============================== */
 function getDecisionLineY() {
-  const baseLine = playArea.clientHeight - SORTING_AREA_HEIGHT;
-  if (landedWords.length === 0) return baseLine;
-
-  const highest = Math.min(...landedWords.map(w => w.y));
-  return Math.min(baseLine, highest);
+  // 判定ラインは常に仕分けエリア上端で固定（誤答ブロックは積み上げず即フェードアウト）
+  return playArea.clientHeight - SORTING_AREA_HEIGHT;
 }
 
 
