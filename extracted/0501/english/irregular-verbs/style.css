@@ -335,6 +335,13 @@ h3 {
   border-color: #cc0000;
 }
 
+/* 誤答フェードアウト */
+.word.fading {
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+  pointer-events: none;
+}
+
 .penalty-effect {
   position: absolute;
   font-size: 22px;

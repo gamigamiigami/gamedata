@@ -206,6 +206,17 @@ function resumeGame() {
   startTimer();
 }
 
+// タブ切り替え時に自動ポーズ。復帰時は自動再開（スマホ通知等の誤ポーズ防止）
+let _tabPaused = false;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (!isPaused && !gameOver) { pauseGame(); _tabPaused = true; }
+  } else if (_tabPaused) {
+    _tabPaused = false;
+    resumeGame();
+  }
+});
+
 /* ===============================
    単語表示更新（意味モード）
 =============================== */
@@ -551,9 +562,8 @@ function createSortingArea() {
 }
 
 function getDecisionLineY() {
-  const baseLine = playArea.clientHeight - SORTING_AREA_HEIGHT;
-  if (landedWords.length === 0) return baseLine;
-  return Math.min(baseLine, Math.min(...landedWords.map(lw => lw.y)));
+  // 判定ラインは仕分けエリア上端で固定（誤答ブロックは積まず即フェードアウト）
+  return playArea.clientHeight - SORTING_AREA_HEIGHT;
 }
 
 function spawnWord(presetX) {
@@ -749,7 +759,7 @@ function handleTouchEnd(e) {
 function gameLoop() {
   if (gameOver) return;
   const now   = Date.now();
-  const delta = (now - lastFrameTime) / 1000;
+  const delta = Math.min((now - lastFrameTime) / 1000, 0.1); // タブ切替後のワープ防止
   lastFrameTime = now;
 
   fallingWords.forEach(word => {
@@ -788,21 +798,10 @@ function gameLoop() {
             base: word.element.dataset.base,
           });
         }
-        let landingY = playArea.clientHeight - wordHeight;
-        landedWords.forEach(lw => {
-          const wL = word.x, wR = word.x + word.element.offsetWidth;
-          const lL = lw.x,  lR = lw.x + lw.element.offsetWidth;
-          if (!(wR < lL || wL > lR)) landingY = Math.min(landingY, lw.y - wordHeight);
-        });
-        if (newY >= landingY) {
-          newY = landingY;
-          word.y = newY;
-          word.element.style.top = word.y + "px";
-          word.element.dataset.locked = "true";
-          landedWords.push({ element: word.element, x: word.x, y: newY });
-          word.landed = true;
-          return;
-        }
+        word.element.classList.add("fading");
+        word.landed = true;
+        setTimeout(() => { word.element.remove(); }, 500);
+        return;
       }
     }
     word.y = newY;
@@ -871,6 +870,7 @@ function getPlayerName() {
    ゲーム終了
 =============================== */
 function endGame() {
+  if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(gameLoopId);
   clearInterval(timerIntervalId);
