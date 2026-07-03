@@ -60,7 +60,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const pauseBtn = document.createElement("button");
     pauseBtn.id = "pauseButton";
     pauseBtn.textContent = "⏸";
-    pauseBtn.style.cssText = "padding:4px 10px; font-size:16px; cursor:pointer; background:#555; color:#fff; border:1px solid #999; border-radius:4px;";
     pauseBtn.addEventListener("click", pauseGame);
     header.appendChild(pauseBtn);
   }
@@ -88,11 +87,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // ポーズオーバーレイを動的生成
   const pauseOverlay = document.createElement("div");
   pauseOverlay.id = "pauseOverlay";
-  pauseOverlay.style.cssText = "display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#000; align-items:center; justify-content:center; z-index:200;";
+  pauseOverlay.style.cssText = "display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(8,11,18,.88); backdrop-filter:blur(3px); align-items:center; justify-content:center; z-index:200;";
   pauseOverlay.innerHTML = `
-    <div style="background:#333; border:2px solid #fed000; border-radius:12px; padding:40px 60px; text-align:center;">
-      <p style="font-size:24px; margin:0 0 20px; color:#fed000;">一時停止中</p>
-      <button id="resumeButton" style="padding:10px 30px; font-size:18px; cursor:pointer; background:#fed000; color:#000; border:none; border-radius:6px; font-weight:bold;">▶ 再開</button>
+    <div style="background:linear-gradient(180deg,#222836,#1a1f2b); border:1px solid #39404e; border-radius:22px; padding:36px 52px; text-align:center; box-shadow:0 24px 60px rgba(0,0,0,.6);">
+      <p style="font-size:15px; margin:0 0 6px; letter-spacing:.3em; color:#9aa1ad; font-weight:800;">PAUSE</p>
+      <p style="font-size:23px; margin:0 0 22px; color:#fed000; font-weight:900;">一時停止中</p>
+      <button id="resumeButton" style="min-width:180px; height:52px; padding:0 26px; font-size:17px; cursor:pointer; background:linear-gradient(180deg,#ffe14d,#fed000); color:#1a1400; border:none; border-radius:999px; font-weight:900; box-shadow:0 4px 0 #b89600, 0 8px 20px rgba(254,208,0,.3);">▶ 再開する</button>
     </div>`;
   document.body.appendChild(pauseOverlay);
   pauseOverlay.querySelector("#resumeButton").addEventListener("click", resumeGame);
@@ -249,7 +249,7 @@ function unlockZoom() {
 let isPaused = false;
 
 function pauseGame() {
-  if (isPaused || gameOver) return;
+  if (isPaused || gameOver || introActive) return;
   isPaused = true;
   cancelAnimationFrame(gameLoopId);
   clearInterval(timerIntervalId);
@@ -271,6 +271,7 @@ function resumeGame() {
 // タブ切り替え時に自動ポーズ。タブ復帰時は自動再開（スマホ通知等の誤ポーズ防止）
 let _tabPaused = false;
 document.addEventListener("visibilitychange", () => {
+  if (introActive) return; // カウントダウン/チュートリアル中はポーズ処理しない
   if (document.hidden) {
     if (!isPaused && !gameOver) {
       pauseGame();
@@ -569,7 +570,7 @@ function startTokkunMode(wordData) {
   playArea.appendChild(createSortingArea());
 
   const td = document.getElementById("timer");
-  if (td) td.textContent = "弱点特訓";
+  if (td) { td.textContent = "弱点特訓"; td.classList.remove("hurry"); }
   const cd = document.getElementById("combo");
   if (cd) cd.textContent = "";
   const md = document.getElementById("maxCombo");
@@ -1031,11 +1032,105 @@ export function initGame(wordData, opts = {}) {
   updateTimerDisplay();
   updateScoreDisplay();
 
-  gameLoopId = requestAnimationFrame(gameLoop);
-  startTimer();
-
   gameScreen.style.display = "block";
   startScreen.style.display = "none";
+
+  // 初回はチュートリアル→カウントダウン、2回目以降はカウントダウンのみ
+  beginWithIntro();
+}
+
+/* ===============================
+   ゲーム開始前イントロ
+   （初回チュートリアル + 3・2・1カウントダウン）
+=============================== */
+let introActive = false;
+let introCancel = null; // Returnボタン等でイントロを中断するためのフック
+
+function startPlay() {
+  introActive = false;
+  introCancel = null;
+  lastSpawnTime = Date.now() - 1900;
+  lastFrameTime = Date.now();
+  playStartTime = Date.now(); // イントロ時間はプレイ時間に含めない
+  gameLoopId = requestAnimationFrame(gameLoop);
+  startTimer();
+}
+
+function beginWithIntro() {
+  introActive = true;
+  if (!localStorage.getItem("ver2_tutorial_done")) {
+    showTutorial(() => runCountdown(startPlay));
+  } else {
+    runCountdown(startPlay);
+  }
+}
+
+function showTutorial(done) {
+  const ov = document.createElement("div");
+  ov.id = "tutorialOverlay";
+  let mascot = "";
+  try { mascot = mascotSVG({ mood: "cheer", level: 1, size: 72 }); } catch (e) {}
+  ov.innerHTML = `
+    <div class="tut-card">
+      <button class="tut-skip" type="button">スキップ ▶</button>
+      <div class="tut-mascot">${mascot}</div>
+      <p class="tut-title">あそびかた</p>
+      <div class="tut-demo">
+        <span class="tut-demo-tile">ことば</span>
+        <span class="tut-demo-hand">👆</span>
+        <div class="tut-demo-cols"><i>なかまA</i><i>なかまB</i><i>なかまC</i></div>
+      </div>
+      <ul class="tut-steps">
+        <li><span class="n">1</span>ことばが上から落ちてくる！</li>
+        <li><span class="n">2</span>ゆびでドラッグして、同じなかまの色エリアへ運ぼう</li>
+        <li><span class="n">3</span>黄色いラインにとどく前に仕分け！正解でスコア＆コンボUP</li>
+      </ul>
+      <button class="tut-go" type="button">わかった！はじめる</button>
+    </div>`;
+  document.body.appendChild(ov);
+  let finished = false;
+  introCancel = () => { finished = true; ov.remove(); };
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    try { localStorage.setItem("ver2_tutorial_done", "1"); } catch (e) {}
+    ov.remove();
+    done();
+  };
+  ov.querySelector(".tut-go").addEventListener("click", finish);
+  ov.querySelector(".tut-skip").addEventListener("click", finish);
+}
+
+function runCountdown(done) {
+  const ov = document.createElement("div");
+  ov.id = "countdownOverlay";
+  ov.innerHTML = '<span class="cd-num">3</span><span class="cd-hint">タップでスキップ</span>';
+  playArea.appendChild(ov);
+  const num = ov.querySelector(".cd-num");
+  let step = 3;
+  let finished = false;
+  introCancel = () => { finished = true; clearInterval(timerId); ov.remove(); };
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearInterval(timerId);
+    ov.remove();
+    done();
+  };
+  const timerId = setInterval(() => {
+    step--;
+    if (step > 0) {
+      num.textContent = step;
+      num.style.animation = "none"; void num.offsetWidth; num.style.animation = "";
+    } else if (step === 0) {
+      num.textContent = "GO!";
+      num.classList.add("go");
+      num.style.animation = "none"; void num.offsetWidth; num.style.animation = "";
+    } else {
+      finish();
+    }
+  }, 700);
+  ov.addEventListener("click", finish);
 }
 
 
@@ -1110,6 +1205,9 @@ returnButton.addEventListener("click", () => {
     updateTokkunButton();
     return;
   }
+  // カウントダウン/チュートリアル中に戻った場合はイントロを中断
+  if (introCancel) { introCancel(); introCancel = null; }
+  introActive = false;
   clearInterval(timerIntervalId);
   cancelAnimationFrame(gameLoopId);
 
@@ -1159,6 +1257,8 @@ displayRanking();
 =============================== */
 function updateTimerDisplay() {
   timerDisplay.textContent = `Time: ${remainingTime}`;
+  // 残り10秒で点滅して緊張感を出す
+  timerDisplay.classList.toggle("hurry", remainingTime <= 10 && remainingTime > 0);
 }
 
 function updateScoreDisplay() {
@@ -1392,7 +1492,7 @@ function lockWord(wordElem, dropCategory) {
 function showPenaltyEffect(x, y) {
   const effect = document.createElement("div");
   effect.classList.add("penalty-effect");
-  effect.textContent = "-3s";
+  effect.textContent = "⏱ −3秒";
   effect.style.left = x + "px";
   effect.style.top = y + "px";
   playArea.appendChild(effect);
@@ -1440,12 +1540,27 @@ function handleMouseMove(e) {
     fallingWord.x = newX;
     fallingWord.y = newY;
   }
+
+  // ドラッグ中：タイル中心の真下の列をハイライト（どこに落ちるか可視化）
+  highlightDropColumn(newX + elemWidth / 2);
+}
+
+function highlightDropColumn(centerX) {
+  const cols = playArea.querySelectorAll(".sorting-column");
+  if (!cols.length) return;
+  const idx = Math.floor(centerX / (playArea.clientWidth / cols.length));
+  cols.forEach((c, i) => c.classList.toggle("active", i === idx));
+}
+
+function clearColumnHighlight() {
+  playArea.querySelectorAll(".sorting-column.active").forEach((c) => c.classList.remove("active"));
 }
 
 function handleMouseUp(e) {
   if (!currentDrag) return;
   const wordElem = currentDrag.element;
   wordElem.classList.remove("dragging");
+  clearColumnHighlight();
   const top = parseInt(wordElem.style.top);
 
   if (reviewMode) {
