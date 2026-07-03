@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>マイページ | IOgames</title>
+  <link rel="stylesheet" href="../shared/design.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--c-bg);
+      color: var(--c-text);
+      min-height: 100vh;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px clamp(14px, 4vw, 32px);
+      border-bottom: 1px solid var(--c-line);
+      background: var(--c-bg-deep);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    header a.back {
+      color: var(--c-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 8px 12px;
+      border: 1px solid var(--c-line);
+      border-radius: 10px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+    header h1 { font-size: 20px; margin: 0; letter-spacing: .04em; }
+    main {
+      width: min(760px, 94vw);
+      margin: 0 auto;
+      padding: 24px 0 64px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ① ヒーローブロック */
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .hero__level { flex: 1; min-width: 240px; }
+    .hero__level h2 { margin: 0 0 2px; font-size: 26px; }
+    .hero__level .xp-note { font-size: 12px; color: var(--c-muted); margin: 6px 0 0; }
+    .stat-chips { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    .stat-chip {
+      background: var(--c-surface-2);
+      border: 1px solid var(--c-line);
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .stat-chip b { color: var(--c-brand); font-size: 17px; }
+
+    /* ② バッジ */
+    .badge-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+      gap: 10px;
+    }
+
+    /* ③ ノート・苦手 */
+    .note-list { list-style: none; margin: 0; padding: 0; }
+    .note-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 4px;
+      border-bottom: 1px dashed var(--c-line);
+      font-size: 14px;
+    }
+    .note-list .game-name { color: var(--c-muted); font-size: 12px; }
+    .note-list .miss-count { color: var(--c-danger); font-weight: 700; white-space: nowrap; }
+    .weak-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #ff8a5c, var(--c-danger));
+    }
+    .weak-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 0; }
+    .weak-row .name { font-size: 14px; font-weight: 700; }
+    .weak-row .cnt { font-size: 12px; color: var(--c-muted); }
+    .empty { color: var(--c-muted); font-size: 14px; padding: 12px 0; }
+    .best-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .best-table td { padding: 8px 4px; border-bottom: 1px dashed var(--c-line); }
+    .best-table td:last-child { text-align: right; font-weight: 700; color: var(--c-brand); }
+    details summary {
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--c-muted);
+      padding: 8px 0;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="back" href="../index.html">← ポータル</a>
+    <h1>📖 マイページ</h1>
+  </header>
+
+  <main>
+    <!-- ① レベル・ストリーク・マスコット -->
+    <section class="v2-card hero">
+      <div id="mascotBox" class="v2-mascot v2-mascot--bounce" style="text-align:center;">
+        <!-- マスコットSVG -->
+      </div>
+      <div class="hero__level">
+        <p class="v2-section-title" style="margin-bottom:4px;">あなたのレベル</p>
+        <h2 id="levelText">レベル 1</h2>
+        <div class="v2-xpbar" style="height:16px;"><div id="xpFill" class="v2-xpbar__fill"></div></div>
+        <p class="xp-note" id="xpNote"></p>
+        <div class="stat-chips">
+          <span class="stat-chip">🔥 連続 <b id="streakText">0</b> 日</span>
+          <span class="stat-chip">🎮 プレイ <b id="playsText">0</b> 回</span>
+          <span class="stat-chip">🎯 克服 <b id="clearedText">0</b> 問</span>
+        </div>
+      </div>
+      <p id="mascotSpeech" class="v2-speech" style="width:100%; max-width:none;"></p>
+    </section>
+
+    <!-- ② 称号バッジコレクション -->
+    <section class="v2-card">
+      <p class="v2-section-title">称号コレクション <span id="badgeCount" class="v2-chip"></span></p>
+      <div id="badgeGrid" class="badge-grid"></div>
+    </section>
+
+    <!-- ③ 間違いノート＆苦手分析 -->
+    <section class="v2-card">
+      <p class="v2-section-title">📝 間違いノート</p>
+      <p style="font-size:12px; color:var(--c-muted); margin:0 0 8px;">
+        ここにある問題はゲーム中に出やすくなるよ。正解すると消えていく！
+      </p>
+      <div id="weakArea"></div>
+      <details>
+        <summary>ノートの中身をぜんぶ見る（<span id="noteTotal">0</span>問）</summary>
+        <ul id="noteList" class="note-list"></ul>
+      </details>
+    </section>
+
+    <section class="v2-card">
+      <p class="v2-section-title">🏅 ゲーム別ベストスコア</p>
+      <table class="best-table"><tbody id="bestBody"></tbody></table>
+      <p id="bestEmpty" class="empty" style="display:none;">まだ記録がないよ。ゲームで遊ぶとここに記録される！</p>
+    </section>
+  </main>
+
+  <script type="module">
+    import { getProgress, levelInfo, getBadgeState, getWeakness } from "../shared/progress.js";
+    import { mascotSVG, mascotComment } from "../shared/mascot.js";
+
+    const p = getProgress();
+    const lv = levelInfo(p.xp);
+
+    /* ① レベル・マスコット */
+    document.getElementById("mascotBox").innerHTML = mascotSVG({ mood: "happy", level: lv.level, size: 120 });
+    document.getElementById("mascotSpeech").textContent = mascotComment("welcome");
+    document.getElementById("levelText").textContent = "レベル " + lv.level;
+    document.getElementById("xpNote").textContent = `つぎのレベルまで あと ${lv.next - lv.cur} XP（合計 ${p.xp} XP）`;
+    document.getElementById("streakText").textContent = p.streak.count;
+    document.getElementById("playsText").textContent = p.stats.plays;
+    document.getElementById("clearedText").textContent = p.stats.noteCleared;
+    setTimeout(() => { document.getElementById("xpFill").style.width = lv.pct + "%"; }, 100);
+
+    /* ② バッジ */
+    const badges = getBadgeState();
+    const earnedCount = badges.filter(b => b.earned).length;
+    document.getElementById("badgeCount").textContent = `${earnedCount} / ${badges.length}`;
+    const grid = document.getElementById("badgeGrid");
+    for (const b of badges) {
+      const div = document.createElement("div");
+      const locked = !b.earned;
+      div.className = "v2-badge" + (locked ? " v2-badge--locked" : "");
+      const secretLocked = locked && b.secret;
+      const icon = b.img
+        ? `<img src="${b.img}" alt="">`
+        : (secretLocked ? "❓" : (b.icon || "🏅"));
+      div.innerHTML = `
+        <div class="v2-badge__icon">${secretLocked ? "❓" : icon}</div>
+        <div class="v2-badge__name">${secretLocked ? "？？？" : b.name}</div>
+        <div class="v2-badge__desc">${secretLocked ? "とある条件で解放…" : b.desc}</div>`;
+      grid.appendChild(div);
+    }
+
+    /* ③ 苦手分析 */
+    const weak = getWeakness(5);
+    const weakArea = document.getElementById("weakArea");
+    if (weak.length === 0) {
+      weakArea.innerHTML = '<p class="empty">間違いノートは空っぽ！すごい！</p>';
+    } else {
+      const max = weak[0].count;
+      weakArea.innerHTML = weak.map(w => `
+        <div class="weak-row">
+          <span class="name">${esc(w.game)}</span>
+          <span class="cnt">まちがい ${w.count} 回</span>
+          <div class="weak-bar" style="grid-column:1/3; width:${Math.max(8, Math.round((w.count / max) * 100))}%;"></div>
+        </div>`).join("");
+    }
+
+    /* ノート全リスト */
+    document.getElementById("noteTotal").textContent = p.note.length;
+    const noteList = document.getElementById("noteList");
+    if (p.note.length === 0) {
+      noteList.innerHTML = '<li class="empty" style="border:none;">まだ何もないよ</li>';
+    } else {
+      for (const n of [...p.note].reverse()) {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <span>「${esc(n.w)}」→ <strong style="color:var(--c-brand);">${esc(n.t)}</strong>
+            <span class="game-name"><br>${esc(n.g)}</span></span>
+          <span class="miss-count">×${n.n}</span>`;
+        noteList.appendChild(li);
+      }
+    }
+
+    /* ゲーム別ベスト */
+    const bestBody = document.getElementById("bestBody");
+    const games = Object.entries(p.games).sort((a, b) => b[1].best - a[1].best);
+    if (games.length === 0) {
+      document.getElementById("bestEmpty").style.display = "block";
+    } else {
+      for (const [name, g] of games) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${esc(name)}</td><td>${g.best} 点</td>`;
+        bestBody.appendChild(tr);
+      }
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>

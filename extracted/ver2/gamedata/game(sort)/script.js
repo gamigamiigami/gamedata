@@ -4,6 +4,18 @@
 // import { collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 // const db = window.firebaseDB;
 
+// ★ ver2 進捗エンジン＆マスコット（import.meta.url 基準なのでHTML側の変更不要）
+import * as v2p from "../../shared/progress.js";
+import { mascotSVG, mascotComment } from "../../shared/mascot.js";
+
+// 共有デザインCSSを注入
+(function injectDesignCSS() {
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = new URL("../../shared/design.css", import.meta.url).href;
+  document.head.appendChild(link);
+})();
+
 (function ensureDeviceId() {
   // 端末ごとに一意の ID を localStorage に保存
   let id = localStorage.getItem("deviceId");
@@ -68,21 +80,42 @@ document.addEventListener("DOMContentLoaded", () => {
   // 結果画面を動的生成
   const resultScreen = document.createElement("div");
   resultScreen.id = "resultScreen";
-  resultScreen.style.cssText = "display:none; text-align:center; padding:20px; margin-top:40px; color:#fff;";
+  resultScreen.style.cssText = "display:none; text-align:center; padding:20px 12px; margin-top:20px; color:#fff; font-family:var(--font, system-ui);";
   resultScreen.innerHTML = `
-    <h2 style="color:#fed000;">ゲーム結果</h2>
-    <div id="resultStats" style="font-size:20px; margin:20px 0; line-height:2;">
-      <p>スコア: <span id="resultScore" style="font-weight:bold; color:#fed000; font-size:26px;"></span></p>
-      <p>最大コンボ: <span id="resultMaxCombo" style="font-weight:bold; color:#fed000; font-size:26px;"></span></p>
-      <p>間違えた問題: <span id="resultWrongCount" style="font-weight:bold; color:#fed000; font-size:26px;"></span> 問</p>
+    <h2 style="color:#fed000; letter-spacing:.06em; margin:0 0 14px;">ゲーム結果</h2>
+    <div class="v2-card" style="max-width:520px; margin:0 auto; text-align:left;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+        <span id="resultMascot" class="v2-mascot v2-mascot--bounce"></span>
+        <p id="resultSpeech" class="v2-speech" style="margin:0;"></p>
+      </div>
+      <div id="celebrateSlot"></div>
+      <div class="v2-result-row" style="animation-delay:.05s;">
+        <span>スコア</span>
+        <span><b id="resultScore">0</b> <span id="resultBestDiff" class="v2-plus"></span></span>
+      </div>
+      <div class="v2-result-row" style="animation-delay:.15s;">
+        <span>最大コンボ</span><b id="resultMaxCombo"></b>
+      </div>
+      <div class="v2-result-row" style="animation-delay:.25s;">
+        <span>間違えた問題</span><span><b id="resultWrongCount"></b> 問</span>
+      </div>
+      <div id="resultXpArea" style="margin-top:14px; display:none;">
+        <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;">
+          <span id="resultLevelLabel" style="font-weight:700; color:var(--c-brand,#fed000);"></span>
+          <span id="resultXpGain" style="color:var(--c-success,#3ecf8e); font-weight:700;"></span>
+        </div>
+        <div class="v2-xpbar"><div id="resultXpFill" class="v2-xpbar__fill"></div></div>
+        <p id="resultSubInfo" style="font-size:12px; color:var(--c-muted,#9aa1ad); margin:8px 0 0;"></p>
+      </div>
+      <p id="resultNotice" style="display:none; font-size:13px; color:var(--c-muted,#9aa1ad); background:var(--c-bg-deep,#0e1013); border-radius:10px; padding:10px 12px; margin:14px 0 0;"></p>
     </div>
-    <div id="wrongListContainer" style="max-height:280px; overflow-y:auto; margin:10px auto; width:90%; max-width:500px; background:#333; border-radius:8px; padding:12px 16px; text-align:left;">
-      <h3 style="color:#fed000; margin:0 0 10px; text-align:center;">間違えた単語</h3>
+    <div id="wrongListContainer" style="max-height:280px; overflow-y:auto; margin:14px auto 0; width:90%; max-width:520px; background:var(--c-surface,#1f2229); border:1px solid var(--c-line,#3a3f4b); border-radius:16px; padding:12px 16px; text-align:left;">
+      <h3 style="color:#fed000; margin:0 0 10px; text-align:center; font-size:16px;">間違えた問題（間違いノートに記録）</h3>
       <ul id="wrongList" style="list-style:none; padding:0; margin:0;"></ul>
     </div>
     <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:16px;">
-      <button id="reviewButton" style="padding:10px 25px; font-size:16px; cursor:pointer; background:#fed000; color:#000; border:none; border-radius:6px; font-weight:bold;">📝 復習モード</button>
-      <button id="resultReturnButton" style="padding:10px 25px; font-size:16px; cursor:pointer; border-radius:6px;">スタートに戻る</button>
+      <button id="reviewButton" class="v2-btn v2-btn--primary">📝 復習モード</button>
+      <button id="resultReturnButton" class="v2-btn v2-btn--ghost">スタートに戻る</button>
     </div>`;
   document.body.appendChild(resultScreen);
   resultScreen.querySelector("#reviewButton").addEventListener("click", startReviewMode);
@@ -236,6 +269,35 @@ let reviewMode = false;
 let reviewQueue = [];
 let reviewIndex = 0;
 
+/* 紙吹雪エフェクト */
+function spawnConfetti() {
+  const colors = ["#fed000", "#ff6b6b", "#58b7ff", "#3ecf8e", "#c792ea"];
+  const wrap = document.createElement("div");
+  wrap.className = "v2-confetti";
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement("i");
+    p.style.left = Math.random() * 100 + "%";
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = 1.8 + Math.random() * 1.6 + "s";
+    p.style.animationDelay = Math.random() * 0.6 + "s";
+    wrap.appendChild(p);
+  }
+  document.body.appendChild(wrap);
+  setTimeout(() => wrap.remove(), 4200);
+}
+
+/* スコアのカウントアップ演出 */
+function animateCount(elem, target, ms = 800) {
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / ms, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    elem.textContent = Math.round(target * eased);
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
 function showResultScreen() {
   const gs = document.getElementById("gameScreen");
   const rs = document.getElementById("resultScreen");
@@ -243,10 +305,96 @@ function showResultScreen() {
   if (!rs) return;
 
   const el = (id) => rs.querySelector("#" + id) || document.getElementById(id);
-  el("resultScore").textContent = score;
+  const r = lastPlayResult || { valid: true, counted: false };
+
+  animateCount(el("resultScore"), score);
   el("resultMaxCombo").textContent = maxCombo;
   el("resultWrongCount").textContent = wrongAnswers.length;
 
+  /* --- お祝いは1プレイ最大1つ（称号 > レベルUP > 自己ベスト） --- */
+  const slot = el("celebrateSlot");
+  slot.innerHTML = "";
+  let mood = wrongAnswers.length === 0 && score > 0 ? "happy" : "normal";
+  let speech = mascotComment(wrongAnswers.length > 0 ? "miss" : "good");
+  let celebrated = null;
+
+  if (r.counted && r.newBadges && r.newBadges.length > 0) {
+    const b = r.newBadges[0];
+    celebrated = {
+      title: "🏅 新しい称号「" + b.name + "」",
+      sub: b.desc + (r.newBadges.length > 1 ? `（ほか${r.newBadges.length - 1}個！マイページで確認）` : ""),
+    };
+    mood = "cheer";
+    speech = mascotComment("badge");
+  } else if (r.counted && r.levelUp) {
+    celebrated = { title: "⬆ レベル" + r.levelAfter + "にアップ！", sub: "コツコツ続けるきみがすごい！" };
+    mood = "cheer";
+    speech = mascotComment("levelup", { level: r.levelAfter });
+  } else if (r.counted && r.bestUpdated && r.prevBest > 0) {
+    celebrated = { title: "🎉 自己ベスト更新！", sub: `前回ベスト ${r.prevBest} 点をこえた！` };
+    mood = "cheer";
+    speech = mascotComment("best");
+  }
+
+  if (celebrated) {
+    slot.innerHTML = `
+      <div class="v2-celebrate">
+        <p class="v2-celebrate__title">${celebrated.title}</p>
+        <p class="v2-celebrate__sub">${celebrated.sub}</p>
+      </div>`;
+    spawnConfetti();
+  }
+
+  /* --- ベスト比（お祝い枠を使っていない時は1行で表示） --- */
+  const diff = el("resultBestDiff");
+  diff.textContent = "";
+  if (r.counted && r.bestUpdated && r.prevBest > 0 && (!celebrated || celebrated.title.indexOf("自己ベスト") === -1)) {
+    diff.textContent = `自己ベスト! (+${score - r.prevBest})`;
+  } else if (r.counted && !r.bestUpdated && r.best > 0) {
+    diff.textContent = "";
+  }
+
+  /* --- XPエリア --- */
+  const xpArea = el("resultXpArea");
+  const notice = el("resultNotice");
+  notice.style.display = "none";
+
+  if (!r.valid) {
+    xpArea.style.display = "none";
+    notice.style.display = "block";
+    notice.textContent = "⚠ スコアを正しく確認できなかったため、今回の記録は保存されませんでした。";
+    mood = "think";
+    speech = "うーん、なにかおかしいみたい…";
+  } else if (!r.counted) {
+    xpArea.style.display = "none";
+    notice.style.display = "block";
+    notice.textContent = "🌱 5問以上正解＆30秒以上のプレイでXPと記録がもらえるよ。じっくり挑戦してみよう！";
+    mood = "think";
+    speech = mascotComment("nocount");
+  } else {
+    xpArea.style.display = "block";
+    el("resultLevelLabel").textContent = "レベル " + r.levelAfter;
+    el("resultXpGain").textContent = "+" + r.xpGained + " XP" + (r.dailyFactor < 1 ? "（今日はたくさん遊んだから少なめ）" : "");
+    const fill = el("resultXpFill");
+    fill.style.width = "0%";
+    setTimeout(() => { fill.style.width = r.levelPct + "%"; }, 150);
+
+    const infoBits = [];
+    if (r.challengeCleared) infoBits.push("🎯 今日のチャレンジ達成！（+50XP）");
+    if (r.streak >= 2) infoBits.push(`🔥 ${r.streak}日連続プレイ中`);
+    el("resultSubInfo").textContent = infoBits.join("　");
+    if (r.challengeCleared) speech = mascotComment("challenge");
+  }
+
+  /* --- マスコット --- */
+  el("resultMascot").innerHTML = mascotSVG({
+    mood,
+    level: r.counted ? r.levelAfter : v2p.levelInfo(v2p.getProgress().xp).level,
+    size: 84,
+  });
+  el("resultSpeech").textContent = speech;
+
+  /* --- 間違いリスト（explanation があれば解説も表示） --- */
   const ul = el("wrongList");
   ul.innerHTML = "";
   const wrongMap = new Map();
@@ -256,14 +404,19 @@ function showResultScreen() {
   });
   wrongMap.forEach(wa => {
     const li = document.createElement("li");
-    li.style.cssText = "padding:6px 4px; border-bottom:1px solid #555; font-size:16px;";
+    li.style.cssText = "padding:8px 4px; border-bottom:1px dashed var(--c-line,#555); font-size:15px;";
     const countStr = wa.count > 1 ? ` <span style="color:#f90;font-weight:bold;">×${wa.count}</span>` : "";
-    li.innerHTML = `「${wa.word}」→ <strong>${wa.correctType}</strong>${countStr}`;
+    const src = currentWordData.find(d => (d.word || "") === wa.word);
+    const expl = src && src.explanation
+      ? `<div style="font-size:12px; color:var(--c-muted,#9aa1ad); margin-top:3px;">💡 ${src.explanation}</div>`
+      : "";
+    li.innerHTML = `「${wa.word}」→ <strong style="color:var(--c-brand,#fed000);">${wa.correctType}</strong>${countStr}${expl}`;
     ul.appendChild(li);
   });
+  document.getElementById("wrongListContainer").style.display = wrongAnswers.length > 0 ? "block" : "none";
 
   const reviewBtn = el("reviewButton");
-  if (reviewBtn) reviewBtn.style.display = wrongAnswers.length > 0 ? "inline-block" : "none";
+  if (reviewBtn) reviewBtn.style.display = wrongAnswers.length > 0 ? "inline-flex" : "none";
   rs.style.display = "block";
 }
 
@@ -313,6 +466,7 @@ function showNextReviewWord() {
     unlockZoom();
     updateRankings();
     displayRanking();
+    try { v2p.recordReviewComplete(); } catch (e) {}
     alert("復習完了！全問正解しました！");
     return;
   }
@@ -632,6 +786,12 @@ let remainingTime = TIME_LIMIT;
 let score = 0;
 let scorePerCorrect = 100; // 正解1つあたりの得点（initGameのoptsで上書き可）
 
+// ★ ver2 進捗連携用
+let correctCount = 0;        // 正解数（スコア整合性チェックに使用）
+let playStartTime = 0;       // プレイ開始時刻
+let noteWords = new Set();   // 間違いノート由来の優先出題ワード
+let lastPlayResult = null;   // recordPlay の結果（結果画面で使用）
+
 // ★ COMBO関連はここで1回だけ宣言
 let currentCombo = 0;
 let maxCombo = 0;
@@ -701,6 +861,23 @@ if (bonusToggleButton) {
 =============================== */
 export function initGame(wordData, opts = {}) {
   currentWordData = wordData;
+
+  // ★ 間違いノートの問題を優先出題（重み付け: ノート内の問題を3倍の確率で出す）
+  noteWords = new Set();
+  try {
+    const noteEntries = v2p.getNoteFor(title);
+    if (noteEntries.length > 0) {
+      const weighted = [...wordData];
+      for (const n of noteEntries) {
+        const item = wordData.find(w => (w.word || "") === n.w);
+        if (item) {
+          noteWords.add(n.w);
+          weighted.push(item, item, item);
+        }
+      }
+      currentWordData = weighted;
+    }
+  } catch (e) { /* 進捗データ異常時もゲーム自体は動かす */ }
   // 列の並び順：opts.categoryOrder があればそれを優先（品詞選択ゲーム用）
   categories = (opts.categoryOrder && opts.categoryOrder.length)
     ? opts.categoryOrder
@@ -723,6 +900,9 @@ export function initGame(wordData, opts = {}) {
 
   remainingTime = TIME_LIMIT;
   score = 0;
+  correctCount = 0;
+  playStartTime = Date.now();
+  lastPlayResult = null;
   currentCombo = 0;
   maxCombo = 0;
   wrongAnswers = [];
@@ -1000,6 +1180,7 @@ function spawnWord(presetX) {
     img.style.width = "60px";
     img.style.pointerEvents = "none";
 
+    if (data.word) wordDiv.dataset.word = data.word; // 間違いノート照合用
     wordDiv.appendChild(img);
 
     // ★ 画像読み込み完了を待つ
@@ -1076,6 +1257,12 @@ function lockWord(wordElem, dropCategory) {
   if (correct) {
     wordElem.classList.add("correct");
     score += scorePerCorrect;
+    correctCount++;
+    // ★ 間違いノートの問題に正解 → 克服（通常プレイのみカウント）
+    if (!reviewMode && wordElem.dataset.word && noteWords.has(wordElem.dataset.word)) {
+      noteWords.delete(wordElem.dataset.word);
+      try { v2p.noteResolve(title, wordElem.dataset.word, true); } catch (e) {}
+    }
     if (bonusEnabled) {
       remainingTime += 1;
     }
@@ -1369,6 +1556,30 @@ function endGame() {
   fallingWords.forEach((word) => {
     word.element.style.opacity = 0.5;
   });
+
+  // ★ 進捗記録（XP・称号・間違いノート・ストリーク・チャレンジ判定）
+  //    スコア整合性チェックに落ちた場合はランキング保存も含め全て拒否
+  const durationSec = Math.round((Date.now() - playStartTime) / 1000);
+  try {
+    lastPlayResult = v2p.recordPlay({
+      gameId: title,
+      score,
+      correctCount,
+      wrongCount: wrongAnswers.length,
+      maxCombo,
+      durationSec,
+      scorePerCorrect,
+      wrongItems: wrongAnswers,
+    });
+  } catch (e) {
+    lastPlayResult = { valid: true, counted: false };
+  }
+
+  if (lastPlayResult && lastPlayResult.valid === false) {
+    console.warn("スコア整合性チェックに失敗したため記録をスキップしました");
+    showResultScreen();
+    return;
+  }
 
   if (score >= 1000) {
     incrementPlayCount();

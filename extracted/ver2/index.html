@@ -3,26 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>メインポータル</title>
+    <title>IOgames | メインポータル</title>
+    <link rel="stylesheet" href="shared/design.css" />
     <link rel="stylesheet" href="mainportal.css" />
   </head>
   <body>
-    <h1>IOgames</h1>
-    <!-- 右上: 先生の方へ（左）＋ 学校ログイン（右）を横並び -->
-    <div style="position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px;z-index:10;font-size:13px;flex-wrap:nowrap;">
-      <a href="teachers/index.html" style="color:#fed000;font-size:14px;text-decoration:none;border:1px solid #fed000;border-radius:6px;padding:5px 10px;white-space:nowrap;">先生の方へ →</a>
-      <div id="schoolLoginArea"></div>
-    </div>
-    <h2>メインポータル</h2>
-    <div class="container">
-      <button class="portal-button" data-url="kokugo/index.html">国語</button>
-      <button class="portal-button" data-url="rika/index.html">理科</button>
-      <button class="portal-button" data-url="english/index.html">英語</button>
-      <button class="portal-button" data-url="math/index.html">数学</button>
-      <button class="portal-button" data-url="syakai/index.html">社会</button>
-      <button class="portal-button" data-url="kateika/index.html">家庭科</button>
-      <button class="portal-button" data-url="">準備<br>中</button>
-    </div>
+    <!-- ヘッダー -->
+    <header class="top-bar">
+      <span class="logo">IO<span>games</span></span>
+      <div class="top-bar__right">
+        <a href="teachers/index.html" class="top-link top-link--teacher">先生の方へ →</a>
+        <div id="schoolLoginArea"></div>
+      </div>
+    </header>
+
+    <main>
+      <h2 class="page-title">メインポータル</h2>
+
+      <!-- マイページ導線（レベル・マスコット付き） -->
+      <a href="mypage/index.html" id="mypageCard" class="mypage-card">
+        <span id="mypageMascot" class="v2-mascot"></span>
+        <span class="mypage-card__text">
+          <span class="mypage-card__label">マイページ</span>
+          <span id="mypageInfo" class="mypage-card__info">レベル・称号・間違いノート</span>
+        </span>
+        <span class="mypage-card__arrow">›</span>
+      </a>
+
+      <!-- 今日のチャレンジ -->
+      <a id="challengeCard" class="v2-challenge" style="display:none;">
+        <span class="v2-challenge__flag">🎯</span>
+        <span>
+          <span class="v2-challenge__label">今日のチャレンジ</span>
+          <p class="v2-challenge__text" id="challengeText"></p>
+        </span>
+        <span class="v2-challenge__done" id="challengeDone"></span>
+      </a>
+
+      <!-- 教科選択 -->
+      <div class="container v2-portal-grid">
+        <button class="portal-button v2-portal-card subj-kokugo"  data-url="kokugo/index.html"><span class="v2-portal-card__icon">📖</span>国語</button>
+        <button class="portal-button v2-portal-card subj-rika"    data-url="rika/index.html"><span class="v2-portal-card__icon">🧪</span>理科</button>
+        <button class="portal-button v2-portal-card subj-english" data-url="english/index.html"><span class="v2-portal-card__icon">🔤</span>英語</button>
+        <button class="portal-button v2-portal-card subj-math"    data-url="math/index.html"><span class="v2-portal-card__icon">📐</span>数学</button>
+        <button class="portal-button v2-portal-card subj-syakai"  data-url="syakai/index.html"><span class="v2-portal-card__icon">🌏</span>社会</button>
+        <button class="portal-button v2-portal-card subj-kateika" data-url="kateika/index.html"><span class="v2-portal-card__icon">🍳</span>家庭科</button>
+        <button class="portal-button v2-portal-card v2-portal-card--disabled" data-url="">準備中</button>
+      </div>
+    </main>
+
     <script src="mainportal.js"></script>
     <script>
       (function () {
@@ -37,27 +66,48 @@
         }
         if (code) {
           area.innerHTML =
-            '<span style="color:#fed000;border:1px solid #fed000;border-radius:6px;padding:5px 10px;display:inline-flex;align-items:center;gap:8px;">' +
-            '<span style="font-size:11px;opacity:.7;">学校</span>' +
+            '<span class="school-badge">' +
+            '<span class="school-badge__label">学校</span>' +
             '<b>' + name.replace(/</g,'&lt;') + '</b>' +
-            '<a href="school-login/" style="color:#aaa;font-size:11px;text-decoration:none;border-left:1px solid #555;padding-left:8px;">変更</a>' +
+            '<a href="school-login/">変更</a>' +
             '</span>';
-          // 学校専用ボタンを家庭科(col2,row3)・準備中(col4,row3)の真下中央(col3,row4)に追加
+          // 学校専用/先生管理ボタンを教科グリッドに追加
           var isTeacher = localStorage.getItem('teacherRole') === 'teacher';
           var schoolBtn = document.createElement('button');
-          schoolBtn.className = 'portal-button';
+          schoolBtn.className = 'portal-button v2-portal-card';
           schoolBtn.dataset.url = isTeacher ? 'teacher-games/index.html' : 'school-games/index.html';
-          schoolBtn.style.background = isTeacher ? '#2a2a8a' : '#c0392b';
-          schoolBtn.style.gridColumnStart = '3';
-          schoolBtn.style.gridRowStart = '4';
-          schoolBtn.innerHTML = isTeacher ? '先生<br>管理' : '学校<br>専用';
+          schoolBtn.style.background = isTeacher
+            ? 'linear-gradient(160deg,#3d3dbb,#22228a)'
+            : 'linear-gradient(160deg,#e05545,#b03225)';
+          schoolBtn.innerHTML = '<span class="v2-portal-card__icon">' + (isTeacher ? '🧑‍🏫' : '🏫') + '</span>' + (isTeacher ? '先生管理' : '学校専用');
           document.querySelector('.container').appendChild(schoolBtn);
         } else {
-          area.innerHTML =
-            '<a href="school-login/" style="color:#aaa;font-size:14px;text-decoration:none;border:1px solid #555;border-radius:6px;padding:5px 10px;">' +
-            '学校ログイン</a>';
+          area.innerHTML = '<a href="school-login/" class="top-link">学校ログイン</a>';
         }
       })();
+    </script>
+    <script type="module">
+      import { getProgress, levelInfo, getTodayChallenge, subjectName } from "./shared/progress.js";
+      import { mascotSVG } from "./shared/mascot.js";
+
+      /* マイページカード（レベル表示＋マスコット） */
+      const p = getProgress();
+      const lv = levelInfo(p.xp);
+      document.getElementById("mypageMascot").innerHTML = mascotSVG({ mood: "normal", level: lv.level, size: 56 });
+      const bits = ["レベル " + lv.level];
+      if (p.streak.count >= 2) bits.push("🔥" + p.streak.count + "日連続");
+      const badgeNum = Object.keys(p.badges).length;
+      if (badgeNum > 0) bits.push("称号 " + badgeNum + "個");
+      document.getElementById("mypageInfo").textContent = bits.join("　");
+
+      /* 今日のチャレンジカード */
+      const ch = getTodayChallenge();
+      const card = document.getElementById("challengeCard");
+      card.href = encodeURI(ch.p);
+      document.getElementById("challengeText").textContent =
+        `「${ch.t}」で ${ch.goal} 点をとろう！（${subjectName(ch.s)}）`;
+      document.getElementById("challengeDone").textContent = ch.done ? "✅ 達成！" : "+50XP";
+      card.style.display = "flex";
     </script>
   </body>
 </html>

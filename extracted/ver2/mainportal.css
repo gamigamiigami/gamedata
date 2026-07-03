@@ -1,152 +1,129 @@
+/* メインポータル（ver2デザインシステム準拠） */
+
 body {
-  font-family: Arial, sans-serif;
-  text-align: center;
+  font-family: var(--font, system-ui);
   margin: 0;
-  padding: 0;
-  background-color: #222222;
-  color: #ffffff;
+  background:
+    radial-gradient(900px 480px at 85% -10%, rgba(254, 208, 0, .07), transparent 60%),
+    radial-gradient(700px 420px at -10% 110%, rgba(88, 183, 255, .06), transparent 60%),
+    var(--c-bg, #14161b);
+  color: var(--c-text, #f2f4f8);
+  min-height: 100vh;
+}
+
+/* ヘッダー */
+.top-bar {
   display: flex;
-  flex-direction: column;
   align-items: center;
-}
-
-h1 {
-  font-size: 25px;
-  color: #6e6e6e;
-  margin-top: 20px;
-  position: absolute;
-  left: 10px;
-}
-
-h2 {
-  font-size: 50px;
-  color: #ffffff;
-  margin-top: 50px;
-}
-
-.container {
-  display: grid;
-  grid-template-columns: repeat(5, 70px);
-  grid-template-rows: repeat(3, 130px);
-  grid-auto-rows: 130px; /* 学校専用ボタン用4行目 */
+  justify-content: space-between;
   gap: 10px;
-  justify-items: center; /* 各セル内でボタンを水平中央に配置 */
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
-  position: relative;
+  padding: 14px clamp(14px, 4vw, 32px);
+  flex-wrap: wrap;
+}
+.logo {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  color: var(--c-text);
+}
+.logo span { color: var(--c-brand); }
+.top-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.top-link {
+  color: var(--c-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid var(--c-line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  transition: border-color .15s, color .15s;
+}
+.top-link:hover { border-color: var(--c-muted); color: var(--c-text); }
+.top-link--teacher { color: var(--c-brand); border-color: #6b5a00; }
+.top-link--teacher:hover { border-color: var(--c-brand); color: var(--c-brand); }
+
+.school-badge {
+  color: var(--c-brand);
+  border: 1px solid #6b5a00;
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.school-badge__label { font-size: 11px; opacity: .7; }
+.school-badge a {
+  color: var(--c-muted);
+  font-size: 11px;
+  text-decoration: none;
+  border-left: 1px solid var(--c-line);
+  padding-left: 8px;
 }
 
-.portal-button {
-  width: 150px;
-  height: 150px;
-  font-size: 30px;
-  color: #fff;
-
-  border: none;
-  border-radius: 50%;
+/* タイトル */
+main { padding-bottom: 64px; }
+.page-title {
+  text-align: center;
+  font-size: clamp(30px, 6vw, 44px);
+  font-weight: 900;
+  letter-spacing: .06em;
+  margin: 18px 0 22px;
 }
 
-/* 1つ目のボタン */
-.container .portal-button:nth-child(1) {
-  grid-column: 2;
-  grid-row: 1;
-  background-color: #ffda07;
+/* マイページカード */
+.mypage-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(680px, 92vw);
+  margin: 0 auto 14px;
+  padding: 10px 18px;
+  border-radius: var(--r-md, 16px);
+  background: var(--c-surface, #1f2229);
+  border: 1px solid var(--c-line, #3a3f4b);
+  box-shadow: var(--sh-card);
+  color: var(--c-text);
+  text-decoration: none;
+  transition: transform .15s ease, border-color .15s ease;
 }
-.container .portal-button:nth-child(1):hover {
-  background-color: #ffda07cc;
+.mypage-card:hover { transform: translateY(-2px); border-color: var(--c-brand); }
+.mypage-card__text { display: flex; flex-direction: column; }
+.mypage-card__label { font-weight: 800; font-size: 16px; }
+.mypage-card__info { font-size: 12px; color: var(--c-muted); margin-top: 2px; }
+.mypage-card__arrow { margin-left: auto; font-size: 26px; color: var(--c-muted); }
+
+/* 教科カードの色（従来の教科カラーを継承） */
+.subj-kokugo  { background: linear-gradient(160deg, #ffe14d, #e6b800); color: #2b2200; }
+.subj-rika    { background: linear-gradient(160deg, #17a83a, #00701a); }
+.subj-english { background: linear-gradient(160deg, #ef5f6e, #c22836); }
+.subj-math    { background: linear-gradient(160deg, #35d4d4, #148f8f); }
+.subj-syakai  { background: linear-gradient(160deg, #b13cff, #7a00c9); }
+.subj-kateika { background: linear-gradient(160deg, #ff9440, #e56700); }
+
+/* 準備中 */
+.portal-button[data-url=""] {
+  background: var(--c-surface-2, #282c35);
+  font-size: 18px;
 }
 
-/* 2つ目のボタン */
-.container .portal-button:nth-child(2) {
-  grid-column: 4;
-  grid-row: 1;
-  background-color: #00791c;
-}
-.container .portal-button:nth-child(2):hover {
-  background-color: #00791ccc;
-}
-
-/* 3つ目のボタン */
-.container .portal-button:nth-child(3) {
-  grid-column: 1;
-  grid-row: 2;
-  background-color: #dc3545;
-}
-.container .portal-button:nth-child(3):hover {
-  background-color: #dc3545cc;
-}
-
-/* 4つ目のボタン */
-.container .portal-button:nth-child(4) {
-  grid-column: 3;
-  grid-row: 2;
-  background-color: #20bbbb;
-}
-.container .portal-button:nth-child(4):hover {
-  background-color: #20bbbbcc;
-}
-
-/* 5つ目のボタン */
-.container .portal-button:nth-child(5) {
-  grid-column: 5;
-  grid-row: 2;
-  background-color: #9e00fa;
-}
-.container .portal-button:nth-child(5):hover {
-  background-color: #9e00fa9a;
-}
-
-/* 6つ目のボタン */
-.container .portal-button:nth-child(6) {
-  grid-column: 2;
-  grid-row: 3;
-  background-color: #fd7e14;
-}
-.container .portal-button:nth-child(6):hover {
-  background-color: #fd7e14cc;
-}
-
-/* 7つ目のボタン */
-.container .portal-button:nth-child(7) {
-  grid-column: 4;
-  grid-row: 3;
-  background-color: #1100fa;
-}
-.container .portal-button:nth-child(7):hover {
-  background-color: #1100fa98;
-}
-
-/* fade-out クラスを追加してアニメーション効果を適用 */
+/* ページ遷移アニメーション */
 .fade-out {
   opacity: 0;
-  transition: opacity 0.4s ease-out;
+  transform: scale(.94);
+  transition: opacity .4s ease-out, transform .4s ease-out;
 }
 
-/* スマホ向けレスポンシブ */
-
-/* 準備中ボタン */
-.portal-button[data-url=""] {
-  opacity: 0.25;
-  cursor: not-allowed;
-  filter: grayscale(1);
-  pointer-events: none;
-  font-size: 20px;
-}
+/* iPad縦(768px)〜スマホ */
 @media (max-width: 500px) {
-  .container {
-    width: 95%; /* 画面幅の95%を使う */
-    display: grid;
-    grid-template-columns: repeat(5, 43px);
-    grid-template-rows: repeat(3, 83px);
-    grid-auto-rows: 83px; /* 学校専用ボタン用4行目 */
-    gap: 10px;
-    width: fit-content;
-  }
-
-  .portal-button {
-    width: 100px;
-    height: 100px;
-    font-size: 25px;
-  }
+  .v2-portal-grid { grid-template-columns: repeat(2, 1fr); }
+  .v2-portal-card { min-height: 110px; font-size: 22px; }
 }

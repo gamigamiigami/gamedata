@@ -1,0 +1,314 @@
+/* ==========================================================
+   ver2 デザインシステム
+   - 全ページ共通のトークン（色・角丸・影・余白）と部品
+   - ダーク基調 × ブランドイエロー(#fed000)
+   ========================================================== */
+
+:root {
+  /* カラー */
+  --c-bg:        #14161b;
+  --c-bg-deep:   #0e1013;
+  --c-surface:   #1f2229;
+  --c-surface-2: #282c35;
+  --c-line:      #3a3f4b;
+  --c-text:      #f2f4f8;
+  --c-muted:     #9aa1ad;
+  --c-brand:     #fed000;
+  --c-brand-soft:#fed00022;
+  --c-success:   #3ecf8e;
+  --c-danger:    #ff6b6b;
+  --c-info:      #58b7ff;
+
+  /* 形 */
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 24px;
+
+  /* 影 */
+  --sh-card: 0 4px 16px rgba(0,0,0,.35);
+  --sh-pop:  0 10px 30px rgba(0,0,0,.5);
+  --sh-glow: 0 0 24px rgba(254,208,0,.35);
+
+  /* 余白 */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+
+  --font: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+}
+
+/* ---------- 基本部品 ---------- */
+
+.v2-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-5);
+}
+
+.v2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 16px;
+  padding: 12px 26px;
+  min-height: 48px; /* iPadタップ最適 */
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.v2-btn:active { transform: scale(.96); }
+
+.v2-btn--primary {
+  background: linear-gradient(180deg, #ffe14d, var(--c-brand));
+  color: #1a1400;
+  box-shadow: 0 3px 0 #b89600, var(--sh-card);
+}
+.v2-btn--primary:hover { filter: brightness(1.06); }
+
+.v2-btn--ghost {
+  background: transparent;
+  color: var(--c-text);
+  border: 1.5px solid var(--c-line);
+}
+.v2-btn--ghost:hover { border-color: var(--c-muted); background: #ffffff0a; }
+
+/* ---------- XPバー ---------- */
+
+.v2-xpbar {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--c-bg-deep);
+  border: 1px solid var(--c-line);
+  overflow: hidden;
+}
+.v2-xpbar__fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffb300, var(--c-brand), #fff176);
+  background-size: 200% 100%;
+  animation: v2-xp-shine 2.2s linear infinite;
+  transition: width .9s cubic-bezier(.22,1,.36,1);
+}
+@keyframes v2-xp-shine {
+  from { background-position: 0% 0; }
+  to   { background-position: 200% 0; }
+}
+
+/* ---------- バッジ ---------- */
+
+.v2-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 6px 10px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  text-align: center;
+  min-width: 0;
+}
+.v2-badge__icon {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  line-height: 1;
+}
+.v2-badge__icon img { width: 48px; height: 48px; object-fit: contain; }
+.v2-badge__name { font-size: 12px; font-weight: 700; color: var(--c-text); }
+.v2-badge__desc { font-size: 10px; color: var(--c-muted); line-height: 1.4; }
+
+.v2-badge--locked { opacity: .45; filter: grayscale(1); }
+.v2-badge--locked .v2-badge__icon { filter: brightness(.35); }
+.v2-badge--secret .v2-badge__icon::before { content: "❓"; }
+.v2-badge--new {
+  border-color: var(--c-brand);
+  box-shadow: var(--sh-glow);
+  animation: v2-pop .45s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ---------- お祝い演出 ---------- */
+
+@keyframes v2-pop {
+  0%   { transform: scale(.4); opacity: 0; }
+  70%  { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes v2-rise {
+  from { transform: translateY(14px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes v2-confetti-fall {
+  0%   { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(720deg); opacity: .7; }
+}
+
+.v2-celebrate {
+  position: relative;
+  margin: 14px auto;
+  max-width: 460px;
+  padding: 18px 20px;
+  border-radius: var(--r-md);
+  background: linear-gradient(160deg, #2c2400, #201c04);
+  border: 1.5px solid var(--c-brand);
+  box-shadow: var(--sh-glow);
+  animation: v2-pop .5s cubic-bezier(.34,1.56,.64,1);
+}
+.v2-celebrate__title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--c-brand);
+  margin: 0 0 4px;
+}
+.v2-celebrate__sub { font-size: 14px; color: var(--c-text); margin: 0; }
+
+.v2-confetti {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 999;
+  overflow: hidden;
+}
+.v2-confetti i {
+  position: absolute;
+  top: -20px;
+  width: 10px; height: 14px;
+  border-radius: 2px;
+  animation: v2-confetti-fall linear forwards;
+}
+
+/* ---------- 結果画面の行 ---------- */
+
+.v2-result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 4px;
+  border-bottom: 1px dashed var(--c-line);
+  font-size: 16px;
+  animation: v2-rise .4s ease both;
+}
+.v2-result-row b { font-size: 24px; color: var(--c-brand); }
+.v2-result-row .v2-plus { color: var(--c-success); font-weight: 700; font-size: 14px; }
+
+/* ---------- マスコット ---------- */
+
+.v2-mascot { display: inline-block; }
+.v2-mascot svg { display: block; }
+@keyframes v2-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+.v2-mascot--bounce svg { animation: v2-bounce 1.6s ease-in-out infinite; }
+
+.v2-speech {
+  position: relative;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--c-text);
+  max-width: 240px;
+  animation: v2-rise .4s ease both;
+}
+.v2-speech::after {
+  content: "";
+  position: absolute;
+  left: -7px; top: 50%;
+  transform: translateY(-50%);
+  border: 7px solid transparent;
+  border-right-color: var(--c-surface-2);
+  border-left: 0;
+}
+
+/* ---------- ポータルカード ---------- */
+
+.v2-portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--sp-4);
+  width: min(680px, 92vw);
+  margin: 0 auto;
+}
+.v2-portal-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 140px;
+  border: none;
+  border-radius: var(--r-lg);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 26px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: var(--sh-card), inset 0 -4px 0 rgba(0,0,0,.25);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.v2-portal-card:hover  { transform: translateY(-3px); box-shadow: var(--sh-pop), inset 0 -4px 0 rgba(0,0,0,.25); filter: brightness(1.07); }
+.v2-portal-card:active { transform: scale(.97); }
+.v2-portal-card .v2-portal-card__icon { font-size: 34px; line-height: 1; }
+.v2-portal-card--disabled {
+  opacity: .3; filter: grayscale(1); pointer-events: none;
+}
+
+/* ---------- チャレンジカード ---------- */
+
+.v2-challenge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(680px, 92vw);
+  margin: 0 auto var(--sp-5);
+  padding: 14px 18px;
+  border-radius: var(--r-md);
+  background: linear-gradient(120deg, #262009, #1f2229 65%);
+  border: 1.5px solid var(--c-brand);
+  color: var(--c-text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+  text-decoration: none;
+}
+.v2-challenge:hover { transform: translateY(-2px); box-shadow: var(--sh-glow); }
+.v2-challenge__flag { font-size: 30px; }
+.v2-challenge__label { font-size: 11px; font-weight: 800; color: var(--c-brand); letter-spacing: .08em; }
+.v2-challenge__text { font-size: 15px; font-weight: 700; margin: 2px 0 0; }
+.v2-challenge__done { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--c-success); white-space: nowrap; }
+
+/* ---------- 汎用 ---------- */
+
+.v2-section-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--c-muted);
+  letter-spacing: .1em;
+  margin: 0 0 var(--sp-3);
+}
+.v2-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--c-brand-soft);
+  color: var(--c-brand);
+  font-size: 12px;
+  font-weight: 700;
+}
