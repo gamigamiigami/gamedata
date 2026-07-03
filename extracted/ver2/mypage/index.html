@@ -95,6 +95,17 @@
     .weak-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 0; }
     .weak-row .name { font-size: 14px; font-weight: 700; }
     .weak-row .cnt { font-size: 12px; color: var(--c-muted); }
+    .tokkun-link {
+      color: var(--c-brand);
+      font-weight: 700;
+      text-decoration: none;
+      margin-left: 8px;
+      padding: 4px 8px;
+      border: 1px solid #6b5a00;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+    .tokkun-link:hover { border-color: var(--c-brand); }
     .empty { color: var(--c-muted); font-size: 14px; padding: 12px 0; }
     .best-table { width: 100%; border-collapse: collapse; font-size: 14px; }
     .best-table td { padding: 8px 4px; border-bottom: 1px dashed var(--c-line); }
@@ -164,7 +175,7 @@
   </main>
 
   <script type="module">
-    import { getProgress, levelInfo, getBadgeState, getWeakness } from "../shared/progress.js";
+    import { getProgress, levelInfo, getBadgeState, getWeakness, GAME_LIST } from "../shared/progress.js";
     import { mascotSVG, mascotComment } from "../shared/mascot.js";
 
     const p = getProgress();
@@ -207,12 +218,20 @@
       weakArea.innerHTML = '<p class="empty">間違いノートは空っぽ！すごい！</p>';
     } else {
       const max = weak[0].count;
-      weakArea.innerHTML = weak.map(w => `
+      // ゲームページへの「特訓する」リンク（GAME_LISTでパスが分かるゲームのみ）
+      const pathFor = (g) => {
+        const e = GAME_LIST.find(x => x.t === g);
+        return e ? "../" + encodeURI(e.p) : null;
+      };
+      weakArea.innerHTML = weak.map(w => {
+        const link = pathFor(w.game);
+        return `
         <div class="weak-row">
           <span class="name">${esc(w.game)}</span>
-          <span class="cnt">まちがい ${w.count} 回</span>
+          <span class="cnt">まちがい ${w.count} 回${link ? ` <a class="tokkun-link" href="${link}">特訓する →</a>` : ""}</span>
           <div class="weak-bar" style="grid-column:1/3; width:${Math.max(8, Math.round((w.count / max) * 100))}%;"></div>
-        </div>`).join("");
+        </div>`;
+      }).join("");
     }
 
     /* ノート全リスト */

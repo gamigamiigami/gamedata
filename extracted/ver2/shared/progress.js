@@ -22,7 +22,7 @@ function freshData() {
     v: 1,
     xp: 0,
     streak: { last: "", count: 0 },
-    games: {},    // gameId -> { best, bestCombo, daily:{date,count} }
+    games: {},    // gameId -> { best, bestCombo }
     subjects: {}, // subject -> best score
     badges: {},   // badgeId -> 取得日(ISO)
     note: [],     // { g, w, t, s, n } 間違いノート
@@ -169,6 +169,9 @@ export const GAME_LIST = [
   { p: "syakai/公民/三権分立/index.html",     t: "三権分立 仕分けゲーム",         s: "syakai" },
   { p: "english/品詞/index.html",             t: "英単語の品詞ゲーム",            s: "english" },
   { p: "kateika/index.html",                  t: "食品群に強くなろうゲーム",      s: "kateika" },
+  { p: "kokugo/敬語/index.html",              t: "敬語仕分けゲーム",              s: "kokugo" },
+  { p: "syakai/歴史/②/index.html",           t: "歴史人物・文化仕分けゲーム",    s: "syakai" },
+  { p: "math/正負の数/index.html",            t: "計算結果の正負ゲーム",          s: "math" },
 ];
 
 const CHALLENGE_GOALS = [1500, 2000, 2500];
@@ -267,7 +270,6 @@ export function validateResult({ score, correctCount, scorePerCorrect, durationS
 /* ---------- プレイ結果の記録 ---------- */
 const MIN_CORRECT = 5;   // これ未満はノーカウント（回数稼ぎ防止）
 const MIN_DURATION = 30; // 秒
-const DAILY_FULL_PLAYS = 3; // 同じゲームで満額XPをもらえる回数/日
 
 export function recordPlay(info) {
   const { gameId, score, correctCount, wrongCount, maxCombo, durationSec, scorePerCorrect, wrongItems } = info;
@@ -287,10 +289,8 @@ export function recordPlay(info) {
   const before = levelInfo(data.xp);
 
   // ゲーム別記録
-  const g = data.games[gameId] || { best: 0, bestCombo: 0, daily: { date: "", count: 0 } };
+  const g = data.games[gameId] || { best: 0, bestCombo: 0 };
   const prevBest = g.best;
-  if (g.daily.date !== today) g.daily = { date: today, count: 0 };
-  g.daily.count++;
   g.best = Math.max(g.best, score);
   g.bestCombo = Math.max(g.bestCombo, maxCombo);
   data.games[gameId] = g;
@@ -309,10 +309,9 @@ export function recordPlay(info) {
     data.streak.last = today;
   }
 
-  // XP計算（成果ベース。同じゲームは1日3回まで満額、以降は10%）
-  const factor = g.daily.count <= DAILY_FULL_PLAYS ? 1 : 0.1;
+  // XP計算（成果ベース。プレイ回数による減衰なし）
   const noMissBonus = wrongCount === 0 && score >= 1000 ? 30 : 0;
-  let xpGained = Math.max(1, Math.round((score / 50 + noMissBonus) * factor));
+  let xpGained = Math.max(1, Math.round(score / 50 + noMissBonus));
 
   // 今日のチャレンジ達成判定
   let challengeCleared = false;
@@ -348,7 +347,6 @@ export function recordPlay(info) {
     valid: true,
     counted: true,
     xpGained,
-    dailyFactor: factor,
     levelBefore: before.level,
     levelAfter: after.level,
     levelUp: after.level > before.level,

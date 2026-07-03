@@ -65,6 +65,26 @@ document.addEventListener("DOMContentLoaded", () => {
     header.appendChild(pauseBtn);
   }
 
+  // ★ スタート画面に弱点特訓ボタンを注入（ノートに問題がある時だけ表示）
+  (function () {
+    const startBtn = document.getElementById("startButton");
+    if (!startBtn) return;
+    let count = 0;
+    try { count = v2p.getNoteFor(title).length; } catch (e) { return; }
+    const tk = document.createElement("button");
+    tk.id = "tokkunButton";
+    tk.className = "v2-btn v2-btn--ghost";
+    tk.style.cssText = "margin:10px auto 0; display:" + (count > 0 ? "inline-flex" : "none") + "; border-color:#fed000; color:#fed000;";
+    tk.textContent = `🎯 弱点特訓（${count}問）`;
+    tk.addEventListener("click", () => {
+      tokkunPending = true;
+      startBtn.click();
+      // 品詞選択ゲーム等でスタートが実行されなかった場合に備えてフラグを戻す
+      setTimeout(() => { tokkunPending = false; }, 1500);
+    });
+    startBtn.insertAdjacentElement("afterend", tk);
+  })();
+
   // ポーズオーバーレイを動的生成
   const pauseOverlay = document.createElement("div");
   pauseOverlay.id = "pauseOverlay";
@@ -125,6 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
     unlockZoom();
     updateRankings();
     displayRanking();
+    updateTokkunButton(); // 今回の間違いを反映して特訓ボタンを更新
   });
 
   let showingAlt = false;
@@ -374,7 +395,7 @@ function showResultScreen() {
   } else {
     xpArea.style.display = "block";
     el("resultLevelLabel").textContent = "レベル " + r.levelAfter;
-    el("resultXpGain").textContent = "+" + r.xpGained + " XP" + (r.dailyFactor < 1 ? "（今日はたくさん遊んだから少なめ）" : "");
+    el("resultXpGain").textContent = "+" + r.xpGained + " XP";
     const fill = el("resultXpFill");
     fill.style.width = "0%";
     setTimeout(() => { fill.style.width = r.levelPct + "%"; }, 150);
@@ -457,7 +478,9 @@ function showNextReviewWord() {
   const returnButton = document.getElementById("returnButton");
 
   if (reviewIndex >= reviewQueue.length) {
+    const wasTokkun = tokkunMode;
     reviewMode = false;
+    tokkunMode = false;
     if (returnButton) { returnButton.textContent = "Return to START"; returnButton._reviewMode = false; }
     const gs = document.getElementById("gameScreen");
     const ss = document.getElementById("startScreen");
@@ -466,8 +489,13 @@ function showNextReviewWord() {
     unlockZoom();
     updateRankings();
     displayRanking();
-    try { v2p.recordReviewComplete(); } catch (e) {}
-    alert("復習完了！全問正解しました！");
+    updateTokkunButton();
+    if (wasTokkun) {
+      alert(`特訓完了！間違いノートから ${tokkunClearCount} 問なくなったよ！🎉`);
+    } else {
+      try { v2p.recordReviewComplete(); } catch (e) {}
+      alert("復習完了！全問正解しました！");
+    }
     return;
   }
 
@@ -501,6 +529,69 @@ function showNextReviewWord() {
   fallingWords = [{ element: wordDiv, x, y, speed: 0 }];
   wordDiv.addEventListener("mousedown", handleMouseDown);
   wordDiv.addEventListener("touchstart", handleTouchStart);
+}
+
+/* ===============================
+   弱点特訓モード
+   間違いノートに残っている問題だけを復習UIで出題。
+   正解するとその場でノートから削除される（克服バッジには数えない）
+=============================== */
+function startTokkunMode(wordData) {
+  let entries = [];
+  try { entries = v2p.getNoteFor(title); } catch (e) {}
+  const queue = [];
+  for (const n of entries) {
+    const item = wordData.find(w => (w.word || "") === n.w);
+    if (item) queue.push({ word: n.w, correctType: n.t, sentence: n.s || item.sentence || "" });
+  }
+  if (queue.length === 0) {
+    alert("このゲームの間違いノートは空だよ！");
+    updateTokkunButton();
+    return;
+  }
+
+  tokkunMode = true;
+  reviewMode = true;
+  reviewQueue = queue;
+  reviewIndex = 0;
+  tokkunClearCount = 0;
+  gameOver = false;
+  isPaused = false;
+  fallingWords = [];
+
+  resetAndLockZoom();
+  const rs = document.getElementById("resultScreen");
+  if (rs) rs.style.display = "none";
+  startScreen.style.display = "none";
+  gameScreen.style.display = "block";
+
+  playArea.innerHTML = "";
+  playArea.appendChild(createSortingArea());
+
+  const td = document.getElementById("timer");
+  if (td) td.textContent = "弱点特訓";
+  const cd = document.getElementById("combo");
+  if (cd) cd.textContent = "";
+  const md = document.getElementById("maxCombo");
+  if (md) md.textContent = "";
+  const rb = document.getElementById("returnButton");
+  if (rb) { rb.textContent = "特訓を終える"; rb._reviewMode = true; }
+
+  showNextReviewWord();
+}
+
+/* スタート画面の特訓ボタンを最新のノート件数に合わせて更新 */
+function updateTokkunButton() {
+  const btn = document.getElementById("tokkunButton");
+  if (!btn) return;
+  let count = 0;
+  try { count = v2p.getNoteFor(title).length; } catch (e) {}
+  if (count > 0) {
+    btn.textContent = `🎯 弱点特訓（${count}問）`;
+    btn.style.display = "inline-flex";
+  } else {
+    btn.style.display = "none";
+  }
 }
 
 /* ===============================
@@ -792,6 +883,11 @@ let playStartTime = 0;       // プレイ開始時刻
 let noteWords = new Set();   // 間違いノート由来の優先出題ワード
 let lastPlayResult = null;   // recordPlay の結果（結果画面で使用）
 
+// ★ 弱点特訓モード（間違いノートの問題だけを集中特訓）
+let tokkunPending = false;   // 特訓ボタン押下 → 次の initGame を特訓として開始
+let tokkunMode = false;
+let tokkunClearCount = 0;
+
 // ★ COMBO関連はここで1回だけ宣言
 let currentCombo = 0;
 let maxCombo = 0;
@@ -888,6 +984,13 @@ export function initGame(wordData, opts = {}) {
   const minCats = window.EXPECTED_MIN_CATEGORIES;
   if (minCats && categories.length < minCats) {
     alert('ゲームデータが正しくありません。ページを再読み込みしてください。');
+    return;
+  }
+
+  // ★ 弱点特訓モード: 通常ゲームは開始せず、ノートの問題だけを出題
+  if (tokkunPending) {
+    tokkunPending = false;
+    startTokkunMode(wordData);
     return;
   }
 
@@ -997,12 +1100,14 @@ export function initTypeSelectionGame(wordData, opts = {}) {
 returnButton.addEventListener("click", () => {
   if (reviewMode) {
     reviewMode = false;
+    tokkunMode = false;
     returnButton.textContent = "Return to START";
     gameScreen.style.display = "none";
     startScreen.style.display = "block";
     unlockZoom();
     updateRankings();
     displayRanking();
+    updateTokkunButton();
     return;
   }
   clearInterval(timerIntervalId);
@@ -1352,6 +1457,10 @@ function handleMouseUp(e) {
       if (wordElem.dataset.type === dropCategory) {
         wordElem.classList.add("correct");
         wordElem.dataset.locked = "true";
+        // 特訓モード: 正解した問題をその場でノートから削除（克服数には数えない）
+        if (tokkunMode && reviewQueue[reviewIndex]) {
+          try { v2p.noteResolve(title, reviewQueue[reviewIndex].word, false); tokkunClearCount++; } catch (e) {}
+        }
         setTimeout(() => { reviewIndex++; showNextReviewWord(); }, 500);
       } else {
         wordElem.classList.add("wrong");
