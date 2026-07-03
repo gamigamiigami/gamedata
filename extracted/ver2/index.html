@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>メインポータル</title>
+    <link rel="stylesheet" href="mainportal.css" />
+  </head>
+  <body>
+    <h1>IOgames</h1>
+    <!-- 右上: 先生の方へ（左）＋ 学校ログイン（右）を横並び -->
+    <div style="position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px;z-index:10;font-size:13px;flex-wrap:nowrap;">
+      <a href="teachers/index.html" style="color:#fed000;font-size:14px;text-decoration:none;border:1px solid #fed000;border-radius:6px;padding:5px 10px;white-space:nowrap;">先生の方へ →</a>
+      <div id="schoolLoginArea"></div>
+    </div>
+    <h2>メインポータル</h2>
+    <div class="container">
+      <button class="portal-button" data-url="kokugo/index.html">国語</button>
+      <button class="portal-button" data-url="rika/index.html">理科</button>
+      <button class="portal-button" data-url="english/index.html">英語</button>
+      <button class="portal-button" data-url="math/index.html">数学</button>
+      <button class="portal-button" data-url="syakai/index.html">社会</button>
+      <button class="portal-button" data-url="kateika/index.html">家庭科</button>
+      <button class="portal-button" data-url="">準備<br>中</button>
+    </div>
+    <script src="mainportal.js"></script>
+    <script>
+      (function () {
+        var area = document.getElementById('schoolLoginArea');
+        var code = localStorage.getItem('schoolCode');
+        var name = localStorage.getItem('schoolName');
+        // QR経由: ?school=XXXX-XXXX-XXXX
+        var urlCode = new URLSearchParams(location.search).get('school');
+        if (urlCode && !code) {
+          location.href = 'school-login/?code=' + encodeURIComponent(urlCode);
+          return;
+        }
+        if (code) {
+          area.innerHTML =
+            '<span style="color:#fed000;border:1px solid #fed000;border-radius:6px;padding:5px 10px;display:inline-flex;align-items:center;gap:8px;">' +
+            '<span style="font-size:11px;opacity:.7;">学校</span>' +
+            '<b>' + name.replace(/</g,'&lt;') + '</b>' +
+            '<a href="school-login/" style="color:#aaa;font-size:11px;text-decoration:none;border-left:1px solid #555;padding-left:8px;">変更</a>' +
+            '</span>';
+          // 学校専用ボタンを家庭科(col2,row3)・準備中(col4,row3)の真下中央(col3,row4)に追加
+          var isTeacher = localStorage.getItem('teacherRole') === 'teacher';
+          var schoolBtn = document.createElement('button');
+          schoolBtn.className = 'portal-button';
+          schoolBtn.dataset.url = isTeacher ? 'teacher-games/index.html' : 'school-games/index.html';
+          schoolBtn.style.background = isTeacher ? '#2a2a8a' : '#c0392b';
+          schoolBtn.style.gridColumnStart = '3';
+          schoolBtn.style.gridRowStart = '4';
+          schoolBtn.innerHTML = isTeacher ? '先生<br>管理' : '学校<br>専用';
+          document.querySelector('.container').appendChild(schoolBtn);
+        } else {
+          area.innerHTML =
+            '<a href="school-login/" style="color:#aaa;font-size:14px;text-decoration:none;border:1px solid #555;border-radius:6px;padding:5px 10px;">' +
+            '学校ログイン</a>';
+        }
+      })();
+    </script>
+  </body>
+</html>

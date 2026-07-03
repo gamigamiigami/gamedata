@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>品詞比較 | 同じ言葉の品詞を見比べよう</title>
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Supabase SDK -->
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+      try {
+        window.supabaseClient = createClient(
+          'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+          'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+        );
+      } catch(e) { console.error('Supabase init failed', e); }
+    </script>
+  </head>
+  <body>
+    <!-- スタート画面 -->
+    <div id="startScreen" class="screen">
+      <h1>品詞比較<span class="sub">同じ言葉でも品詞が変わる！</span></h1>
+      <p class="game-meta" style="margin:6px auto 10px; max-width:92%; font-size:13px; color:#cfcfcf; line-height:1.6;"><span style="color:#fed000; font-weight:bold;">中1〜3</span>　/　文法：紛らわしい品詞の識別　/　約1分</p>
+      <p class="credit">Produce by igami</p>
+
+      <div id="howto">
+        <p>🔗 同じ色の枠のタイルはペア（同じ言葉・別の品詞）</p>
+        <p>✨ 両方を正しい品詞に仕分けると<strong>ペアボーナス</strong>！</p>
+      </div>
+
+      <div class="button-container">
+        <div class="button-row">
+          <button id="bonusToggleButton">ボーナス: OFF</button>
+          <button id="startButton">START</button>
+        </div>
+        <button id="backButton">戻る</button>
+      </div>
+
+      <div id="rankingContainer">
+        <button id="rankingToggleButton">グローバルランキング</button>
+
+        <table id="ranking-table">
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th>プレイヤー名</th>
+              <th>スコア</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <table id="alt-ranking-table" style="display:none;">
+          <colgroup>
+            <col style="width: 10%" />
+            <col style="width: 45%" />
+            <col style="width: 25%" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>プレイヤー名</th>
+              <th>スコア</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <button id="resetRankingButton">リセット</button>
+        <button id="changeNameButton">名前変更</button>
+        <button id="globalResetButton" style="display:none;">グローバルリセット</button>
+      </div>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="gameScreen" class="screen" style="display: none">
+      <div id="header">
+        <div id="timer">Time: 60</div>
+        <div id="score">Score: 0</div>
+        <div id="combo">Combo: 0</div>
+        <div id="maxCombo">Max: 0</div>
+        <button id="pauseButton">⏸</button>
+      </div>
+      <div id="playArea"></div>
+      <button id="returnButton">Return to START</button>
+    </div>
+
+    <!-- ポーズオーバーレイ -->
+    <div id="pauseOverlay">
+      <div id="pauseBox">
+        <p>一時停止中</p>
+        <button id="resumeButton">▶ 再開</button>
+      </div>
+    </div>
+
+    <!-- 結果画面 -->
+    <div id="resultScreen" class="screen" style="display: none">
+      <h2>ゲーム結果</h2>
+      <div id="resultStats">
+        <p>スコア: <span id="resultScore"></span></p>
+        <p>最大コンボ: <span id="resultMaxCombo"></span></p>
+        <p>ペア完成: <span id="resultPairCount"></span> 組</p>
+        <p>間違えた問題: <span id="resultWrongCount"></span> 問</p>
+      </div>
+      <div id="wrongListContainer">
+        <h3>間違えた問題</h3>
+        <ul id="wrongList"></ul>
+      </div>
+      <div class="button-container">
+        <button id="reviewButton">📝 復習モード</button>
+        <button id="resultReturnButton">スタートに戻る</button>
+      </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

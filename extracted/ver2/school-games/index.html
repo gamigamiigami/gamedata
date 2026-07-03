@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>学校専用ゲーム</title>
+    <style>
+      body {
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Arial, sans-serif;
+        background: #222;
+        color: #fff;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid #444;
+        background: #2a2a2a;
+      }
+      .header a {
+        color: #aaa;
+        text-decoration: none;
+        font-size: 14px;
+        border: 1px solid #555;
+        border-radius: 6px;
+        padding: 5px 10px;
+      }
+      .header a:hover { border-color: #fed000; color: #fed000; }
+      .school-badge {
+        font-size: 13px;
+        color: #fed000;
+        border: 1px solid #fed000;
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 22px;
+        color: #fed000;
+        margin: 0;
+      }
+      .wrap {
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 24px 16px 60px;
+      }
+      .page-title {
+        font-size: 20px;
+        margin: 0 0 20px;
+        color: #fff;
+      }
+      .game-card {
+        background: #2e2e2e;
+        border: 1px solid #444;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .game-card-info {
+        flex: 1;
+      }
+      .game-card-title {
+        font-size: 17px;
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+      .game-card-subject {
+        font-size: 12px;
+        color: #aaa;
+      }
+      .play-btn {
+        background: #fed000;
+        color: #000;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 22px;
+        font-size: 15px;
+        font-weight: bold;
+        cursor: pointer;
+        font-family: inherit;
+        white-space: nowrap;
+      }
+      .play-btn:hover { background: #ffe14d; }
+      .empty {
+        text-align: center;
+        color: #666;
+        padding: 40px;
+        font-size: 15px;
+      }
+      #loadingMsg {
+        text-align: center;
+        color: #888;
+        padding: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <a href="../index.html">← メインへ</a>
+      <h1>学校専用ゲーム</h1>
+      <div class="school-badge" id="schoolBadge"></div>
+    </div>
+    <div class="wrap">
+      <div id="loadingMsg">読み込み中...</div>
+      <div id="gameList" style="display:none;"></div>
+    </div>
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+      const schoolCode = localStorage.getItem('schoolCode');
+      const schoolName = localStorage.getItem('schoolName');
+
+      if (!schoolCode) {
+        location.href = '../school-login/?next=' + encodeURIComponent(location.pathname);
+      }
+
+      document.getElementById('schoolBadge').textContent = '学校: ' + (schoolName || schoolCode);
+
+      const supabase = createClient(
+        'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+        'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+      );
+
+      const { data, error } = await supabase
+        .from('custom_games')
+        .select('id, title, subject, created_at')
+        .eq('school_code', schoolCode)
+        .order('created_at', { ascending: false });
+
+      document.getElementById('loadingMsg').style.display = 'none';
+      const list = document.getElementById('gameList');
+      list.style.display = 'block';
+
+      if (error || !data || data.length === 0) {
+        list.innerHTML = '<div class="empty">先生がまだゲームを追加していません。</div>';
+      } else {
+        data.forEach(game => {
+          const card = document.createElement('div');
+          card.className = 'game-card';
+          card.innerHTML = `
+            <div class="game-card-info">
+              <div class="game-card-title">${escHtml(game.title)}</div>
+              ${game.subject ? `<div class="game-card-subject">${escHtml(game.subject)}</div>` : ''}
+            </div>
+            <button class="play-btn" data-id="${game.id}" data-title="${encodeURIComponent(game.title)}">▶ プレイ</button>
+          `;
+          card.querySelector('.play-btn').addEventListener('click', (e) => {
+            const btn = e.currentTarget;
+            location.href = 'play/?id=' + btn.dataset.id + '&title=' + btn.dataset.title;
+          });
+          list.appendChild(card);
+        });
+      }
+
+      function escHtml(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+    </script>
+  </body>
+</html>

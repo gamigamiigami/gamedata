@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>先生専用ゲーム管理｜IOgames</title>
+    <style>
+      :root {
+        --bg:#222; --panel:#2e2e2e; --panel2:#383838;
+        --accent:#fed000; --text:#fff; --muted:#b8b8b8;
+        --border:#555; --err:#ff6b6b; --ok:#7ed957;
+      }
+      * { box-sizing:border-box; }
+      body {
+        font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,Arial,sans-serif;
+        margin:0; background:var(--bg); color:var(--text);
+        line-height:1.7;
+      }
+      .wrap { max-width:720px; margin:0 auto; padding:24px 16px 60px; }
+      h1 { font-size:20px; color:var(--accent); margin:0 0 4px; }
+      .muted { color:var(--muted); font-size:13px; }
+      .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:18px; }
+      .topbar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
+      label { display:block; font-size:13px; color:var(--muted); margin-bottom:5px; }
+      input, textarea, select {
+        padding:10px 12px; font-size:14px; background:var(--panel2); color:var(--text);
+        border:1px solid var(--border); border-radius:8px; font-family:inherit; width:100%;
+      }
+      input:focus, textarea:focus { outline:none; border-color:var(--accent); }
+      .field { margin-bottom:14px; }
+      button { font-family:inherit; cursor:pointer; border:none; border-radius:8px; font-weight:bold; }
+      .btn { padding:11px 20px; font-size:14px; background:var(--accent); color:#000; }
+      .btn:hover { background:#ffe14d; }
+      .btn:disabled { opacity:0.4; cursor:not-allowed; }
+      .btn-sub { padding:8px 14px; font-size:13px; background:var(--panel2); color:var(--text); border:1px solid var(--border); }
+      .btn-sub:hover { border-color:var(--accent); color:var(--accent); }
+      .btn-danger { padding:7px 12px; font-size:13px; background:#3a2a2a; color:#ff9b9b; border:1px solid #6b3b3b; }
+      .btn-danger:hover { background:#4a3333; }
+      .msg { font-size:13px; min-height:18px; }
+      .msg.error { color:var(--err); }
+      .msg.ok { color:var(--ok); }
+      .sec-title { font-size:15px; color:var(--accent); margin:20px 0 10px; }
+      table { width:100%; border-collapse:collapse; font-size:13px; }
+      th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+      th { background:var(--panel2); color:var(--muted); font-size:12px; }
+      tr:last-child td { border-bottom:none; }
+      .empty { color:var(--muted); padding:16px 0; }
+      .school-badge {
+        display:inline-flex; align-items:center; gap:8px;
+        border:1px solid var(--accent); border-radius:8px; padding:6px 12px;
+        font-size:13px; color:var(--accent);
+      }
+      .school-badge .label { font-size:11px; opacity:.7; }
+      /* 確認モーダル */
+      #confirmOverlay {
+        display:none; position:fixed; inset:0; background:rgba(0,0,0,.7);
+        z-index:200; align-items:center; justify-content:center; padding:20px;
+      }
+      #confirmOverlay.show { display:flex; }
+      #confirmBox {
+        background:var(--panel); border:1px solid var(--border); border-radius:14px;
+        padding:28px 24px; max-width:360px; width:100%; text-align:center;
+      }
+      #confirmMsg { font-size:15px; line-height:1.7; margin-bottom:22px; white-space:pre-wrap; }
+      #confirmBox .btn-row { display:flex; gap:10px; justify-content:center; }
+      #confirmOk { padding:10px 28px; font-size:14px; background:#ff6b6b; color:#fff; border:none; border-radius:8px; cursor:pointer; font-family:inherit; font-weight:bold; }
+      #confirmOk:hover { background:#ff4f4f; }
+      #confirmCancel { padding:10px 28px; font-size:14px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; cursor:pointer; font-family:inherit; }
+      #confirmCancel:hover { border-color:var(--accent); color:var(--accent); }
+    </style>
+  </head>
+  <body>
+    <!-- 確認ダイアログ -->
+    <div id="confirmOverlay">
+      <div id="confirmBox">
+        <div id="confirmMsg"></div>
+        <div class="btn-row">
+          <button id="confirmCancel">キャンセル</button>
+          <button id="confirmOk">削除する</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="topbar">
+        <div>
+          <h1>先生専用ゲーム管理</h1>
+          <span class="muted" id="schoolLabel"></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <a href="../school-games/" class="btn-sub" style="text-decoration:none;display:inline-block;">生徒ページ →</a>
+          <a href="../" class="btn-sub" style="text-decoration:none;display:inline-block;">← ポータルへ</a>
+        </div>
+      </div>
+
+      <div id="gameListSection">
+        <div class="sec-title">登録済みゲーム</div>
+        <div class="card">
+          <div id="gameList"><div class="muted">読み込み中…</div></div>
+        </div>
+      </div>
+
+      <div class="sec-title">新しいゲームを追加</div>
+      <div class="card">
+        <div class="field">
+          <label for="cgTitle">ゲームタイトル <span style="color:#f66;">*</span></label>
+          <input type="text" id="cgTitle" placeholder="例：三権分立クイズ" />
+        </div>
+        <div class="field">
+          <label for="cgSubject">教科・単元（任意）</label>
+          <input type="text" id="cgSubject" placeholder="例：社会・公民" />
+        </div>
+        <div class="field">
+          <label for="cgWordData">問題データ（JSON配列またはwordData.js形式）</label>
+          <textarea id="cgWordData" rows="8" style="font-family:Consolas,monospace;font-size:13px;resize:vertical;" placeholder='[&#10;  { "word": "国会", "type": "立法" },&#10;  { "word": "内閣", "type": "行政" },&#10;  { "word": "裁判所", "type": "司法" }&#10;]'></textarea>
+        </div>
+        <button class="btn" id="saveBtn">保存する</button>
+        <span class="msg" id="saveMsg" style="margin-left:10px;"></span>
+      </div>
+    </div>
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+      const supabase = createClient(
+        'https://tvtrbvpczafwzdcnzlyu.supabase.co',
+        'sb_publishable_MO7Smx8bj5EaPv67_hZFNA_tc1AOOKY'
+      );
+
+      const $ = id => document.getElementById(id);
+
+      // 先生ログインチェック
+      const schoolCode = localStorage.getItem('schoolCode');
+      const schoolName = localStorage.getItem('schoolName');
+      const teacherRole = localStorage.getItem('teacherRole');
+
+      if (!schoolCode || teacherRole !== 'teacher') {
+        location.href = '../school-login/';
+      }
+
+      $('schoolLabel').textContent = schoolName || schoolCode;
+
+      // カスタム確認モーダル
+      function customConfirm(message, okLabel) {
+        return new Promise(resolve => {
+          $('confirmMsg').textContent = message;
+          if (okLabel) $('confirmOk').textContent = okLabel;
+          $('confirmOverlay').classList.add('show');
+          const ok  = () => { cleanup(); resolve(true);  };
+          const ng  = () => { cleanup(); resolve(false); };
+          const esc = e => { if (e.key === 'Escape') { cleanup(); resolve(false); } };
+          function cleanup() {
+            $('confirmOverlay').classList.remove('show');
+            $('confirmOk').removeEventListener('click', ok);
+            $('confirmCancel').removeEventListener('click', ng);
+            $('confirmOverlay').removeEventListener('click', bgClick);
+            document.removeEventListener('keydown', esc);
+          }
+          function bgClick(e) { if (e.target === $('confirmOverlay')) ng(); }
+          $('confirmOk').addEventListener('click', ok);
+          $('confirmCancel').addEventListener('click', ng);
+          $('confirmOverlay').addEventListener('click', bgClick);
+          document.addEventListener('keydown', esc);
+        });
+      }
+
+      // EmailJS（管理者に通知）
+      const EJS_PK  = 'njxurV_IW84nYD01w';
+      const EJS_SVC = 'service_0eqi1dy';
+      const EJS_TPL = 'template_6c3mcbm';
+      const ADMIN_EMAIL = 'igamiigamiigami@gmail.com';
+
+      let _ejsReady = false;
+      function loadEmailJS() {
+        if (_ejsReady) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
+          s.onload = () => {
+            window.emailjs.init({ publicKey: EJS_PK });
+            _ejsReady = true;
+            resolve();
+          };
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+
+      async function notifyAdmin(title, subject) {
+        const msg =
+          '<p>先生がカスタムゲームを追加しました。</p>' +
+          '<table style="border-collapse:collapse;font-family:sans-serif;">' +
+          '<tr><td style="padding:4px 12px 4px 0;color:#666;">学校</td><td><b>' + (schoolName || schoolCode) + '</b></td></tr>' +
+          '<tr><td style="padding:4px 12px 4px 0;color:#666;">タイトル</td><td><b>' + title + '</b></td></tr>' +
+          (subject ? '<tr><td style="padding:4px 12px 4px 0;color:#666;">教科</td><td>' + subject + '</td></tr>' : '') +
+          '</table>' +
+          '<p style="color:#999;font-size:12px;">管理者ダッシュボードで確認・削除できます。</p>';
+        try {
+          await loadEmailJS();
+          await window.emailjs.send(EJS_SVC, EJS_TPL, {
+            to_email: ADMIN_EMAIL,
+            subject:  '【IOgames】新しいゲームが追加されました（' + (schoolName || schoolCode) + '）',
+            message:  msg,
+          });
+        } catch (e) {
+          console.warn('管理者通知メール送信失敗', e);
+        }
+      }
+
+      // ゲーム一覧
+      async function loadGames() {
+        const listEl = $('gameList');
+        const { data, error } = await supabase
+          .from('custom_games')
+          .select('id, title, subject, created_at')
+          .eq('school_code', schoolCode)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          listEl.innerHTML = '<div style="color:#f66;">読み込みに失敗しました。</div>';
+          return;
+        }
+        if (!data || data.length === 0) {
+          listEl.innerHTML = '<div class="empty">まだゲームがありません。下のフォームから追加してください。</div>';
+          return;
+        }
+
+        const t = document.createElement('table');
+        t.innerHTML = '<tr><th>タイトル</th><th>教科</th><th>追加日</th><th></th></tr>';
+        data.forEach(g => {
+          const tr = document.createElement('tr');
+          const date = g.created_at ? new Date(g.created_at) : null;
+          const dateStr = date ? date.getFullYear() + '/' + (date.getMonth()+1) + '/' + date.getDate() : '';
+          tr.innerHTML =
+            '<td>' + esc(g.title) + '</td>' +
+            '<td>' + esc(g.subject || '') + '</td>' +
+            '<td>' + dateStr + '</td>';
+          const td = document.createElement('td');
+          const dl = document.createElement('button');
+          dl.className = 'btn-danger'; dl.textContent = '削除';
+          dl.addEventListener('click', () => deleteGame(g.id, g.title));
+          td.appendChild(dl); tr.appendChild(td); t.appendChild(tr);
+        });
+        listEl.innerHTML = '';
+        listEl.appendChild(t);
+      }
+
+      async function deleteGame(id, title) {
+        if (!await customConfirm('「' + title + '」を削除しますか？', '削除する')) return;
+        const { error } = await supabase.from('custom_games').delete().eq('id', id);
+        if (error) {
+          $('saveMsg').className = 'msg error';
+          $('saveMsg').textContent = '削除失敗: ' + error.message;
+          return;
+        }
+        await loadGames();
+      }
+
+      function parseWordDataStr(raw) {
+        let s = raw.trim();
+        s = s.replace(/^(?:const|let|var)\s+\w+\s*=\s*/, '');
+        s = s.replace(/;\s*export\s+default\s+\w+\s*;?\s*$/, '');
+        s = s.replace(/export\s+default\s+\w+\s*;?\s*$/, '');
+        s = s.replace(/;\s*$/, '').trim();
+        return JSON.parse(s);
+      }
+
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      }
+
+      $('saveBtn').addEventListener('click', async () => {
+        const msgEl = $('saveMsg');
+        msgEl.className = 'msg'; msgEl.textContent = '';
+        const title   = $('cgTitle').value.trim();
+        const subject = $('cgSubject').value.trim();
+        const rawData = $('cgWordData').value.trim();
+
+        if (!title)   { msgEl.className = 'msg error'; msgEl.textContent = 'タイトルを入力してください。'; return; }
+        if (!rawData) { msgEl.className = 'msg error'; msgEl.textContent = '問題データを入力してください。'; return; }
+
+        let wordData;
+        try { wordData = parseWordDataStr(rawData); } catch (e) {
+          msgEl.className = 'msg error'; msgEl.textContent = '問題データの形式が正しくありません: ' + e.message; return;
+        }
+        if (!Array.isArray(wordData) || wordData.length === 0) {
+          msgEl.className = 'msg error'; msgEl.textContent = '問題データが空か配列ではありません。'; return;
+        }
+
+        $('saveBtn').disabled = true;
+        msgEl.textContent = '保存中…';
+
+        const { error } = await supabase.from('custom_games').insert({
+          school_code: schoolCode,
+          title,
+          subject: subject || null,
+          word_data: wordData,
+        });
+
+        if (error) {
+          msgEl.className = 'msg error'; msgEl.textContent = '保存失敗: ' + error.message;
+          $('saveBtn').disabled = false;
+          return;
+        }
+
+        msgEl.className = 'msg ok'; msgEl.textContent = '保存しました！管理者に通知を送っています…';
+        $('cgTitle').value = ''; $('cgSubject').value = ''; $('cgWordData').value = '';
+        $('saveBtn').disabled = false;
+        await loadGames();
+        await notifyAdmin(title, subject);
+        msgEl.textContent = '保存しました！';
+      });
+
+      await loadGames();
+    </script>
+  </body>
+</html>
