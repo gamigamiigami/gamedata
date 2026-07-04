@@ -1,0 +1,129 @@
+/* メインポータル（ver2デザインシステム準拠） */
+
+body {
+  font-family: var(--font, system-ui);
+  margin: 0;
+  background:
+    radial-gradient(900px 480px at 85% -10%, rgba(254, 208, 0, .07), transparent 60%),
+    radial-gradient(700px 420px at -10% 110%, rgba(88, 183, 255, .06), transparent 60%),
+    var(--c-bg, #14161b);
+  color: var(--c-text, #f2f4f8);
+  min-height: 100vh;
+}
+
+/* ヘッダー */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px clamp(14px, 4vw, 32px);
+  flex-wrap: wrap;
+}
+.logo {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  color: var(--c-text);
+}
+.logo span { color: var(--c-brand); }
+.top-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.top-link {
+  color: var(--c-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid var(--c-line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  transition: border-color .15s, color .15s;
+}
+.top-link:hover { border-color: var(--c-muted); color: var(--c-text); }
+.top-link--teacher { color: var(--c-brand); border-color: #6b5a00; }
+.top-link--teacher:hover { border-color: var(--c-brand); color: var(--c-brand); }
+
+.school-badge {
+  color: var(--c-brand);
+  border: 1px solid #6b5a00;
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.school-badge__label { font-size: 11px; opacity: .7; }
+.school-badge a {
+  color: var(--c-muted);
+  font-size: 11px;
+  text-decoration: none;
+  border-left: 1px solid var(--c-line);
+  padding-left: 8px;
+}
+
+/* タイトル */
+main { padding-bottom: 64px; }
+.page-title {
+  text-align: center;
+  font-size: clamp(30px, 6vw, 44px);
+  font-weight: 900;
+  letter-spacing: .06em;
+  margin: 18px 0 22px;
+}
+
+/* マイページカード */
+.mypage-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(680px, 92vw);
+  margin: 0 auto 14px;
+  padding: 10px 18px;
+  border-radius: var(--r-md, 16px);
+  background: var(--c-surface, #1f2229);
+  border: 1px solid var(--c-line, #3a3f4b);
+  box-shadow: var(--sh-card);
+  color: var(--c-text);
+  text-decoration: none;
+  transition: transform .15s ease, border-color .15s ease;
+}
+.mypage-card:hover { transform: translateY(-2px); border-color: var(--c-brand); }
+.mypage-card__text { display: flex; flex-direction: column; }
+.mypage-card__label { font-weight: 800; font-size: 16px; }
+.mypage-card__info { font-size: 12px; color: var(--c-muted); margin-top: 2px; }
+.mypage-card__arrow { margin-left: auto; font-size: 26px; color: var(--c-muted); }
+
+/* 教科カードの色（従来の教科カラーを継承） */
+.subj-kokugo  { background: linear-gradient(160deg, #ffe14d, #e6b800); color: #2b2200; }
+.subj-rika    { background: linear-gradient(160deg, #17a83a, #00701a); }
+.subj-english { background: linear-gradient(160deg, #ef5f6e, #c22836); }
+.subj-math    { background: linear-gradient(160deg, #35d4d4, #148f8f); }
+.subj-syakai  { background: linear-gradient(160deg, #b13cff, #7a00c9); }
+.subj-kateika { background: linear-gradient(160deg, #ff9440, #e56700); }
+
+/* 準備中 */
+.portal-button[data-url=""] {
+  background: var(--c-surface-2, #282c35);
+  font-size: 18px;
+}
+
+/* ページ遷移アニメーション */
+.fade-out {
+  opacity: 0;
+  transform: scale(.94);
+  transition: opacity .4s ease-out, transform .4s ease-out;
+}
+
+/* iPad縦(768px)〜スマホ */
+@media (max-width: 500px) {
+  .v2-portal-grid { grid-template-columns: repeat(2, 1fr); }
+  .v2-portal-card { min-height: 110px; font-size: 22px; }
+}

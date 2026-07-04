@@ -1,0 +1,1910 @@
+
+
+// ★ Firestore インポートと初期化は元コードのまま ---
+// import { collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+// const db = window.firebaseDB;
+
+// ★ ver2 進捗エンジン＆マスコット（import.meta.url 基準なのでHTML側の変更不要）
+import * as v2p from "../../shared/progress.js";
+import { mascotSVG, mascotComment } from "../../shared/mascot.js";
+
+// 共有デザインCSSを注入
+(function injectDesignCSS() {
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = new URL("../../shared/design.css", import.meta.url).href;
+  document.head.appendChild(link);
+})();
+
+(function ensureDeviceId() {
+  // 端末ごとに一意の ID を localStorage に保存
+  let id = localStorage.getItem("deviceId");
+  if (!id) {
+    id = "dev-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    localStorage.setItem("deviceId", id);
+  }
+})();
+
+document.addEventListener("DOMContentLoaded", () => {
+  const toggleButton       = document.getElementById("rankingToggleButton");
+  const table1             = document.getElementById("ranking-table");
+  const table2             = document.getElementById("alt-ranking-table");
+  const resetRankingButton = document.getElementById("resetRankingButton");
+  const changeNameButton   = document.getElementById("changeNameButton");
+
+  // グローバルリセットボタンを動的生成（グローバルランキング表示中のみ表示）
+  const globalResetBtn = document.createElement("button");
+  globalResetBtn.id = "globalResetButton";
+  globalResetBtn.textContent = "グローバルリセット";
+  globalResetBtn.style.cssText = "display:none; padding:5px 10px; margin-top:10px; font-size:14px; cursor:pointer;";
+  resetRankingButton.parentNode.appendChild(globalResetBtn);
+  globalResetBtn.addEventListener("click", globalResetRanking);
+
+  // 学校ログイン中バッジをランキングエリア上部に表示
+  (function() {
+    const sc = localStorage.getItem('schoolCode');
+    const sn = localStorage.getItem('schoolName');
+    if (!sc) return;
+    const badge = document.createElement("div");
+    badge.style.cssText =
+      "font-size:12px;color:#fed000;border:1px solid #555;border-radius:6px;" +
+      "padding:4px 10px;margin-bottom:8px;display:inline-block;";
+    badge.textContent = "学校: " + (sn || sc) + " でログイン中";
+    const rc = document.getElementById("rankingContainer");
+    if (rc) rc.insertBefore(badge, rc.firstChild);
+  })();
+
+  // ポーズボタンをヘッダーに動的生成
+  const header = document.getElementById("header");
+  if (header) {
+    const pauseBtn = document.createElement("button");
+    pauseBtn.id = "pauseButton";
+    pauseBtn.textContent = "⏸";
+    pauseBtn.addEventListener("click", pauseGame);
+    header.appendChild(pauseBtn);
+  }
+
+  // ★ スタート画面に弱点特訓ボタンを注入（ノートに問題がある時だけ表示）
+  (function () {
+    const startBtn = document.getElementById("startButton");
+    if (!startBtn) return;
+    let count = 0;
+    try { count = v2p.getNoteFor(title).length; } catch (e) { return; }
+    const tk = document.createElement("button");
+    tk.id = "tokkunButton";
+    tk.className = "v2-btn v2-btn--ghost";
+    tk.style.cssText = "margin:10px auto 0; display:" + (count > 0 ? "inline-flex" : "none") + "; border-color:#fed000; color:#fed000;";
+    tk.textContent = `🎯 弱点特訓（${count}問）`;
+    tk.addEventListener("click", () => {
+      tokkunPending = true;
+      startBtn.click();
+      // 品詞選択ゲーム等でスタートが実行されなかった場合に備えてフラグを戻す
+      setTimeout(() => { tokkunPending = false; }, 1500);
+    });
+    startBtn.insertAdjacentElement("afterend", tk);
+  })();
+
+  // ポーズオーバーレイを動的生成
+  const pauseOverlay = document.createElement("div");
+  pauseOverlay.id = "pauseOverlay";
+  pauseOverlay.style.cssText = "display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(8,11,18,.88); backdrop-filter:blur(3px); align-items:center; justify-content:center; z-index:200;";
+  pauseOverlay.innerHTML = `
+    <div style="background:linear-gradient(180deg,#222836,#1a1f2b); border:1px solid #39404e; border-radius:22px; padding:36px 52px; text-align:center; box-shadow:0 24px 60px rgba(0,0,0,.6);">
+      <p style="font-size:15px; margin:0 0 6px; letter-spacing:.3em; color:#9aa1ad; font-weight:800;">PAUSE</p>
+      <p style="font-size:23px; margin:0 0 22px; color:#fed000; font-weight:900;">一時停止中</p>
+      <button id="resumeButton" style="min-width:180px; height:52px; padding:0 26px; font-size:17px; cursor:pointer; background:linear-gradient(180deg,#ffe14d,#fed000); color:#1a1400; border:none; border-radius:999px; font-weight:900; box-shadow:0 4px 0 #b89600, 0 8px 20px rgba(254,208,0,.3);">▶ 再開する</button>
+    </div>`;
+  document.body.appendChild(pauseOverlay);
+  pauseOverlay.querySelector("#resumeButton").addEventListener("click", resumeGame);
+
+  // 結果画面を動的生成
+  const resultScreen = document.createElement("div");
+  resultScreen.id = "resultScreen";
+  resultScreen.style.cssText = "display:none; text-align:center; padding:20px 12px; margin-top:20px; color:#fff; font-family:var(--font, system-ui);";
+  resultScreen.innerHTML = `
+    <h2 style="color:#fed000; letter-spacing:.06em; margin:0 0 14px;">ゲーム結果</h2>
+    <div class="v2-card" style="max-width:520px; margin:0 auto; text-align:left;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+        <span id="resultMascot" class="v2-mascot v2-mascot--bounce"></span>
+        <p id="resultSpeech" class="v2-speech" style="margin:0;"></p>
+      </div>
+      <div id="celebrateSlot"></div>
+      <div class="v2-result-row" style="animation-delay:.05s;">
+        <span>スコア</span>
+        <span><b id="resultScore">0</b> <span id="resultBestDiff" class="v2-plus"></span></span>
+      </div>
+      <div class="v2-result-row" style="animation-delay:.15s;">
+        <span>最大コンボ</span><b id="resultMaxCombo"></b>
+      </div>
+      <div class="v2-result-row" style="animation-delay:.25s;">
+        <span>間違えた問題</span><span><b id="resultWrongCount"></b> 問</span>
+      </div>
+      <div id="resultXpArea" style="margin-top:14px; display:none;">
+        <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;">
+          <span id="resultLevelLabel" style="font-weight:700; color:var(--c-brand,#fed000);"></span>
+          <span id="resultXpGain" style="color:var(--c-success,#3ecf8e); font-weight:700;"></span>
+        </div>
+        <div class="v2-xpbar"><div id="resultXpFill" class="v2-xpbar__fill"></div></div>
+        <p id="resultSubInfo" style="font-size:12px; color:var(--c-muted,#9aa1ad); margin:8px 0 0;"></p>
+      </div>
+      <p id="resultNotice" style="display:none; font-size:13px; color:var(--c-muted,#9aa1ad); background:var(--c-bg-deep,#0e1013); border-radius:10px; padding:10px 12px; margin:14px 0 0;"></p>
+    </div>
+    <div id="wrongListContainer" style="max-height:280px; overflow-y:auto; margin:14px auto 0; width:90%; max-width:520px; background:var(--c-surface,#1f2229); border:1px solid var(--c-line,#3a3f4b); border-radius:16px; padding:12px 16px; text-align:left;">
+      <h3 style="color:#fed000; margin:0 0 10px; text-align:center; font-size:16px;">間違えた問題（間違いノートに記録）</h3>
+      <ul id="wrongList" style="list-style:none; padding:0; margin:0;"></ul>
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:16px;">
+      <button id="reviewButton" class="v2-btn v2-btn--primary">📝 復習モード</button>
+      <button id="resultReturnButton" class="v2-btn v2-btn--ghost">スタートに戻る</button>
+    </div>`;
+  document.body.appendChild(resultScreen);
+  resultScreen.querySelector("#reviewButton").addEventListener("click", startReviewMode);
+  resultScreen.querySelector("#resultReturnButton").addEventListener("click", () => {
+    resultScreen.style.display = "none";
+    document.getElementById("startScreen").style.display = "block";
+    unlockZoom();
+    updateRankings();
+    displayRanking();
+    updateTokkunButton(); // 今回の間違いを反映して特訓ボタンを更新
+  });
+
+  let showingAlt = false;
+  if (table2) table2.style.display = "none";
+
+  // 学校ログイン中はトグルボタンのラベルを切り替える
+  function altLabel() {
+    return getSchoolCode() ? "学校ランキング" : "グローバルランキング";
+  }
+  toggleButton.textContent = altLabel();
+
+  toggleButton.addEventListener("click", async () => {
+    showingAlt = !showingAlt;
+
+    if (showingAlt) {
+      await displayAltRanking();
+    }
+
+    table1.style.display             = showingAlt ? "none"    : "table";
+    table2.style.display             = showingAlt ? "table"   : "none";
+    toggleButton.textContent         = showingAlt ? "My ベストスコア" : altLabel();
+    resetRankingButton.style.display = showingAlt ? "none"    : "inline-block";
+    // 学校ログイン中はグローバルリセットボタンを非表示
+    globalResetBtn.style.display     = (showingAlt && !getSchoolCode()) ? "inline-block" : "none";
+    if (changeNameButton) changeNameButton.style.display = showingAlt ? "none" : "inline-block";
+  });
+});
+
+// --- Supabase 操作用関数 ---
+function getSupabase() { return window.supabaseClient; }
+
+/* 学校ログイン状態を localStorage から取得 */
+function getSchoolCode() { return localStorage.getItem('schoolCode') || null; }
+function getSchoolName() { return localStorage.getItem('schoolName') || ''; }
+
+/* ===============================
+   パスワード認証（SHA-256）
+=============================== */
+const _AH = "bfd86db114080042e8d40ec387b2cd01ed7a9d261c2d503c17e1e724a7b303a4";
+async function _verifyPw(input) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("") === _AH;
+}
+
+/* ===============================
+   禁止ワードフィルター
+=============================== */
+const _BAD = [
+  "ちんちん","ちんこ","まんこ","ちんぽ","ちんぽこ","おちんちん","おちんぽ","ちんまん",
+  "うんこ","うんち","くそやろう","くそったれ",
+  "しね","死ね","ころせ","殺せ","しにさらせ","死にさらせ",
+  "セックス","えっち","エッチ","レイプ","わいせつ",
+  "fuck","shit","bitch","dick","pussy","nigger","nigga","cunt","asshole","motherfuck","whore","slut","cock",
+];
+function containsBadWord(text) {
+  const t = text.toLowerCase();
+  return _BAD.some(w => t.includes(w.toLowerCase()));
+}
+
+/* ===============================
+   グローバルランキングリセット（管理者用）
+=============================== */
+async function globalResetRanking() {
+  const pw = prompt("管理者パスワードを入力してください：");
+  if (pw === null) return;
+  const ok = await _verifyPw(pw);
+  if (!ok) { alert("パスワードが違います"); return; }
+  if (!confirm("グローバルランキングをリセットします。\nこの操作は取り消せません。よろしいですか？")) return;
+
+  const supabase = getSupabase();
+  if (!supabase) { alert("DB未接続"); return; }
+  try {
+    const { error } = await supabase
+      .from('global_rankings')
+      .delete()
+      .eq('game_key', getFirestoreCollectionName());
+    if (error) throw error;
+    alert("グローバルランキングをリセットしました");
+    await window.displayAltRanking();
+  } catch (e) {
+    alert("リセット失敗: " + e.message);
+    console.error(e);
+  }
+}
+
+/* ===============================
+   ズームリセット
+=============================== */
+function resetAndLockZoom() {
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+}
+function unlockZoom() {
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0');
+}
+
+/* ===============================
+   ポーズ
+=============================== */
+let isPaused = false;
+
+function pauseGame() {
+  if (isPaused || gameOver || introActive) return;
+  isPaused = true;
+  cancelAnimationFrame(gameLoopId);
+  clearInterval(timerIntervalId);
+  const ol = document.getElementById("pauseOverlay");
+  if (ol) { ol.style.display = "flex"; }
+}
+
+function resumeGame() {
+  if (!isPaused) return;
+  isPaused = false;
+  lastFrameTime = Date.now();
+  lastSpawnTime = Date.now();
+  const ol = document.getElementById("pauseOverlay");
+  if (ol) { ol.style.display = "none"; }
+  gameLoopId = requestAnimationFrame(gameLoop);
+  startTimer();
+}
+
+// タブ切り替え時に自動ポーズ。タブ復帰時は自動再開（スマホ通知等の誤ポーズ防止）
+let _tabPaused = false;
+document.addEventListener("visibilitychange", () => {
+  if (introActive) return; // カウントダウン/チュートリアル中はポーズ処理しない
+  if (document.hidden) {
+    if (!isPaused && !gameOver) {
+      pauseGame();
+      _tabPaused = true;
+    }
+  } else if (_tabPaused) {
+    _tabPaused = false;
+    resumeGame();
+  }
+});
+
+/* ===============================
+   間違い記録・結果・復習
+=============================== */
+let wrongAnswers = [];
+let reviewMode = false;
+let reviewQueue = [];
+let reviewIndex = 0;
+
+/* 紙吹雪エフェクト */
+function spawnConfetti() {
+  const colors = ["#fed000", "#ff6b6b", "#58b7ff", "#3ecf8e", "#c792ea"];
+  const wrap = document.createElement("div");
+  wrap.className = "v2-confetti";
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement("i");
+    p.style.left = Math.random() * 100 + "%";
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = 1.8 + Math.random() * 1.6 + "s";
+    p.style.animationDelay = Math.random() * 0.6 + "s";
+    wrap.appendChild(p);
+  }
+  document.body.appendChild(wrap);
+  setTimeout(() => wrap.remove(), 4200);
+}
+
+/* スコアのカウントアップ演出 */
+function animateCount(elem, target, ms = 800) {
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / ms, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    elem.textContent = Math.round(target * eased);
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function showResultScreen() {
+  const gs = document.getElementById("gameScreen");
+  const rs = document.getElementById("resultScreen");
+  if (gs) gs.style.display = "none";
+  if (!rs) return;
+
+  const el = (id) => rs.querySelector("#" + id) || document.getElementById(id);
+  const r = lastPlayResult || { valid: true, counted: false };
+
+  animateCount(el("resultScore"), score);
+  el("resultMaxCombo").textContent = maxCombo;
+  el("resultWrongCount").textContent = wrongAnswers.length;
+
+  /* --- お祝いは1プレイ最大1つ（称号 > レベルUP > 自己ベスト） --- */
+  const slot = el("celebrateSlot");
+  slot.innerHTML = "";
+  let mood = wrongAnswers.length === 0 && score > 0 ? "happy" : "normal";
+  let speech = mascotComment(wrongAnswers.length > 0 ? "miss" : "good");
+  let celebrated = null;
+
+  if (r.counted && r.newBadges && r.newBadges.length > 0) {
+    const b = r.newBadges[0];
+    celebrated = {
+      title: "🏅 新しい称号「" + b.name + "」",
+      sub: b.desc + (r.newBadges.length > 1 ? `（ほか${r.newBadges.length - 1}個！マイページで確認）` : ""),
+    };
+    mood = "cheer";
+    speech = mascotComment("badge");
+  } else if (r.counted && r.levelUp) {
+    celebrated = { title: "⬆ レベル" + r.levelAfter + "にアップ！", sub: "コツコツ続けるきみがすごい！" };
+    mood = "cheer";
+    speech = mascotComment("levelup", { level: r.levelAfter });
+  } else if (r.counted && r.bestUpdated && r.prevBest > 0) {
+    celebrated = { title: "🎉 自己ベスト更新！", sub: `前回ベスト ${r.prevBest} 点をこえた！` };
+    mood = "cheer";
+    speech = mascotComment("best");
+  }
+
+  if (celebrated) {
+    slot.innerHTML = `
+      <div class="v2-celebrate">
+        <p class="v2-celebrate__title">${celebrated.title}</p>
+        <p class="v2-celebrate__sub">${celebrated.sub}</p>
+      </div>`;
+    spawnConfetti();
+  }
+
+  /* --- ベスト比（お祝い枠を使っていない時は1行で表示） --- */
+  const diff = el("resultBestDiff");
+  diff.textContent = "";
+  if (r.counted && r.bestUpdated && r.prevBest > 0 && (!celebrated || celebrated.title.indexOf("自己ベスト") === -1)) {
+    diff.textContent = `自己ベスト! (+${score - r.prevBest})`;
+  } else if (r.counted && !r.bestUpdated && r.best > 0) {
+    diff.textContent = "";
+  }
+
+  /* --- XPエリア --- */
+  const xpArea = el("resultXpArea");
+  const notice = el("resultNotice");
+  notice.style.display = "none";
+
+  if (!r.valid) {
+    xpArea.style.display = "none";
+    notice.style.display = "block";
+    notice.textContent = "⚠ スコアを正しく確認できなかったため、今回の記録は保存されませんでした。";
+    mood = "think";
+    speech = "うーん、なにかおかしいみたい…";
+  } else if (!r.counted) {
+    xpArea.style.display = "none";
+    notice.style.display = "block";
+    notice.textContent = "🌱 5問以上正解＆30秒以上のプレイでXPと記録がもらえるよ。じっくり挑戦してみよう！";
+    mood = "think";
+    speech = mascotComment("nocount");
+  } else {
+    xpArea.style.display = "block";
+    el("resultLevelLabel").textContent = "レベル " + r.levelAfter;
+    el("resultXpGain").textContent = "+" + r.xpGained + " XP";
+    const fill = el("resultXpFill");
+    fill.style.width = "0%";
+    setTimeout(() => { fill.style.width = r.levelPct + "%"; }, 150);
+
+    const infoBits = [];
+    if (r.challengeCleared) infoBits.push("🎯 今日のチャレンジ達成！（+50XP）");
+    if (r.streak >= 2) infoBits.push(`🔥 ${r.streak}日連続プレイ中`);
+    el("resultSubInfo").textContent = infoBits.join("　");
+    if (r.challengeCleared) speech = mascotComment("challenge");
+  }
+
+  /* --- マスコット --- */
+  el("resultMascot").innerHTML = mascotSVG({
+    mood,
+    level: r.counted ? r.levelAfter : v2p.levelInfo(v2p.getProgress().xp).level,
+    size: 84,
+  });
+  el("resultSpeech").textContent = speech;
+
+  /* --- 間違いリスト（explanation があれば解説も表示） --- */
+  const ul = el("wrongList");
+  ul.innerHTML = "";
+  const wrongMap = new Map();
+  wrongAnswers.forEach(wa => {
+    if (wrongMap.has(wa.word)) wrongMap.get(wa.word).count++;
+    else wrongMap.set(wa.word, { ...wa, count: 1 });
+  });
+  wrongMap.forEach(wa => {
+    const li = document.createElement("li");
+    li.style.cssText = "padding:8px 4px; border-bottom:1px dashed var(--c-line,#555); font-size:15px;";
+    const countStr = wa.count > 1 ? ` <span style="color:#f90;font-weight:bold;">×${wa.count}</span>` : "";
+    const src = currentWordData.find(d => (d.word || "") === wa.word);
+    const expl = src && src.explanation
+      ? `<div style="font-size:12px; color:var(--c-muted,#9aa1ad); margin-top:3px;">💡 ${src.explanation}</div>`
+      : "";
+    li.innerHTML = `「${wa.word}」→ <strong style="color:var(--c-brand,#fed000);">${wa.correctType}</strong>${countStr}${expl}`;
+    ul.appendChild(li);
+  });
+  document.getElementById("wrongListContainer").style.display = wrongAnswers.length > 0 ? "block" : "none";
+
+  const reviewBtn = el("reviewButton");
+  if (reviewBtn) reviewBtn.style.display = wrongAnswers.length > 0 ? "inline-flex" : "none";
+  rs.style.display = "block";
+}
+
+function startReviewMode() {
+  reviewMode = true;
+  reviewQueue = [...wrongAnswers];
+  reviewIndex = 0;
+
+  const rs = document.getElementById("resultScreen");
+  if (rs) rs.style.display = "none";
+  gameOver = false;
+  fallingWords = [];
+
+  const gs = document.getElementById("gameScreen");
+  if (gs) gs.style.display = "block";
+
+  playArea.innerHTML = "";
+  playArea.appendChild(createSortingArea());
+
+  const timerDisplay  = document.getElementById("timer");
+  const scoreDisplay  = document.getElementById("score");
+  const comboDisplay  = document.getElementById("combo");
+  const maxComboDisplay = document.getElementById("maxCombo");
+  const returnButton  = document.getElementById("returnButton");
+  if (timerDisplay) timerDisplay.textContent = "復習モード";
+  if (comboDisplay) comboDisplay.textContent = "";
+  if (maxComboDisplay) maxComboDisplay.textContent = "";
+  if (returnButton) { returnButton.textContent = "復習を終える"; returnButton._reviewMode = true; }
+
+  showNextReviewWord();
+}
+
+function showNextReviewWord() {
+  playArea.querySelectorAll(".word").forEach(w => w.remove());
+  fallingWords = [];
+
+  const scoreDisplay = document.getElementById("score");
+  const returnButton = document.getElementById("returnButton");
+
+  if (reviewIndex >= reviewQueue.length) {
+    const wasTokkun = tokkunMode;
+    reviewMode = false;
+    tokkunMode = false;
+    if (returnButton) { returnButton.textContent = "Return to START"; returnButton._reviewMode = false; }
+    const gs = document.getElementById("gameScreen");
+    const ss = document.getElementById("startScreen");
+    if (gs) gs.style.display = "none";
+    if (ss) ss.style.display = "block";
+    unlockZoom();
+    updateRankings();
+    displayRanking();
+    updateTokkunButton();
+    if (wasTokkun) {
+      alert(`特訓完了！間違いノートから ${tokkunClearCount} 問なくなったよ！🎉`);
+    } else {
+      try { v2p.recordReviewComplete(); } catch (e) {}
+      alert("復習完了！全問正解しました！");
+    }
+    return;
+  }
+
+  if (scoreDisplay) scoreDisplay.textContent = `${reviewIndex + 1} / ${reviewQueue.length}`;
+
+  const item = reviewQueue[reviewIndex];
+  const wordDiv = document.createElement("div");
+  wordDiv.classList.add("word");
+  if (item.sentence) {
+    wordDiv.innerHTML = buildTileHTML(item.sentence, item.word);
+    wordDiv.dataset.word = item.word;
+    wordDiv.dataset.sentence = item.sentence;
+  } else {
+    wordDiv.textContent = item.word;
+  }
+  wordDiv.dataset.type = item.correctType;
+  wordDiv.id = "review_" + reviewIndex;
+  wordDiv.dataset.locked = "false";
+  wordDiv.dataset.penalized = "false";
+  wordDiv.style.cssText = "white-space:nowrap; position:absolute; visibility:hidden; top:-30px; left:0;";
+  playArea.appendChild(wordDiv);
+  fitWordSize(wordDiv); // 長い文章を1列幅に収める
+
+  const w = wordDiv.offsetWidth;
+  const x = (playArea.clientWidth - w) / 2;
+  const y = Math.floor(playArea.clientHeight * 0.25);
+  wordDiv.style.left = x + "px";
+  wordDiv.style.top  = y + "px";
+  wordDiv.style.visibility = "visible";
+
+  fallingWords = [{ element: wordDiv, x, y, speed: 0 }];
+  wordDiv.addEventListener("mousedown", handleMouseDown);
+  wordDiv.addEventListener("touchstart", handleTouchStart);
+}
+
+/* ===============================
+   弱点特訓モード
+   間違いノートに残っている問題だけを復習UIで出題。
+   正解するとその場でノートから削除される（克服バッジには数えない）
+=============================== */
+function startTokkunMode(wordData) {
+  let entries = [];
+  try { entries = v2p.getNoteFor(title); } catch (e) {}
+  const queue = [];
+  for (const n of entries) {
+    const item = wordData.find(w => (w.word || "") === n.w);
+    if (item) queue.push({ word: n.w, correctType: n.t, sentence: n.s || item.sentence || "" });
+  }
+  if (queue.length === 0) {
+    alert("このゲームの間違いノートは空だよ！");
+    updateTokkunButton();
+    return;
+  }
+
+  tokkunMode = true;
+  reviewMode = true;
+  reviewQueue = queue;
+  reviewIndex = 0;
+  tokkunClearCount = 0;
+  gameOver = false;
+  isPaused = false;
+  fallingWords = [];
+
+  resetAndLockZoom();
+  const rs = document.getElementById("resultScreen");
+  if (rs) rs.style.display = "none";
+  startScreen.style.display = "none";
+  gameScreen.style.display = "block";
+
+  playArea.innerHTML = "";
+  playArea.appendChild(createSortingArea());
+
+  const td = document.getElementById("timer");
+  if (td) { td.textContent = "弱点特訓"; td.classList.remove("hurry"); }
+  const cd = document.getElementById("combo");
+  if (cd) cd.textContent = "";
+  const md = document.getElementById("maxCombo");
+  if (md) md.textContent = "";
+  const rb = document.getElementById("returnButton");
+  if (rb) { rb.textContent = "特訓を終える"; rb._reviewMode = true; }
+
+  showNextReviewWord();
+}
+
+/* スタート画面の特訓ボタンを最新のノート件数に合わせて更新 */
+function updateTokkunButton() {
+  const btn = document.getElementById("tokkunButton");
+  if (!btn) return;
+  let count = 0;
+  try { count = v2p.getNoteFor(title).length; } catch (e) {}
+  if (count > 0) {
+    btn.textContent = `🎯 弱点特訓（${count}問）`;
+    btn.style.display = "inline-flex";
+  } else {
+    btn.style.display = "none";
+  }
+}
+
+/* ===============================
+   文字幅計算（全角=2, 半角=1）
+=============================== */
+function displayWidth(str) {
+  let w = 0;
+  for (const ch of str) {
+    const cp = ch.codePointAt(0);
+    w += (
+      (cp >= 0x1100 && cp <= 0x115F) ||
+      (cp >= 0x2E80 && cp <= 0xA4CF && cp !== 0x303F) ||
+      (cp >= 0xAC00 && cp <= 0xD7A3) ||
+      (cp >= 0xF900 && cp <= 0xFAFF) ||
+      (cp >= 0xFE10 && cp <= 0xFE19) ||
+      (cp >= 0xFE30 && cp <= 0xFE6F) ||
+      (cp >= 0xFF01 && cp <= 0xFF60) ||
+      (cp >= 0xFFE0 && cp <= 0xFFE6) ||
+      cp >= 0x1F300
+    ) ? 2 : 1;
+  }
+  return w;
+}
+
+// ゲームタイトル取得（カスタムゲームは window.GAME_TITLE を優先）
+const title = (typeof window.GAME_TITLE !== "undefined" && window.GAME_TITLE)
+  ? window.GAME_TITLE
+  : document.querySelector("h1").textContent.trim();
+
+// ★ ボーナスON/OFFの設定 ★
+let bonusEnabled = false;
+const bonusToggleButton = document.getElementById("bonusToggleButton");
+
+// ローカルストレージのキーをボーナス有無で切り替える
+function getRankingKey() {
+  return "rankings" + title + (bonusEnabled ? "" : "_nobonus");
+}
+
+// Firestore のコレクション名を切り替え
+function getFirestoreCollectionName() {
+  return "ranks" + title + (bonusEnabled ? "" : "_nobonus");
+}
+
+// Supabase から上位 N 件を取得して #alt-ranking-table に描画
+// 学校ログイン中: school_rankings（その学校のみ）
+// 未ログイン   : global_rankings（全国）
+window.displayAltRanking = async function(limitNum = 30) {
+  const tbody       = document.querySelector("#alt-ranking-table tbody");
+  tbody.innerHTML   = "<tr><td colspan='3'>読み込み中...</td></tr>";
+  const seenDevices = new Set();
+  const supabase    = getSupabase();
+  const schoolCode  = getSchoolCode();
+
+  if (!supabase) {
+    tbody.innerHTML = "<tr><td colspan='3'>DB未接続</td></tr>";
+    return;
+  }
+  try {
+    let query;
+    if (schoolCode) {
+      query = supabase
+        .from('school_rankings')
+        .select('player, score, device_id')
+        .eq('school_code', schoolCode)
+        .eq('game_key', getFirestoreCollectionName())
+        .order('score', { ascending: false })
+        .limit(limitNum * 100);
+    } else {
+      query = supabase
+        .from('global_rankings')
+        .select('player, score, device_id')
+        .eq('game_key', getFirestoreCollectionName())
+        .order('score', { ascending: false })
+        .limit(limitNum * 100);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    tbody.innerHTML = "";
+    let count = 0;
+    for (const row of (data || [])) {
+      if (seenDevices.has(row.device_id)) continue;
+      seenDevices.add(row.device_id);
+      count++;
+      if (count > limitNum) break;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${count}</td><td>${row.player}</td><td>${row.score}</td>`;
+      tbody.appendChild(tr);
+    }
+    if (count === 0) {
+      const label = schoolCode ? '学校内のデータなし' : 'データなし';
+      tbody.innerHTML = `<tr><td colspan='3'>${label}</td></tr>`;
+    }
+  } catch (e) {
+    tbody.innerHTML = "<tr><td colspan='3'>取得エラー</td></tr>";
+    console.error("Supabase 読み込みエラー:", e);
+  }
+};
+
+/* ===============================
+   EmailJS 通知設定
+   ↓ EmailJS (emailjs.com) で取得した値を入力してください
+=============================== */
+const _EJS_PK  = "njxurV_IW84nYD01w";    // アカウント → Account → Public Key
+const _EJS_SVC = "service_0eqi1dy";    // Email Services → Service ID
+const _EJS_TPL = "template_gp9y1ai";   // Email Templates → Template ID
+
+let _ejsReady = false;
+async function _loadEmailJS() {
+  if (_ejsReady) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
+    s.onload = () => { emailjs.init({ publicKey: _EJS_PK }); _ejsReady = true; resolve(); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+// 禁止ワード使用を violations テーブルに記録し、メール通知（ユーザーには通知しない）
+async function logViolation(username) {
+  const deviceId   = localStorage.getItem("deviceId") || "unknown";
+  const deviceInfo = `${screen.width}×${screen.height} / ${navigator.userAgent}`;
+  const dateStr    = new Date().toLocaleString("ja-JP");
+
+  const supabase = getSupabase();
+  if (supabase) {
+    supabase.from('violations').insert({
+      name:        username,
+      game:        title,
+      date:        new Date().toISOString(),
+      device_id:   deviceId,
+      device_info: deviceInfo,
+    }).then(() => {}).catch(() => {});
+  }
+
+  // メール通知（EmailJS）
+  _loadEmailJS().then(() => {
+    emailjs.send(_EJS_SVC, _EJS_TPL, {
+      bad_name:    username,
+      game:        title,
+      device_id:   deviceId,
+      device_info: deviceInfo,
+      date:        dateStr,
+    }).catch(() => {});
+  }).catch(() => {});
+}
+
+// Supabase にスコアを保存（device_id も添付）
+// 学校ログイン中は school_rankings にも保存
+async function saveToSupabase(username, score) {
+  if (containsBadWord(username)) {
+    logViolation(username);
+    return;
+  }
+  const today      = new Date().toISOString().slice(0, 10);
+  const deviceId   = localStorage.getItem("deviceId");
+  const supabase   = getSupabase();
+  const schoolCode = getSchoolCode();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from('global_rankings').insert({
+      game_key:  getFirestoreCollectionName(),
+      date:      today,
+      player:    username,
+      score:     score,
+      device_id: deviceId
+    });
+    if (error) console.error("Supabase 保存エラー:", error);
+
+    if (schoolCode) {
+      const { error: e2 } = await supabase.from('school_rankings').insert({
+        school_code: schoolCode,
+        game_key:    getFirestoreCollectionName(),
+        date:        today,
+        player:      username,
+        score:       score,
+        device_id:   deviceId
+      });
+      if (e2) console.error("学校ランキング保存エラー:", e2);
+    }
+  } catch (e) {
+    console.error("Supabase 保存エラー:", e);
+  }
+}
+
+// 特別エントリ定義
+const specialEntries = [
+  { username: "👆👆👆👆Sランク👆👆👆👆", score: 6000, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Aランク👆👆👆👆", score: 4000, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Bランク👆👆👆👆", score: 2000, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Cランク👆👆👆👆", score: 1000, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Dランク👆👆👆👆", score:    0, time: new Date("2025-02-15").getTime() },
+];
+
+// 特別エントリか判定
+function isSpecial(entry) {
+  return specialEntries.some(
+    special =>
+      entry.username === special.username &&
+      entry.score    === special.score
+  );
+}
+
+function updateRankings() {
+  const key      = getRankingKey();
+  let   rankings = JSON.parse(localStorage.getItem(key)) || [];
+
+  specialEntries.forEach(special => {
+    const exists = rankings.some(
+      entry =>
+        entry.username === special.username &&
+        entry.score    === special.score
+    );
+    if (!exists) rankings.push(special);
+  });
+
+  rankings.sort((a,b) => b.score - a.score || b.time - a.time);
+
+  const specials  = rankings.filter(isSpecial);
+  const normals   = rankings.filter(e => !isSpecial(e)).slice(0,10);
+  const combined  = [...specials, ...normals];
+  combined.sort((a,b) => b.score - a.score || b.time - a.time);
+
+  localStorage.setItem(key, JSON.stringify(combined));
+}
+
+function displayRanking() {
+  const key   = getRankingKey();
+  const tbody = document.querySelector("#ranking-table tbody");
+  tbody.innerHTML = "";
+
+  let rankings = JSON.parse(localStorage.getItem(key)) || [];
+  rankings.sort((a,b) => b.score - a.score || b.time - a.time);
+
+  rankings.forEach(entry => {
+    const tr       = document.createElement("tr");
+    const dateCell = document.createElement("td");
+    if (isSpecial(entry)) {
+      dateCell.textContent = "";
+      tr.classList.add("special-entry");
+    } else {
+      const d = new Date(entry.time);
+      dateCell.textContent = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+    }
+    const nameCell  = document.createElement("td"); nameCell.textContent  = entry.username;
+    const scoreCell = document.createElement("td"); scoreCell.textContent = entry.score;
+
+    tr.append(dateCell, nameCell, scoreCell);
+    tbody.appendChild(tr);
+  });
+}
+
+// リセットボタン処理
+const resetRankingButton = document.getElementById("resetRankingButton");
+resetRankingButton.addEventListener("click", () => {
+  if (confirm("ベストスコアをリセットしますか？")) {
+    localStorage.removeItem(getRankingKey());
+    updateRankings();
+    displayRanking();
+  }
+});
+
+
+
+/* ===============================
+   ゲーム設定
+=============================== */
+const TIME_LIMIT = 60; // 制限時間（秒）
+const SPAWN_INTERVAL = 2000; // 出現間隔（ms）
+const PENALTY_TIME = 3; // ペナルティ秒数
+const ROW_HEIGHT = 30;
+const SORTING_AREA_ROWS = 3;
+const SORTING_AREA_HEIGHT = ROW_HEIGHT * SORTING_AREA_ROWS;
+
+let FALL_SPEED = 50; // initGameで再計算
+
+
+
+/* ===============================
+   ゲーム状態変数
+=============================== */
+let remainingTime = TIME_LIMIT;
+let score = 0;
+let scorePerCorrect = 100; // 正解1つあたりの得点（initGameのoptsで上書き可）
+
+// ★ ver2 進捗連携用
+let correctCount = 0;        // 正解数（スコア整合性チェックに使用）
+let playStartTime = 0;       // プレイ開始時刻
+let noteWords = new Set();   // 間違いノート由来の優先出題ワード
+let lastPlayResult = null;   // recordPlay の結果（結果画面で使用）
+
+// ★ 弱点特訓モード（間違いノートの問題だけを集中特訓）
+let tokkunPending = false;   // 特訓ボタン押下 → 次の initGame を特訓として開始
+let tokkunMode = false;
+let tokkunClearCount = 0;
+
+// ★ COMBO関連はここで1回だけ宣言
+let currentCombo = 0;
+let maxCombo = 0;
+
+let fallingWords = [];
+let lastSpawnTime = Date.now();
+let lastFrameTime = Date.now();
+let gameOver = false;
+
+let gameLoopId;
+let timerIntervalId;
+
+let wordIdCounter = 0;
+function generateUniqueId() {
+  return "word_" + wordIdCounter++;
+}
+
+
+/* ===============================
+   外部データ保持
+=============================== */
+let currentWordData = [];
+let categories = [];
+
+
+/* ===============================
+   DOM取得
+=============================== */
+const playArea = document.getElementById("playArea");
+const timerDisplay = document.getElementById("timer");
+const scoreDisplay = document.getElementById("score");
+const comboDisplay = document.getElementById("combo");
+const maxComboDisplay = document.getElementById("maxCombo");
+const startScreen = document.getElementById("startScreen");
+const gameScreen = document.getElementById("gameScreen");
+const returnButton = document.getElementById("returnButton");
+const startButton = document.getElementById("startButton");
+
+
+/* ===============================
+   ボーナスON / OFF 切り替え
+=============================== */
+if (bonusToggleButton) {
+  bonusToggleButton.addEventListener("click", () => {
+    bonusEnabled = !bonusEnabled;
+
+    bonusToggleButton.textContent =
+      bonusEnabled ? "ボーナス: ON" : "ボーナス: OFF";
+
+    // ランキング表示を即更新
+    const altTable = document.getElementById("alt-ranking-table");
+    const showingAlt = altTable && altTable.style.display === "table";
+
+    if (showingAlt) {
+      displayAltRanking();
+    } else {
+      updateRankings();
+      displayRanking();
+    }
+  });
+}
+
+
+
+/* ===============================
+   ゲーム初期化（外部公開）
+=============================== */
+export function initGame(wordData, opts = {}) {
+  currentWordData = wordData;
+
+  // ★ 間違いノートの問題を優先出題（重み付け: ノート内の問題を3倍の確率で出す）
+  noteWords = new Set();
+  try {
+    const noteEntries = v2p.getNoteFor(title);
+    if (noteEntries.length > 0) {
+      const weighted = [...wordData];
+      for (const n of noteEntries) {
+        const item = wordData.find(w => (w.word || "") === n.w);
+        if (item) {
+          noteWords.add(n.w);
+          weighted.push(item, item, item);
+        }
+      }
+      currentWordData = weighted;
+    }
+  } catch (e) { /* 進捗データ異常時もゲーム自体は動かす */ }
+  // 列の並び順：opts.categoryOrder があればそれを優先（品詞選択ゲーム用）
+  categories = (opts.categoryOrder && opts.categoryOrder.length)
+    ? opts.categoryOrder
+    : [...new Set(currentWordData.map(item => item.type))];
+  // 正解1つあたりの得点（既定100、品詞選択ゲームは選択数×20など）
+  scorePerCorrect = opts.scorePerCorrect || 100;
+
+  const minCats = window.EXPECTED_MIN_CATEGORIES;
+  if (minCats && categories.length < minCats) {
+    alert('ゲームデータが正しくありません。ページを再読み込みしてください。');
+    return;
+  }
+
+  // ★ 弱点特訓モード: 通常ゲームは開始せず、ノートの問題だけを出題
+  if (tokkunPending) {
+    tokkunPending = false;
+    startTokkunMode(wordData);
+    return;
+  }
+
+  FALL_SPEED = Math.min(300 / categories.length, 50);
+
+  resetAndLockZoom();
+
+  clearInterval(timerIntervalId);
+  cancelAnimationFrame(gameLoopId);
+
+  remainingTime = TIME_LIMIT;
+  score = 0;
+  correctCount = 0;
+  playStartTime = Date.now();
+  lastPlayResult = null;
+  currentCombo = 0;
+  maxCombo = 0;
+  wrongAnswers = [];
+  isPaused = false;
+  reviewMode = false;
+
+  updateComboDisplay();
+
+  fallingWords = [];
+
+  lastSpawnTime = Date.now() - 1900;
+  lastFrameTime = Date.now();
+  gameOver = false;
+
+  const rs = document.getElementById("resultScreen");
+  if (rs) rs.style.display = "none";
+  const rb = document.getElementById("returnButton");
+  if (rb) { rb.textContent = "Return to START"; rb._reviewMode = false; }
+
+  playArea.innerHTML = "";
+  playArea.appendChild(createSortingArea());
+
+  updateTimerDisplay();
+  updateScoreDisplay();
+
+  gameScreen.style.display = "block";
+  startScreen.style.display = "none";
+
+  // 初回はチュートリアル→カウントダウン、2回目以降はカウントダウンのみ
+  beginWithIntro();
+}
+
+/* ===============================
+   ゲーム開始前イントロ
+   （初回チュートリアル + 3・2・1カウントダウン）
+=============================== */
+let introActive = false;
+let introCancel = null; // Returnボタン等でイントロを中断するためのフック
+
+function startPlay() {
+  introActive = false;
+  introCancel = null;
+  lastSpawnTime = Date.now() - 1900;
+  lastFrameTime = Date.now();
+  playStartTime = Date.now(); // イントロ時間はプレイ時間に含めない
+  gameLoopId = requestAnimationFrame(gameLoop);
+  startTimer();
+}
+
+function beginWithIntro() {
+  introActive = true;
+  if (!localStorage.getItem("ver2_tutorial_done")) {
+    showTutorial(() => runCountdown(startPlay));
+  } else {
+    runCountdown(startPlay);
+  }
+}
+
+function showTutorial(done) {
+  const ov = document.createElement("div");
+  ov.id = "tutorialOverlay";
+  let mascot = "";
+  try { mascot = mascotSVG({ mood: "cheer", level: 1, size: 72 }); } catch (e) {}
+  ov.innerHTML = `
+    <div class="tut-card">
+      <button class="tut-skip" type="button">スキップ ▶</button>
+      <div class="tut-mascot">${mascot}</div>
+      <p class="tut-title">あそびかた</p>
+      <div class="tut-demo">
+        <span class="tut-demo-tile">ことば</span>
+        <span class="tut-demo-hand">👆</span>
+        <div class="tut-demo-cols"><i>なかまA</i><i>なかまB</i><i>なかまC</i></div>
+      </div>
+      <ul class="tut-steps">
+        <li><span class="n">1</span>ことばが上から落ちてくる！</li>
+        <li><span class="n">2</span>ゆびでドラッグして、同じなかまの色エリアへ運ぼう</li>
+        <li><span class="n">3</span>黄色いラインにとどく前に仕分け！正解でスコア＆コンボUP</li>
+      </ul>
+      <button class="tut-go" type="button">わかった！はじめる</button>
+    </div>`;
+  document.body.appendChild(ov);
+  let finished = false;
+  introCancel = () => { finished = true; ov.remove(); };
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    try { localStorage.setItem("ver2_tutorial_done", "1"); } catch (e) {}
+    ov.remove();
+    done();
+  };
+  ov.querySelector(".tut-go").addEventListener("click", finish);
+  ov.querySelector(".tut-skip").addEventListener("click", finish);
+}
+
+function runCountdown(done) {
+  const ov = document.createElement("div");
+  ov.id = "countdownOverlay";
+  ov.innerHTML = '<span class="cd-num">3</span><span class="cd-hint">タップでスキップ</span>';
+  playArea.appendChild(ov);
+  const num = ov.querySelector(".cd-num");
+  let step = 3;
+  let finished = false;
+  introCancel = () => { finished = true; clearInterval(timerId); ov.remove(); };
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearInterval(timerId);
+    ov.remove();
+    done();
+  };
+  const timerId = setInterval(() => {
+    step--;
+    if (step > 0) {
+      num.textContent = step;
+      num.style.animation = "none"; void num.offsetWidth; num.style.animation = "";
+    } else if (step === 0) {
+      num.textContent = "GO!";
+      num.classList.add("go");
+      num.style.animation = "none"; void num.offsetWidth; num.style.animation = "";
+    } else {
+      finish();
+    }
+  }, 700);
+  ov.addEventListener("click", finish);
+}
+
+
+/* ===============================
+   品詞選択ゲーム起動（外部公開）
+   スタート前に「出題する品詞」をチェックボックスで選ばせ、
+   選ばれた品詞だけを列・出題対象にしてゲームを開始する。
+   - opts.typeOrder  : 列の固定順（省略時は wordData の出現順）
+   - opts.dynamicScore : true で 正解=選択数×20、false(既定)で 100
+   必要なDOM: #typeCheckboxes（チェックボックス格納先）, #startButton
+=============================== */
+export function initTypeSelectionGame(wordData, opts = {}) {
+  const allTypes = (opts.typeOrder && opts.typeOrder.length)
+    ? opts.typeOrder.filter(t => wordData.some(w => w.type === t))
+    : [...new Set(wordData.map(w => w.type))];
+
+  const selected = new Set(allTypes);
+  const container = document.getElementById("typeCheckboxes");
+  if (container) {
+    container.innerHTML = "";
+    allTypes.forEach(type => {
+      const div = document.createElement("div");
+      const cb  = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = "type-" + type;
+      cb.value = type;
+      cb.checked = true;
+      const label = document.createElement("label");
+      label.htmlFor = "type-" + type;
+      label.textContent = type;
+      cb.addEventListener("change", e => {
+        if (e.target.checked) selected.add(type);
+        else selected.delete(type);
+      });
+      div.appendChild(cb);
+      div.appendChild(label);
+      container.appendChild(div);
+    });
+  }
+
+  const startBtn = document.getElementById("startButton");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (selected.size === 0) {
+        alert("少なくとも1つの品詞を選択してください！");
+        return;
+      }
+      const order    = allTypes.filter(t => selected.has(t));
+      const filtered = wordData.filter(w => selected.has(w.type));
+      initGame(filtered, {
+        categoryOrder:   order,
+        scorePerCorrect: opts.dynamicScore ? order.length * 20 : 100,
+      });
+    });
+  }
+}
+
+
+/* ===============================
+   UIイベント
+=============================== */
+returnButton.addEventListener("click", () => {
+  if (reviewMode) {
+    reviewMode = false;
+    tokkunMode = false;
+    returnButton.textContent = "Return to START";
+    gameScreen.style.display = "none";
+    startScreen.style.display = "block";
+    unlockZoom();
+    updateRankings();
+    displayRanking();
+    updateTokkunButton();
+    return;
+  }
+  // カウントダウン/チュートリアル中に戻った場合はイントロを中断
+  if (introCancel) { introCancel(); introCancel = null; }
+  introActive = false;
+  clearInterval(timerIntervalId);
+  cancelAnimationFrame(gameLoopId);
+
+  gameScreen.style.display = "none";
+  startScreen.style.display = "block";
+  unlockZoom();
+
+  showUpdatedMedal();
+});
+
+document.getElementById("backButton").addEventListener("click", () => {
+  window.location.href = "../index.html";
+});
+
+
+document.getElementById("changeNameButton").addEventListener("click", () => {
+  let newName;
+
+  while (true) {
+    newName = prompt("新しい名前を入力してください（全角8文字・半角16文字以内）");
+    if (newName === null) return;
+
+    if (newName.trim() === "") {
+      alert("空の名前は使えません");
+    } else if (displayWidth(newName) > 16) {
+      alert("全角8文字（半角16文字）以内で入力してください");
+    } else {
+      break;
+    }
+  }
+
+  localStorage.setItem("playerName", newName);
+  alert(`名前を「${newName}」に変更しました`);
+});
+
+
+/* ===============================
+   初期表示
+=============================== */
+showUpdatedMedal();
+updateRankings();
+displayRanking();
+
+
+/* ===============================
+   表示更新
+=============================== */
+function updateTimerDisplay() {
+  timerDisplay.textContent = `Time: ${remainingTime}`;
+  // 残り10秒で点滅して緊張感を出す
+  timerDisplay.classList.toggle("hurry", remainingTime <= 10 && remainingTime > 0);
+}
+
+function updateScoreDisplay() {
+  scoreDisplay.textContent = `Score: ${score}`;
+}
+
+function updateComboDisplay() {
+  comboDisplay.textContent = `Combo: ${currentCombo}`;
+  maxComboDisplay.textContent = `Max: ${maxCombo}`;
+
+  if (currentCombo > 0 && currentCombo % 15 === 0) {
+    comboDisplay.classList.add("combo-effect-50");
+    setTimeout(() => comboDisplay.classList.remove("combo-effect-50"), 700);
+  } else if (currentCombo > 0 && currentCombo % 5 === 0) {
+    comboDisplay.classList.add("combo-effect");
+    setTimeout(() => comboDisplay.classList.remove("combo-effect"), 500);
+  }
+}
+
+
+/* ===============================
+   仕分けエリア生成
+=============================== */
+function createSortingArea() {
+  const overlay = document.createElement("div");
+  overlay.id = "sortingAreaOverlay";
+
+  categories.forEach(category => {
+    const column = document.createElement("div");
+    column.classList.add("sorting-column");
+    column.dataset.category = category;
+    column.innerHTML = `<span class="sorting-label">${category}</span>`;
+    overlay.appendChild(column);
+  });
+
+  return overlay;
+}
+
+
+/* ===============================
+   判定ラインY座標
+=============================== */
+function getDecisionLineY() {
+  // 判定ラインは常に仕分けエリア上端で固定（誤答ブロックは積み上げず即フェードアウト）
+  return playArea.clientHeight - SORTING_AREA_HEIGHT;
+}
+
+
+/* ===============================
+   長い文章を1列幅に収める
+   （短い単語は従来通り。長い文章はフォント縮小＋折り返し）
+=============================== */
+function fitWordSize(wordDiv) {
+  if (wordDiv.querySelector("img")) return; // 画像はそのまま
+
+  const cols     = Math.max(categories.length, 1);
+  const colWidth = playArea.clientWidth / cols;
+  // 1列幅を基準に、読みやすさ優先で最大1.5列分まで許容
+  const maxWidth = Math.max(90, Math.min(colWidth * 1.5, playArea.clientWidth - 20));
+
+  // まず通常（1行）状態で幅を測定
+  wordDiv.classList.remove("wide");
+  wordDiv.style.whiteSpace = "nowrap";
+  wordDiv.style.maxWidth   = "";
+  wordDiv.style.fontSize   = "";
+
+  if (wordDiv.offsetWidth <= maxWidth) return; // 短い単語は変更なし（従来通り）
+
+  // 長い文章: 折り返し＋フォント縮小で1列に収める
+  wordDiv.classList.add("wide");
+  wordDiv.style.whiteSpace = "normal";
+  wordDiv.style.maxWidth   = maxWidth + "px";
+
+  const maxHeight = playArea.clientHeight * 0.22;
+  let fs = 17;
+  wordDiv.style.fontSize = fs + "px";
+  while (fs > 11 && wordDiv.offsetHeight > maxHeight) {
+    fs -= 1;
+    wordDiv.style.fontSize = fs + "px";
+  }
+}
+
+
+/* ===============================
+   文章タイル生成（文中の対象語をハイライト）
+   sentence 内の word を <span class="target-word"> で強調
+=============================== */
+function buildTileHTML(sentence, word) {
+  const idx = sentence.indexOf(word);
+  if (idx === -1) return sentence;
+  return (
+    sentence.slice(0, idx) +
+    `<span class="target-word">${word}</span>` +
+    sentence.slice(idx + word.length)
+  );
+}
+
+/* ===============================
+   単語 / 画像 共通生成（画像ロード待ち対応）
+=============================== */
+function spawnWord(presetX) {
+  const data =
+    currentWordData[Math.floor(Math.random() * currentWordData.length)];
+
+  const wordDiv = document.createElement("div");
+  wordDiv.classList.add("word");
+  wordDiv.dataset.type = data.type;
+  wordDiv.id = generateUniqueId();
+  wordDiv.dataset.locked = "false";
+  wordDiv.dataset.penalized = "false";
+
+  wordDiv.style.position = "absolute";
+  wordDiv.style.top = "-30px";
+  wordDiv.style.visibility = "hidden";
+
+  let contentReadyPromise;
+
+  // === 表示内容の分岐 ===
+  if (data.img) {
+    const img = document.createElement("img");
+    img.src = data.img;
+    img.alt = data.word || data.type;
+    img.draggable = false;
+    img.style.width = "60px";
+    img.style.pointerEvents = "none";
+
+    if (data.word) wordDiv.dataset.word = data.word; // 間違いノート照合用
+    wordDiv.appendChild(img);
+
+    // ★ 画像読み込み完了を待つ
+    contentReadyPromise = new Promise(resolve => {
+      if (img.complete) {
+        resolve();
+      } else {
+        img.onload = resolve;
+        img.onerror = resolve; // エラーでも進める
+      }
+    });
+  } else if (data.sentence) {
+    // 文章タイル：文中の対象語をハイライト
+    wordDiv.innerHTML = buildTileHTML(data.sentence, data.word);
+    wordDiv.dataset.word = data.word;
+    wordDiv.dataset.sentence = data.sentence;
+    wordDiv.style.whiteSpace = "nowrap";
+    contentReadyPromise = Promise.resolve();
+  } else {
+    wordDiv.textContent = data.word;
+    wordDiv.dataset.word = data.word;
+    wordDiv.style.whiteSpace = "nowrap";
+    contentReadyPromise = Promise.resolve();
+  }
+
+  playArea.appendChild(wordDiv);
+
+  // === 画像 or 文字の準備完了後に配置＆落下開始 ===
+  contentReadyPromise.then(() => {
+    fitWordSize(wordDiv); // 長い文章を1列幅に収める
+    const width = wordDiv.offsetWidth;
+    const margin = 10;
+    let x;
+
+    if (presetX !== undefined) {
+      // 複数スポーン時は分割位置を優先（画面外にはみ出さないようにクランプ）
+      x = Math.max(margin, Math.min(presetX, playArea.clientWidth - width - margin));
+    } else {
+      let attempts = 0;
+      do {
+        x = margin + Math.random() * (playArea.clientWidth - width - margin * 2);
+        attempts++;
+      } while (
+        attempts < 50 &&
+        fallingWords.some(w => x < w.x + w.element.offsetWidth && x + width > w.x)
+      );
+    }
+
+    wordDiv.style.left = `${x}px`;
+    wordDiv.style.visibility = "visible";
+
+    wordDiv.addEventListener("mousedown", handleMouseDown);
+    wordDiv.addEventListener("touchstart", handleTouchStart);
+
+    fallingWords.push({
+      element: wordDiv,
+      x,
+      y: -30,
+      speed: FALL_SPEED,
+    });
+  });
+}
+
+
+/* ===============================
+   正解時ロック処理
+=============================== */
+
+function lockWord(wordElem, dropCategory) {
+  if (wordElem.dataset.locked === "true") return;
+  wordElem.dataset.locked = "true";
+
+  const correct = wordElem.dataset.type === dropCategory;
+  if (correct) {
+    wordElem.classList.add("correct");
+    score += scorePerCorrect;
+    correctCount++;
+    // ★ 間違いノートの問題に正解 → 克服（通常プレイのみカウント）
+    if (!reviewMode && wordElem.dataset.word && noteWords.has(wordElem.dataset.word)) {
+      noteWords.delete(wordElem.dataset.word);
+      try { v2p.noteResolve(title, wordElem.dataset.word, true); } catch (e) {}
+    }
+    if (bonusEnabled) {
+      remainingTime += 1;
+    }
+    // COMBO処理：正解なら＋1して更新
+    currentCombo++;
+    if (currentCombo > maxCombo) {
+      maxCombo = currentCombo;
+    }
+    updateComboDisplay();
+    updateTimerDisplay();
+    updateScoreDisplay();
+    setTimeout(() => {
+      wordElem.remove();
+    }, 500);
+  }
+  fallingWords = fallingWords.filter((w) => w.element !== wordElem);
+}
+
+/* ===============================
+   ペナルティエフェクト表示関数
+=============================== */
+function showPenaltyEffect(x, y) {
+  const effect = document.createElement("div");
+  effect.classList.add("penalty-effect");
+  effect.textContent = "⏱ −3秒";
+  effect.style.left = x + "px";
+  effect.style.top = y + "px";
+  playArea.appendChild(effect);
+  setTimeout(() => {
+    effect.remove();
+  }, 1000);
+}
+
+/* ===============================
+   ドラッグ＆ドロップ処理
+=============================== */
+let currentDrag = null;
+
+function handleMouseDown(e) {
+  const wordElem = e.currentTarget;
+  if (wordElem.dataset.locked === "true") return;
+  if (wordElem.dataset.penalized === "true") return;
+  e.preventDefault();
+  const rect = wordElem.getBoundingClientRect();
+  const playAreaRect = playArea.getBoundingClientRect();
+  const offsetX = e.clientX - rect.left;
+  const offsetY = e.clientY - rect.top;
+
+  currentDrag = { element: wordElem, offsetX, offsetY };
+  wordElem.classList.add("dragging");
+}
+
+function handleMouseMove(e) {
+  if (!currentDrag) return;
+  const playAreaRect = playArea.getBoundingClientRect();
+  let newX = e.clientX - playAreaRect.left - currentDrag.offsetX;
+  let newY = e.clientY - playAreaRect.top - currentDrag.offsetY;
+
+  const wordElem = currentDrag.element;
+  const elemWidth = wordElem.offsetWidth;
+  const elemHeight = wordElem.offsetHeight;
+  newX = Math.max(0, Math.min(newX, playArea.clientWidth - elemWidth));
+  newY = Math.max(0, Math.min(newY, playArea.clientHeight - elemHeight));
+
+  wordElem.style.left = newX + "px";
+  wordElem.style.top = newY + "px";
+
+  const fallingWord = fallingWords.find((w) => w.element === wordElem);
+  if (fallingWord) {
+    fallingWord.x = newX;
+    fallingWord.y = newY;
+  }
+
+  // ドラッグ中：タイル中心の真下の列をハイライト（どこに落ちるか可視化）
+  highlightDropColumn(newX + elemWidth / 2);
+}
+
+function highlightDropColumn(centerX) {
+  const cols = playArea.querySelectorAll(".sorting-column");
+  if (!cols.length) return;
+  const idx = Math.floor(centerX / (playArea.clientWidth / cols.length));
+  cols.forEach((c, i) => c.classList.toggle("active", i === idx));
+}
+
+function clearColumnHighlight() {
+  playArea.querySelectorAll(".sorting-column.active").forEach((c) => c.classList.remove("active"));
+}
+
+function handleMouseUp(e) {
+  if (!currentDrag) return;
+  const wordElem = currentDrag.element;
+  wordElem.classList.remove("dragging");
+  clearColumnHighlight();
+  const top = parseInt(wordElem.style.top);
+
+  if (reviewMode) {
+    if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
+      const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+      const columnWidth = playArea.clientWidth / categories.length;
+      const columnIndex = Math.floor(dropX / columnWidth);
+      const dropCategory = categories[columnIndex];
+      if (wordElem.dataset.type === dropCategory) {
+        wordElem.classList.add("correct");
+        wordElem.dataset.locked = "true";
+        // 特訓モード: 正解した問題をその場でノートから削除（克服数には数えない）
+        if (tokkunMode && reviewQueue[reviewIndex]) {
+          try { v2p.noteResolve(title, reviewQueue[reviewIndex].word, false); tokkunClearCount++; } catch (e) {}
+        }
+        setTimeout(() => { reviewIndex++; showNextReviewWord(); }, 500);
+      } else {
+        wordElem.classList.add("wrong");
+        setTimeout(() => wordElem.classList.remove("wrong"), 500);
+        const fw = fallingWords[0];
+        if (fw) {
+          const x = (playArea.clientWidth - wordElem.offsetWidth) / 2;
+          const y = Math.floor(playArea.clientHeight * 0.25);
+          fw.x = x; fw.y = y;
+          wordElem.style.left = x + "px";
+          wordElem.style.top  = y + "px";
+        }
+      }
+    }
+    currentDrag = null;
+    return;
+  }
+
+  if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
+    const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
+    const columnWidth = playArea.clientWidth / categories.length;
+    const columnIndex = Math.floor(dropX / columnWidth);
+    const dropCategory = categories[columnIndex];
+
+    if (wordElem.dataset.type === dropCategory && wordElem.dataset.penalized !== "true") {
+      lockWord(wordElem, dropCategory);
+    } else if (wordElem.dataset.penalized !== "true") {
+      wordElem.classList.add("wrong");
+      wordElem.style.pointerEvents = "none";
+      currentDrag = null;
+      remainingTime -= PENALTY_TIME;
+      wordElem.dataset.penalized = "true";
+      currentCombo = 0;
+      updateComboDisplay();
+      wrongAnswers.push({ word: wordElem.dataset.word || wordElem.textContent || wordElem.dataset.type, sentence: wordElem.dataset.sentence || "", correctType: wordElem.dataset.type });
+      if (remainingTime <= 0) {
+        clearInterval(timerIntervalId);
+        endGame();
+        return;
+      }
+      updateTimerDisplay();
+      wordElem.classList.add("fading");
+      const fw = fallingWords.find(w => w.element === wordElem);
+      if (fw) fw.landed = true;
+      setTimeout(() => { wordElem.remove(); }, 500);
+    }
+  }
+  currentDrag = null;
+}
+
+function handleTouchStart(e) {
+  const touch = e.touches[0];
+  e.preventDefault();
+  const simulatedEvent = {
+    currentTarget: e.currentTarget,
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+    preventDefault: e.preventDefault.bind(e),
+  };
+  handleMouseDown(simulatedEvent);
+}
+
+function handleTouchMove(e) {
+  if (!currentDrag) return;
+  const touch = e.touches[0];
+  const simulatedEvent = {
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+  };
+  handleMouseMove(simulatedEvent);
+}
+
+function handleTouchEnd(e) {
+  if (!currentDrag) return;
+  const touch = e.changedTouches[0];
+  const simulatedEvent = {
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+  };
+  handleMouseUp(simulatedEvent);
+}
+
+document.addEventListener("mousemove", handleMouseMove);
+document.addEventListener("mouseup", handleMouseUp);
+document.addEventListener("touchmove", handleTouchMove, { passive: false });
+document.addEventListener("touchend", handleTouchEnd);
+
+/* ===============================
+   ゲームループ
+=============================== */
+function gameLoop() {
+  if (gameOver) return;
+  const now = Date.now();
+  const delta = Math.min((now - lastFrameTime) / 1000, 0.1);
+  lastFrameTime = now;
+
+  fallingWords.forEach((word) => {
+    if (word.element.dataset.locked === "true") return;
+    let currentSpeed = FALL_SPEED + 10 * Math.floor(score / 500);
+    let newY = word.y + currentSpeed * delta;
+    const wordHeight = word.element.offsetHeight;
+    const decisionLineY = getDecisionLineY();
+
+    if (newY >= decisionLineY) {
+      const dropX = word.x + word.element.offsetWidth / 2;
+      const columnWidth = playArea.clientWidth / categories.length;
+      const columnIndex = Math.floor(dropX / columnWidth);
+      const dropCategory = categories[columnIndex];
+
+      if (word.element.dataset.type === dropCategory) {
+        lockWord(word.element, dropCategory);
+        return;
+      } else {
+        if (word.element.dataset.penalized !== "true") {
+          word.element.classList.add("wrong");
+          word.element.style.pointerEvents = "none";
+          if (currentDrag && currentDrag.element === word.element) {
+            word.element.classList.remove("dragging");
+            currentDrag = null;
+          }
+          remainingTime -= PENALTY_TIME;
+          word.element.dataset.penalized = "true";
+          const effectX = word.x + word.element.offsetWidth / 2;
+          const effectY = newY - 20;
+          showPenaltyEffect(effectX, effectY);
+          currentCombo = 0;
+          updateComboDisplay();
+          wrongAnswers.push({ word: word.element.dataset.word || word.element.textContent || word.element.dataset.type, sentence: word.element.dataset.sentence || "", correctType: word.element.dataset.type });
+          if (remainingTime <= 0 && !gameOver) {
+            endGame();
+            return;
+          }
+          updateTimerDisplay();
+        }
+        word.element.classList.add("fading");
+        word.landed = true;
+        setTimeout(() => { word.element.remove(); }, 500);
+        return;
+      }
+    } else {
+      if (newY > playArea.clientHeight) {
+        word.element.remove();
+        word.remove = true;
+        return;
+      }
+    }
+    word.y = newY;
+    word.element.style.top = word.y + "px";
+  });
+
+  fallingWords = fallingWords.filter((word) => !word.landed && !word.remove);
+
+  const sortingOverlay = document.getElementById("sortingAreaOverlay");
+  if (sortingOverlay) {
+    let currentDecisionLine = getDecisionLineY();
+    sortingOverlay.style.top = currentDecisionLine + "px";
+    sortingOverlay.style.height =
+      playArea.clientHeight - currentDecisionLine + "px";
+  }
+
+  if (now - lastSpawnTime > SPAWN_INTERVAL) {
+    let spawnCount = 1 + Math.floor(score / 1500);
+    if (spawnCount > 1) {
+      const wordWidth = 50;
+      const totalSpace = playArea.clientWidth - wordWidth;
+      const spacing = totalSpace / (spawnCount - 1);
+      for (let i = 0; i < spawnCount; i++) {
+        const presetX = i * spacing;
+        spawnWord(presetX);
+      }
+    } else {
+      spawnWord();
+    }
+    lastSpawnTime = now;
+  }
+
+  gameLoopId = requestAnimationFrame(gameLoop);
+}
+
+/* ===============================
+   タイマー処理
+=============================== */
+function startTimer() {
+  timerIntervalId = setInterval(() => {
+    remainingTime--;
+    updateTimerDisplay();
+    if (remainingTime <= 0) {
+      clearInterval(timerIntervalId);
+      endGame();
+    }
+  }, 1000);
+}
+
+/* ===============================
+   ゲーム終了処理
+=============================== */
+function endGame() {
+  if (gameOver) return;
+  gameOver = true;
+  cancelAnimationFrame(gameLoopId);
+  clearInterval(timerIntervalId);
+  fallingWords.forEach((word) => {
+    word.element.style.opacity = 0.5;
+  });
+
+  // ★ 進捗記録（XP・称号・間違いノート・ストリーク・チャレンジ判定）
+  //    スコア整合性チェックに落ちた場合はランキング保存も含め全て拒否
+  const durationSec = Math.round((Date.now() - playStartTime) / 1000);
+  try {
+    lastPlayResult = v2p.recordPlay({
+      gameId: title,
+      score,
+      correctCount,
+      wrongCount: wrongAnswers.length,
+      maxCombo,
+      durationSec,
+      scorePerCorrect,
+      wrongItems: wrongAnswers,
+    });
+  } catch (e) {
+    lastPlayResult = { valid: true, counted: false };
+  }
+
+  if (lastPlayResult && lastPlayResult.valid === false) {
+    console.warn("スコア整合性チェックに失敗したため記録をスキップしました");
+    showResultScreen();
+    return;
+  }
+
+  if (score >= 1000) {
+    incrementPlayCount();
+  }
+
+  // ✅ 名前を記憶して、2回目以降は聞かない
+let username = localStorage.getItem("playerName");
+
+if (!username) {
+  let inputName = "";
+  while (!inputName) {
+    inputName = prompt("あなたの名前を入力してください（全角8文字・半角16文字以内）") || "";
+
+    if (displayWidth(inputName) > 16) {
+      alert("全角8文字（半角16文字）以内で入力してください。");
+      inputName = "";
+    }
+  }
+
+  username = inputName;
+  localStorage.setItem("playerName", username);
+}
+
+
+  saveScore(username, score);
+  saveToSupabase(username, score);
+
+  showResultScreen();
+}
+
+/* ===============================
+   スコア保存とランキング更新
+=============================== */
+function saveScore(username, score) {
+  let rankings = JSON.parse(localStorage.getItem(getRankingKey())) || [];
+  rankings.push({ username, score, time: Date.now() });
+
+  specialEntries.forEach((special) => {
+    const exists = rankings.some(
+      (entry) =>
+        entry.username === special.username && entry.score === special.score
+    );
+    if (!exists) {
+      rankings.push(special);
+    }
+  });
+
+  rankings.sort((a, b) => {
+    if (b.score === a.score) return a.time - b.time;
+    return b.score - a.score;
+  });
+
+  const specials = rankings.filter(isSpecial);
+  const normals = rankings.filter((entry) => !isSpecial(entry));
+  const topNormals = normals.slice(0, 10);
+
+  const combined = specials.concat(topNormals);
+  combined.sort((a, b) => {
+    if (b.score === a.score) return a.time - b.time;
+    return b.score - a.score;
+  });
+
+  localStorage.setItem(getRankingKey(), JSON.stringify(combined));
+  displayRanking();
+}
+
+/* ===============================
+   プレイ回数とメダル管理用の関数
+=============================== */
+// プレイ回数を更新する関数
+function incrementPlayCount() {
+  let playCount = parseInt(localStorage.getItem("playCount" + title)) || 0;
+  playCount++;
+  localStorage.setItem("playCount" + title, playCount);
+}
+
+// メダル画像を更新する関数play
+function updateMedalDisplay(playCount) {
+  const medalImage = document.getElementById("medalImage");
+  if (!medalImage) return; // メダル非対応のゲーム（品詞選択ゲーム等）では何もしない
+  let medalSrc = "";
+
+  if (playCount >= 30) {
+    medalSrc = "/images/medals/medal_gold.png";
+  } else if (playCount >= 15) {
+    medalSrc = "/images/medals/medal_silver.png";
+  } else if (playCount >= 5) {
+    medalSrc = "/images/medals/medal_bronze.png";
+  } else if (playCount >= 0) {
+    medalSrc = "/images/medals/0.png";
+  }
+
+  if (medalSrc) {
+    medalImage.src = medalSrc;
+    medalImage.style.display = "inline-block";
+  } else {
+    medalImage.style.display = "none";
+  }
+}
+
+function showUpdatedMedal() {
+  const playCount = parseInt(localStorage.getItem("playCount" + title)) || 0;
+  updateMedalDisplay(playCount);
+}

@@ -37,6 +37,16 @@ jobs:
               "$f"
           done
 
+          # ver2 is published alongside the original at /gamedata/ver2/, so its
+          # absolute paths need an extra /ver2 segment on top of the above fix.
+          cp -r extracted/ver2 /tmp/site/ver2
+          find /tmp/site/ver2 -type f \( -name "*.html" -o -name "*.js" \) | while read f; do
+            sed -i \
+              -e 's|/gamedata/game(sort)/|/gamedata/ver2/gamedata/game(sort)/|g' \
+              -e 's|/images/medals/|/gamedata/ver2/images/medals/|g' \
+              "$f"
+          done
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
