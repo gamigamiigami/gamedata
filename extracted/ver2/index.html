@@ -105,7 +105,7 @@
       const card = document.getElementById("challengeCard");
       card.href = encodeURI(ch.p);
       document.getElementById("challengeText").textContent =
-        `「${ch.t}」で ${ch.goal} 点をとろう！（${subjectName(ch.s)}）`;
+        `「${ch.t}」で ${ch.goal} 問正解しよう！（${subjectName(ch.s)}）`;
       document.getElementById("challengeDone").textContent = ch.done ? "✅ 達成！" : "+50XP";
       card.style.display = "flex";
     </script>

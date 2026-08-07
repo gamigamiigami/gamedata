@@ -189,6 +189,20 @@ h2 {
 #rankingToggleButton:hover { border-color: var(--g-brand); }
 #rankingToggleButton:active { transform: scale(.96); }
 
+/* 現在どの状態を見ているか（ボーナス有無 × 自分/みんな） */
+#rankingStateChip {
+  display: inline-block;
+  margin: 0 auto 10px;
+  padding: 4px 14px;
+  background: rgba(254, 208, 0, .1);
+  border: 1px solid #514a1e;
+  border-radius: 999px;
+  color: var(--g-brand);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
 #ranking-table,
 #alt-ranking-table {
   margin: 0 auto;
@@ -540,6 +554,78 @@ h2 {
   80% { margin-left: 3px; }
 }
 
+/* タイルの補助表示（英単語の意味など） */
+.tile-hint {
+  display: block;
+  margin-top: 1px;
+  font-size: .72em;
+  font-weight: 600;
+  color: #5d6577;
+  line-height: 1.2;
+}
+.word.wrong .tile-hint, .word.stuck .tile-hint { color: #ffe0e4; }
+
+/* ペア完成ボーナス */
+.pair-bonus-effect {
+  position: absolute;
+  padding: 4px 12px;
+  background: rgba(62, 207, 142, .95);
+  border-radius: 999px;
+  font-size: clamp(12px, 2.4vw, 16px);
+  font-weight: 900;
+  color: #06301c;
+  pointer-events: none;
+  z-index: 4;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(62, 207, 142, .5);
+  animation: penalty-fade 1.2s forwards;
+}
+
+/* --- 誤答タイル：落とした列に赤く残して間違いを可視化 --- */
+.word.stuck {
+  background: linear-gradient(180deg, rgba(255, 122, 135, .96), rgba(200, 45, 60, .96));
+  color: #fff;
+  padding: 4px 8px 3px;
+  font-size: clamp(10px, 2.1vw, 13px);
+  line-height: 1.2;
+  border: 1px solid rgba(255, 255, 255, .35);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .45);
+  z-index: 4;
+  animation: none;
+  text-align: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+/* 判定済みなので中心マーカーは消す */
+.word.stuck::after { display: none; }
+.word.stuck img { max-width: 42px; max-height: 42px; margin: 0 auto; }
+
+.answer-tag {
+  display: block;
+  margin-top: 2px;
+  padding: 1px 4px;
+  background: rgba(0, 0, 0, .42);
+  border-radius: 5px;
+  font-size: .82em;
+  font-weight: 800;
+  color: #ffe9ec;
+  /* 7列などで列幅が狭い端末でも切れずに読めるよう折り返す */
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.15;
+}
+
+/* --- 落下予測ガイド線（ドラッグ中に判定ラインまで伸びる） --- */
+#dropGuide {
+  position: absolute;
+  display: none;
+  width: 0;
+  border-left: 2px dashed rgba(254, 208, 0, .85);
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 3;
+}
+
 /* 長い文章用：折り返し表示 */
 .word.wide {
   box-sizing: border-box;
@@ -640,6 +726,61 @@ h2 {
   0%   { text-shadow: 0 0 5px orange; }
   50%  { text-shadow: 0 0 25px orange; transform: scale(1.35); }
   100% { text-shadow: 0 0 5px orange; }
+}
+
+/* ==========================================================
+   結果画面のランク表示
+   ========================================================== */
+#resultRankBox {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  margin: 4px 0 12px;
+  background: linear-gradient(135deg, rgba(254, 208, 0, .09), rgba(255, 255, 255, .03));
+  border: 1px solid var(--g-line);
+  border-radius: 16px;
+}
+
+#resultRankBadge {
+  flex: 0 0 auto;
+  width: 62px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 34px;
+  font-weight: 900;
+  color: #1a1400;
+  background: linear-gradient(160deg, #d8dde6, #a8b0bd);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .4), inset 0 -3px 0 rgba(0, 0, 0, .12);
+  animation: rank-pop .5s cubic-bezier(.34, 1.56, .64, 1);
+}
+#resultRankBadge.rank-S { background: linear-gradient(160deg, #fff3a8, #f5c518); box-shadow: 0 0 26px rgba(245, 197, 24, .55), inset 0 -3px 0 rgba(0,0,0,.14); }
+#resultRankBadge.rank-A { background: linear-gradient(160deg, #ffd9a8, #e8944a); }
+#resultRankBadge.rank-B { background: linear-gradient(160deg, #d5dbe6, #9aa6b8); }
+#resultRankBadge.rank-C { background: linear-gradient(160deg, #d9c3a5, #b08b5e); }
+#resultRankBadge.rank-D { background: linear-gradient(160deg, #b9c0cc, #8d94a2); }
+@keyframes rank-pop {
+  0%   { transform: scale(.4) rotate(-14deg); opacity: 0; }
+  70%  { transform: scale(1.14) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+#resultRankInfo { min-width: 0; }
+#resultRankTitle {
+  margin: 0 0 3px;
+  font-size: 19px;
+  font-weight: 900;
+  color: var(--g-brand);
+  letter-spacing: .04em;
+}
+#resultRankDetail {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--g-muted);
+  line-height: 1.5;
 }
 
 /* ==========================================================

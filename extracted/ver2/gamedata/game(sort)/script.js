@@ -109,6 +109,16 @@ document.addEventListener("DOMContentLoaded", () => {
         <p id="resultSpeech" class="v2-speech" style="margin:0;"></p>
       </div>
       <div id="celebrateSlot"></div>
+      <div id="resultRankBox">
+        <div id="resultRankBadge">-</div>
+        <div id="resultRankInfo">
+          <p id="resultRankTitle">ランク</p>
+          <p id="resultRankDetail"></p>
+        </div>
+      </div>
+      <div class="v2-result-row" style="animation-delay:.05s;">
+        <span>正解数</span><span><b id="resultCorrectCount">0</b> 問</span>
+      </div>
       <div class="v2-result-row" style="animation-delay:.05s;">
         <span>スコア</span>
         <span><b id="resultScore">0</b> <span id="resultBestDiff" class="v2-plus"></span></span>
@@ -143,36 +153,69 @@ document.addEventListener("DOMContentLoaded", () => {
     resultScreen.style.display = "none";
     document.getElementById("startScreen").style.display = "block";
     unlockZoom();
-    updateRankings();
-    displayRanking();
+    refreshRankingView();
     updateTokkunButton(); // 今回の間違いを反映して特訓ボタンを更新
   });
 
-  let showingAlt = false;
   if (table2) table2.style.display = "none";
 
-  // 学校ログイン中はトグルボタンのラベルを切り替える
-  function altLabel() {
-    return getSchoolCode() ? "学校ランキング" : "グローバルランキング";
-  }
-  toggleButton.textContent = altLabel();
+  // 状態チップ（ボーナス有無 × 自分/みんな の4状態を見分けるため）
+  const stateChip = document.createElement("div");
+  stateChip.id = "rankingStateChip";
+  toggleButton.insertAdjacentElement("afterend", stateChip);
 
-  toggleButton.addEventListener("click", async () => {
-    showingAlt = !showingAlt;
-
-    if (showingAlt) {
-      await displayAltRanking();
-    }
-
-    table1.style.display             = showingAlt ? "none"    : "table";
-    table2.style.display             = showingAlt ? "table"   : "none";
-    toggleButton.textContent         = showingAlt ? "My ベストスコア" : altLabel();
-    resetRankingButton.style.display = showingAlt ? "none"    : "inline-block";
-    // 学校ログイン中はグローバルリセットボタンを非表示
-    globalResetBtn.style.display     = (showingAlt && !getSchoolCode()) ? "inline-block" : "none";
-    if (changeNameButton) changeNameButton.style.display = showingAlt ? "none" : "inline-block";
+  toggleButton.addEventListener("click", () => {
+    showingAltRanking = !showingAltRanking;
+    refreshRankingView();
   });
+
+  refreshRankingView();
 });
+
+/* ===============================
+   ランキング表示の単一エントリポイント
+   ボーナスON/OFF × 自分のベスト/グローバル の4状態を必ず正しく描画する
+=============================== */
+let showingAltRanking = false;
+
+function altRankingLabel() {
+  return getSchoolCode() ? "学校ランキング" : "グローバルランキング";
+}
+
+function refreshRankingView() {
+  const table1 = document.getElementById("ranking-table");
+  const table2 = document.getElementById("alt-ranking-table");
+  const toggleButton = document.getElementById("rankingToggleButton");
+  const resetBtn = document.getElementById("resetRankingButton");
+  const globalResetBtn = document.getElementById("globalResetButton");
+  const changeNameButton = document.getElementById("changeNameButton");
+  const chip = document.getElementById("rankingStateChip");
+  if (!table1 || !table2) return;
+
+  // ローカル表は常に現在のボーナス設定のキーで作り直す
+  updateRankings();
+  displayRanking();
+  // グローバル表示中なら現在のボーナス設定で取得し直す
+  if (showingAltRanking) displayAltRanking();
+
+  table1.style.display = showingAltRanking ? "none" : "table";
+  table2.style.display = showingAltRanking ? "table" : "none";
+  if (toggleButton) {
+    toggleButton.textContent = showingAltRanking ? "My ベストスコア" : altRankingLabel();
+  }
+  if (resetBtn) resetBtn.style.display = showingAltRanking ? "none" : "inline-flex";
+  if (globalResetBtn) {
+    globalResetBtn.style.display = (showingAltRanking && !getSchoolCode()) ? "inline-flex" : "none";
+  }
+  if (changeNameButton) {
+    changeNameButton.style.display = showingAltRanking ? "none" : "inline-flex";
+  }
+  if (chip) {
+    chip.textContent =
+      (bonusEnabled ? "ボーナスON" : "ボーナスOFF") + " ・ " +
+      (showingAltRanking ? altRankingLabel() : "自分のベスト");
+  }
+}
 
 // --- Supabase 操作用関数 ---
 function getSupabase() { return window.supabaseClient; }
@@ -330,8 +373,20 @@ function showResultScreen() {
   const r = lastPlayResult || { valid: true, counted: false };
 
   animateCount(el("resultScore"), score);
+  el("resultCorrectCount").textContent = correctCount;
   el("resultMaxCombo").textContent = maxCombo;
   el("resultWrongCount").textContent = wrongAnswers.length;
+
+  // ランク表示（全ゲーム共通で「正解数」により判定）
+  const rank = rankFor(correctCount);
+  const badge = el("resultRankBadge");
+  badge.textContent = rank;
+  badge.className = "rank-" + rank;
+  const next = nextRankInfo(correctCount);
+  el("resultRankTitle").textContent = rank + "ランク";
+  el("resultRankDetail").textContent = next
+    ? `あと ${next.remain} 問正解で ${next.rank} ランク！`
+    : "最高ランク達成！おめでとう！";
 
   /* --- お祝いは1プレイ最大1つ（称号 > レベルUP > 自己ベスト） --- */
   const slot = el("celebrateSlot");
@@ -488,8 +543,7 @@ function showNextReviewWord() {
     if (gs) gs.style.display = "none";
     if (ss) ss.style.display = "block";
     unlockZoom();
-    updateRankings();
-    displayRanking();
+    refreshRankingView();
     updateTokkunButton();
     if (wasTokkun) {
       alert(`特訓完了！間違いノートから ${tokkunClearCount} 問なくなったよ！🎉`);
@@ -778,14 +832,23 @@ async function saveToSupabase(username, score) {
   }
 }
 
-// 特別エントリ定義
+// 特別エントリ定義（ランクの目安行。1正解100点として 30/20/12/5問 に対応）
 const specialEntries = [
-  { username: "👆👆👆👆Sランク👆👆👆👆", score: 6000, time: new Date("2025-02-15").getTime() },
-  { username: "👆👆👆👆Aランク👆👆👆👆", score: 4000, time: new Date("2025-02-15").getTime() },
-  { username: "👆👆👆👆Bランク👆👆👆👆", score: 2000, time: new Date("2025-02-15").getTime() },
-  { username: "👆👆👆👆Cランク👆👆👆👆", score: 1000, time: new Date("2025-02-15").getTime() },
-  { username: "👆👆👆👆Dランク👆👆👆👆", score:    0, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Sランク（30問）👆👆👆👆", score: 3000, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Aランク（20問）👆👆👆👆", score: 2000, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Bランク（12問）👆👆👆👆", score: 1200, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Cランク（5問）👆👆👆👆",  score:  500, time: new Date("2025-02-15").getTime() },
+  { username: "👆👆👆👆Dランク👆👆👆👆",        score:    0, time: new Date("2025-02-15").getTime() },
 ];
+
+// 旧基準（6000/4000/2000/1000）の目安行を掃除する
+const OBSOLETE_SPECIAL_SCORES = [6000, 4000, 2000, 1000];
+function isObsoleteSpecial(entry) {
+  return typeof entry.username === "string" &&
+    entry.username.includes("ランク👆") &&
+    !entry.username.includes("問") &&
+    OBSOLETE_SPECIAL_SCORES.includes(entry.score);
+}
 
 // 特別エントリか判定
 function isSpecial(entry) {
@@ -799,6 +862,9 @@ function isSpecial(entry) {
 function updateRankings() {
   const key      = getRankingKey();
   let   rankings = JSON.parse(localStorage.getItem(key)) || [];
+
+  // 旧基準の目安行が残っていたら取り除く
+  rankings = rankings.filter(e => !isObsoleteSpecial(e));
 
   specialEntries.forEach(special => {
     const exists = rankings.some(
@@ -850,8 +916,7 @@ const resetRankingButton = document.getElementById("resetRankingButton");
 resetRankingButton.addEventListener("click", () => {
   if (confirm("ベストスコアをリセットしますか？")) {
     localStorage.removeItem(getRankingKey());
-    updateRankings();
-    displayRanking();
+    refreshRankingView();
   }
 });
 
@@ -861,8 +926,58 @@ resetRankingButton.addEventListener("click", () => {
    ゲーム設定
 =============================== */
 const TIME_LIMIT = 60; // 制限時間（秒）
-const SPAWN_INTERVAL = 2000; // 出現間隔（ms）
 const PENALTY_TIME = 3; // ペナルティ秒数
+
+/* --- 難易度カーブ ---
+   加速も出現数も「正解数」を基準にする。
+   スコア基準だと1正解あたりの点数が違うゲーム間で難易度がバラバラになるため。 */
+const BASE_SPAWN_INTERVAL = 1900; // 出現間隔の初期値（ms）
+const MIN_SPAWN_INTERVAL  = 1100; // 出現間隔の下限（ms）
+const MAX_SPEED_FACTOR    = 1.8;  // 落下速度の上限倍率
+const MAX_SPAWN_COUNT     = 2;    // 一度に出す最大数
+
+// 正解が増えるほどなめらかに加速
+function difficultyFactor() {
+  return Math.min(MAX_SPEED_FACTOR, 1 + correctCount * 0.028);
+}
+// 正解が増えるほど出現間隔を短く
+function currentSpawnInterval() {
+  return Math.max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - correctCount * 25);
+}
+// 正解15問ごとに一度に出す数を増やす（最大2つ）
+function currentSpawnCount() {
+  return Math.min(MAX_SPAWN_COUNT, 1 + Math.floor(correctCount / 15));
+}
+// 画面に出しておける未処理タイルの上限。
+// これを超えたら出題を止めるので、追いつけない子が一方的に溺れることがない
+function maxOnScreen() {
+  return Math.min(6, 3 + Math.floor(correctCount / 12));
+}
+function unsortedCount() {
+  return fallingWords.filter((w) => w.element && w.element.dataset.locked === "false").length;
+}
+// 長い語・長い式ほどゆっくり落として読む時間を確保する
+function lengthSpeedMultiplier(text) {
+  const len = (text || "").length;
+  return Math.max(0.6, Math.min(1.15, 1.15 - len * 0.02));
+}
+
+/* --- ランク基準（全ゲーム共通・正解数で判定） ---
+   1正解あたりの点数はゲームによって違うので、点数ではなく正解数で決める */
+const RANK_THRESHOLDS = [
+  { rank: "S", need: 30 },
+  { rank: "A", need: 20 },
+  { rank: "B", need: 12 },
+  { rank: "C", need: 5 },
+  { rank: "D", need: 0 },
+];
+function rankFor(correct) {
+  return (RANK_THRESHOLDS.find((r) => correct >= r.need) || { rank: "D" }).rank;
+}
+function nextRankInfo(correct) {
+  const higher = RANK_THRESHOLDS.filter((r) => correct < r.need).pop();
+  return higher ? { rank: higher.rank, remain: higher.need - correct } : null;
+}
 const ROW_HEIGHT = 30;
 const SORTING_AREA_ROWS = 3;
 const SORTING_AREA_HEIGHT = ROW_HEIGHT * SORTING_AREA_ROWS;
@@ -877,6 +992,9 @@ let FALL_SPEED = 50; // initGameで再計算
 let remainingTime = TIME_LIMIT;
 let score = 0;
 let scorePerCorrect = 100; // 正解1つあたりの得点（initGameのoptsで上書き可）
+let pairMode = false;      // ペア出題モード（品詞比較）
+let pairBonus = 150;       // ペアを両方そろえたときのボーナス
+let pairProgress = {};     // pairId -> そろえた数
 
 // ★ ver2 進捗連携用
 let correctCount = 0;        // 正解数（スコア整合性チェックに使用）
@@ -938,16 +1056,8 @@ if (bonusToggleButton) {
     bonusToggleButton.textContent =
       bonusEnabled ? "ボーナス: ON" : "ボーナス: OFF";
 
-    // ランキング表示を即更新
-    const altTable = document.getElementById("alt-ranking-table");
-    const showingAlt = altTable && altTable.style.display === "table";
-
-    if (showingAlt) {
-      displayAltRanking();
-    } else {
-      updateRankings();
-      displayRanking();
-    }
+    // ボーナス有無でランキングのキーが変わるので必ず描画し直す
+    refreshRankingView();
   });
 }
 
@@ -957,6 +1067,22 @@ if (bonusToggleButton) {
    ゲーム初期化（外部公開）
 =============================== */
 export function initGame(wordData, opts = {}) {
+  // ペアゲーム（品詞比較など）：[{a,b}] を1枚ずつのタイルに展開して同じ pairId を持たせる
+  pairMode = !!opts.pairMode;
+  pairBonus = opts.pairBonus || 150;
+  pairProgress = {};
+  if (pairMode) {
+    wordData = wordData.flatMap((p, i) => [
+      { ...p.a, pairId: i },
+      { ...p.b, pairId: i },
+    ]);
+  }
+  // expr（数式）や meaning（英単語の意味）を共通フィールドへ正規化
+  wordData = wordData.map((w) =>
+    (w.expr !== undefined || w.meaning !== undefined)
+      ? { ...w, word: w.word !== undefined ? w.word : w.expr, hint: w.hint || w.meaning }
+      : w
+  );
   currentWordData = wordData;
 
   // ★ 間違いノートの問題を優先出題（重み付け: ノート内の問題を3倍の確率で出す）
@@ -995,7 +1121,8 @@ export function initGame(wordData, opts = {}) {
     return;
   }
 
-  FALL_SPEED = Math.min(300 / categories.length, 50);
+  // 列が多いほど判断に時間がかかるので少しゆっくり落とす（3列:46 / 7列:38）
+  FALL_SPEED = Math.max(30, 46 - Math.max(0, categories.length - 3) * 2);
 
   resetAndLockZoom();
 
@@ -1010,6 +1137,7 @@ export function initGame(wordData, opts = {}) {
   currentCombo = 0;
   maxCombo = 0;
   wrongAnswers = [];
+  stuckWrongs = [];
   isPaused = false;
   reviewMode = false;
 
@@ -1017,7 +1145,7 @@ export function initGame(wordData, opts = {}) {
 
   fallingWords = [];
 
-  lastSpawnTime = Date.now() - 1900;
+  lastSpawnTime = Date.now() - BASE_SPAWN_INTERVAL;
   lastFrameTime = Date.now();
   gameOver = false;
 
@@ -1049,7 +1177,7 @@ let introCancel = null; // Returnボタン等でイントロを中断するた�
 function startPlay() {
   introActive = false;
   introCancel = null;
-  lastSpawnTime = Date.now() - 1900;
+  lastSpawnTime = Date.now() - BASE_SPAWN_INTERVAL;
   lastFrameTime = Date.now();
   playStartTime = Date.now(); // イントロ時間はプレイ時間に含めない
   gameLoopId = requestAnimationFrame(gameLoop);
@@ -1190,6 +1318,59 @@ export function initTypeSelectionGame(wordData, opts = {}) {
 
 
 /* ===============================
+   出題範囲セレクト式ゲーム（外部公開）
+   チェックボックスで「出題する範囲」を絞る。列は type から作る。
+   - opts.filterKey : 絞り込みに使うフィールド名（既定 "category"）
+   - opts.typeOrder : 列の固定順
+   - opts.title     : チェックボックス見出し
+   例）＋か−：category=加減法/乗法…、type=正/負
+=============================== */
+export function initFilterSelectionGame(wordData, opts = {}) {
+  const key = opts.filterKey || "category";
+  const allGroups = [...new Set(wordData.map((w) => w[key]).filter(Boolean))];
+  const selected = new Set(allGroups);
+
+  const container = document.getElementById("typeCheckboxes");
+  if (container) {
+    container.innerHTML = "";
+    allGroups.forEach((group) => {
+      const div = document.createElement("div");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = "grp-" + group;
+      cb.value = group;
+      cb.checked = true;
+      const label = document.createElement("label");
+      label.htmlFor = cb.id;
+      label.textContent = group;
+      cb.addEventListener("change", (e) => {
+        if (e.target.checked) selected.add(group);
+        else selected.delete(group);
+      });
+      div.appendChild(cb);
+      div.appendChild(label);
+      container.appendChild(div);
+    });
+  }
+
+  const startBtn = document.getElementById("startButton");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (selected.size === 0) {
+        alert("少なくとも1つ選んでください！");
+        return;
+      }
+      const filtered = wordData.filter((w) => selected.has(w[key]));
+      const order = (opts.typeOrder && opts.typeOrder.length)
+        ? opts.typeOrder.filter((t) => filtered.some((w) => w.type === t))
+        : [...new Set(filtered.map((w) => w.type))];
+      initGame(filtered, { categoryOrder: order });
+    });
+  }
+}
+
+
+/* ===============================
    UIイベント
 =============================== */
 returnButton.addEventListener("click", () => {
@@ -1200,8 +1381,7 @@ returnButton.addEventListener("click", () => {
     gameScreen.style.display = "none";
     startScreen.style.display = "block";
     unlockZoom();
-    updateRankings();
-    displayRanking();
+    refreshRankingView();
     updateTokkunButton();
     return;
   }
@@ -1346,6 +1526,11 @@ function fitWordSize(wordDiv) {
    文章タイル生成（文中の対象語をハイライト）
    sentence 内の word を <span class="target-word"> で強調
 =============================== */
+function escapeHTML(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function buildTileHTML(sentence, word) {
   const idx = sentence.indexOf(word);
   if (idx === -1) return sentence;
@@ -1359,9 +1544,9 @@ function buildTileHTML(sentence, word) {
 /* ===============================
    単語 / 画像 共通生成（画像ロード待ち対応）
 =============================== */
-function spawnWord(presetX) {
+function spawnWord(presetX, presetData) {
   const data =
-    currentWordData[Math.floor(Math.random() * currentWordData.length)];
+    presetData || currentWordData[Math.floor(Math.random() * currentWordData.length)];
 
   const wordDiv = document.createElement("div");
   wordDiv.classList.add("word");
@@ -1405,11 +1590,20 @@ function spawnWord(presetX) {
     wordDiv.style.whiteSpace = "nowrap";
     contentReadyPromise = Promise.resolve();
   } else {
-    wordDiv.textContent = data.word;
+    // 補助表示（英単語の意味など）があれば小さく添える
+    if (data.hint) {
+      wordDiv.innerHTML =
+        `${escapeHTML(data.word)}<small class="tile-hint">${escapeHTML(data.hint)}</small>`;
+    } else {
+      wordDiv.textContent = data.word;
+    }
     wordDiv.dataset.word = data.word;
     wordDiv.style.whiteSpace = "nowrap";
     contentReadyPromise = Promise.resolve();
   }
+
+  // ペアゲーム用：どのペアの片割れかを覚えておく
+  if (data.pairId !== undefined) wordDiv.dataset.pairId = String(data.pairId);
 
   playArea.appendChild(wordDiv);
 
@@ -1445,6 +1639,8 @@ function spawnWord(presetX) {
       x,
       y: -30,
       speed: FALL_SPEED,
+      // 長い語ほどゆっくり落として読む時間を確保する
+      speedMult: lengthSpeedMultiplier(wordDiv.dataset.word || wordDiv.textContent || ""),
     });
   });
 }
@@ -1476,6 +1672,15 @@ function lockWord(wordElem, dropCategory) {
     if (currentCombo > maxCombo) {
       maxCombo = currentCombo;
     }
+    // ペアの両方をそろえたらボーナス
+    if (pairMode && wordElem.dataset.pairId !== undefined) {
+      const pid = wordElem.dataset.pairId;
+      pairProgress[pid] = (pairProgress[pid] || 0) + 1;
+      if (pairProgress[pid] === 2) {
+        score += pairBonus;
+        showPairBonusEffect(parseInt(wordElem.style.left) || 0, parseInt(wordElem.style.top) || 0);
+      }
+    }
     updateComboDisplay();
     updateTimerDisplay();
     updateScoreDisplay();
@@ -1484,6 +1689,62 @@ function lockWord(wordElem, dropCategory) {
     }, 500);
   }
   fallingWords = fallingWords.filter((w) => w.element !== wordElem);
+}
+
+/* ===============================
+   誤答タイルを盤面に残す
+   「何を」「どこに入れて」「本当はどこか」を目で確認できるようにする
+=============================== */
+const MAX_STUCK_WRONG = 6;   // 残す枚数の上限（多すぎると盤面が埋まる）
+const MAX_STUCK_ROWS = 3;    // 1列に積み上げる段数の上限
+let stuckWrongs = [];
+
+function stickWrongWord(wordElem, droppedCategory) {
+  wordElem.classList.remove("dragging");
+  wordElem.classList.add("stuck");
+  wordElem.dataset.locked = "true";
+  wordElem.style.pointerEvents = "none";
+
+  // 「正解: ○○」タグを付ける
+  if (!wordElem.querySelector(".answer-tag")) {
+    const tag = document.createElement("span");
+    tag.className = "answer-tag";
+    // 列が狭い端末でも読めるよう「正解:」は◎に省略し、折り返して表示する
+    tag.textContent = "◎" + (wordElem.dataset.type || "");
+    wordElem.appendChild(tag);
+  }
+
+  // 落とした列にスナップして下から積む
+  const colCount = Math.max(1, categories.length);
+  let colIndex = categories.indexOf(droppedCategory);
+  if (colIndex < 0) colIndex = 0;
+  const colWidth = playArea.clientWidth / colCount;
+  const row = Math.min(stuckWrongs.filter((s) => s.col === colIndex).length, MAX_STUCK_ROWS - 1);
+
+  wordElem.style.maxWidth = Math.max(40, colWidth - 6) + "px";
+  // タグを足したあとの実寸で配置する（下端で見切れないように）
+  const w = Math.min(wordElem.offsetWidth, colWidth - 6);
+  const h = wordElem.offsetHeight;
+  wordElem.style.left = Math.round(colIndex * colWidth + (colWidth - w) / 2) + "px";
+  wordElem.style.top = Math.round(playArea.clientHeight - h - 3 - row * (h + 3)) + "px";
+
+  stuckWrongs.push({ element: wordElem, col: colIndex });
+  while (stuckWrongs.length > MAX_STUCK_WRONG) {
+    const old = stuckWrongs.shift();
+    old.element.classList.add("fading");
+    setTimeout(() => old.element.remove(), 500);
+  }
+}
+
+/* ペア完成ボーナスの表示 */
+function showPairBonusEffect(x, y) {
+  const effect = document.createElement("div");
+  effect.className = "pair-bonus-effect";
+  effect.textContent = `ペア完成! +${pairBonus}`;
+  effect.style.left = x + "px";
+  effect.style.top = Math.max(0, y - 26) + "px";
+  playArea.appendChild(effect);
+  setTimeout(() => effect.remove(), 1200);
 }
 
 /* ===============================
@@ -1542,17 +1803,33 @@ function handleMouseMove(e) {
   }
 
   // ドラッグ中：タイル中心の真下の列をハイライト（どこに落ちるか可視化）
-  highlightDropColumn(newX + elemWidth / 2);
+  highlightDropColumn(newX + elemWidth / 2, newY + wordElem.offsetHeight);
 }
 
-function highlightDropColumn(centerX) {
+function highlightDropColumn(centerX, tileBottomY) {
   const cols = playArea.querySelectorAll(".sorting-column");
   if (!cols.length) return;
   const idx = Math.floor(centerX / (playArea.clientWidth / cols.length));
   cols.forEach((c, i) => c.classList.toggle("active", i === idx));
+
+  // タイル中心から判定ラインまで伸びる縦ガイド線（どこで判定されるかを明示）
+  let guide = document.getElementById("dropGuide");
+  if (!guide) {
+    guide = document.createElement("div");
+    guide.id = "dropGuide";
+    playArea.appendChild(guide);
+  }
+  const lineY = getDecisionLineY();
+  const topY = Math.min(tileBottomY, lineY);
+  guide.style.left = centerX + "px";
+  guide.style.top = topY + "px";
+  guide.style.height = Math.max(0, lineY - topY) + "px";
+  guide.style.display = "block";
 }
 
 function clearColumnHighlight() {
+  const guide = document.getElementById("dropGuide");
+  if (guide) guide.style.display = "none";
   playArea.querySelectorAll(".sorting-column.active").forEach((c) => c.classList.remove("active"));
 }
 
@@ -1617,10 +1894,9 @@ function handleMouseUp(e) {
         return;
       }
       updateTimerDisplay();
-      wordElem.classList.add("fading");
       const fw = fallingWords.find(w => w.element === wordElem);
       if (fw) fw.landed = true;
-      setTimeout(() => { wordElem.remove(); }, 500);
+      stickWrongWord(wordElem, dropCategory);
     }
   }
   currentDrag = null;
@@ -1674,7 +1950,7 @@ function gameLoop() {
 
   fallingWords.forEach((word) => {
     if (word.element.dataset.locked === "true") return;
-    let currentSpeed = FALL_SPEED + 10 * Math.floor(score / 500);
+    const currentSpeed = FALL_SPEED * difficultyFactor() * (word.speedMult || 1);
     let newY = word.y + currentSpeed * delta;
     const wordHeight = word.element.offsetHeight;
     const decisionLineY = getDecisionLineY();
@@ -1710,9 +1986,8 @@ function gameLoop() {
           }
           updateTimerDisplay();
         }
-        word.element.classList.add("fading");
         word.landed = true;
-        setTimeout(() => { word.element.remove(); }, 500);
+        stickWrongWord(word.element, dropCategory);
         return;
       }
     } else {
@@ -1736,9 +2011,18 @@ function gameLoop() {
       playArea.clientHeight - currentDecisionLine + "px";
   }
 
-  if (now - lastSpawnTime > SPAWN_INTERVAL) {
-    let spawnCount = 1 + Math.floor(score / 1500);
-    if (spawnCount > 1) {
+  if (now - lastSpawnTime > currentSpawnInterval() && unsortedCount() < maxOnScreen()) {
+    const spawnCount = currentSpawnCount();
+    if (pairMode) {
+      // ペアの2枚を左右に離して同時に出す（見比べさせる）
+      const ids = [...new Set(currentWordData.map((w) => w.pairId))];
+      const pid = ids[Math.floor(Math.random() * ids.length)];
+      const items = currentWordData.filter((w) => w.pairId === pid);
+      const areaW = playArea.clientWidth;
+      items.forEach((it, i) => {
+        spawnWord(items.length > 1 ? areaW * (i === 0 ? 0.08 : 0.55) : undefined, it);
+      });
+    } else if (spawnCount > 1) {
       const wordWidth = 50;
       const totalSpace = playArea.clientWidth - wordWidth;
       const spacing = totalSpace / (spawnCount - 1);
