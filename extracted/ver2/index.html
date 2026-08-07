@@ -20,35 +20,31 @@
     <main>
       <h2 class="page-title">メインポータル</h2>
 
-      <!-- マイページ導線（レベル・マスコット付き） -->
-      <a href="mypage/index.html" id="mypageCard" class="mypage-card">
-        <span id="mypageMascot" class="v2-mascot"></span>
-        <span class="mypage-card__text">
-          <span class="mypage-card__label">マイページ</span>
-          <span id="mypageInfo" class="mypage-card__info">レベル・称号・間違いノート</span>
-        </span>
-        <span class="mypage-card__arrow">›</span>
-      </a>
-
-      <!-- 今日のチャレンジ -->
-      <a id="challengeCard" class="v2-challenge" style="display:none;">
-        <span class="v2-challenge__flag">🎯</span>
-        <span>
-          <span class="v2-challenge__label">今日のチャレンジ</span>
-          <p class="v2-challenge__text" id="challengeText"></p>
-        </span>
-        <span class="v2-challenge__done" id="challengeDone"></span>
-      </a>
+      <!-- 状況バー（マイページ／今日のチャレンジ） -->
+      <div class="status-bar">
+        <a href="mypage/index.html" id="mypageCard" class="status-row">
+          <span id="mypageMascot" class="status-mascot"></span>
+          <span class="status-row__label">マイページ</span>
+          <span id="mypageInfo" class="status-row__main">レベル・称号・間違いノート</span>
+          <span class="status-row__sub" id="mypageLevel"></span>
+        </a>
+        <div id="challengeCard" class="status-row status-row--challenge" style="display:none;">
+          <span class="status-mascot" aria-hidden="true"></span>
+          <span class="status-row__label">今日の目標</span>
+          <span class="status-row__main" id="challengeText"></span>
+          <span class="status-row__sub" id="challengeDone"></span>
+        </div>
+      </div>
 
       <!-- 教科選択 -->
-      <div class="container v2-portal-grid">
-        <button class="portal-button v2-portal-card subj-kokugo"  data-url="kokugo/index.html"><span class="v2-portal-card__icon">📖</span>国語</button>
-        <button class="portal-button v2-portal-card subj-rika"    data-url="rika/index.html"><span class="v2-portal-card__icon">🧪</span>理科</button>
-        <button class="portal-button v2-portal-card subj-english" data-url="english/index.html"><span class="v2-portal-card__icon">🔤</span>英語</button>
-        <button class="portal-button v2-portal-card subj-math"    data-url="math/index.html"><span class="v2-portal-card__icon">📐</span>数学</button>
-        <button class="portal-button v2-portal-card subj-syakai"  data-url="syakai/index.html"><span class="v2-portal-card__icon">🌏</span>社会</button>
-        <button class="portal-button v2-portal-card subj-kateika" data-url="kateika/index.html"><span class="v2-portal-card__icon">🍳</span>家庭科</button>
-        <button class="portal-button v2-portal-card v2-portal-card--disabled" data-url="">準備中</button>
+      <div class="container">
+        <button class="portal-button" data-url="kokugo/index.html">国語</button>
+        <button class="portal-button" data-url="rika/index.html">理科</button>
+        <button class="portal-button" data-url="english/index.html">英語</button>
+        <button class="portal-button" data-url="math/index.html">数学</button>
+        <button class="portal-button" data-url="syakai/index.html">社会</button>
+        <button class="portal-button" data-url="kateika/index.html">家庭科</button>
+        <button class="portal-button" data-url="">準備中</button>
       </div>
     </main>
 
@@ -90,24 +86,29 @@
       import { getProgress, levelInfo, getTodayChallenge, subjectName } from "./shared/progress.js";
       import { mascotSVG } from "./shared/mascot.js";
 
-      /* マイページカード（レベル表示＋マスコット） */
+      /* マイページ行（レベル・連続日数・称号数） */
       const p = getProgress();
       const lv = levelInfo(p.xp);
-      document.getElementById("mypageMascot").innerHTML = mascotSVG({ mood: "normal", level: lv.level, size: 56 });
-      const bits = ["レベル " + lv.level];
-      if (p.streak.count >= 2) bits.push("🔥" + p.streak.count + "日連続");
+      document.getElementById("mypageMascot").innerHTML = mascotSVG({ mood: "normal", level: lv.level, size: 30 });
+      const bits = [];
+      if (p.streak.count >= 2) bits.push(p.streak.count + "日連続");
       const badgeNum = Object.keys(p.badges).length;
       if (badgeNum > 0) bits.push("称号 " + badgeNum + "個");
-      document.getElementById("mypageInfo").textContent = bits.join("　");
+      document.getElementById("mypageInfo").textContent =
+        bits.length ? bits.join("　/　") : "レベル・称号・間違いノート";
+      document.getElementById("mypageLevel").textContent = "レベル " + lv.level;
 
-      /* 今日のチャレンジカード */
+      /* 今日の目標 */
       const ch = getTodayChallenge();
       const card = document.getElementById("challengeCard");
-      card.href = encodeURI(ch.p);
+      const link = document.createElement("a");
+      link.href = encodeURI(ch.p);
+      link.className = "status-row status-row--challenge" + (ch.done ? " status-row--done" : "");
+      link.innerHTML = card.innerHTML;
+      card.replaceWith(link);
       document.getElementById("challengeText").textContent =
-        `「${ch.t}」で ${ch.goal} 問正解しよう！（${subjectName(ch.s)}）`;
-      document.getElementById("challengeDone").textContent = ch.done ? "✅ 達成！" : "+50XP";
-      card.style.display = "flex";
+        `「${ch.t}」で ${ch.goal} 問正解しよう（${subjectName(ch.s)}）`;
+      document.getElementById("challengeDone").textContent = ch.done ? "達成ずみ" : "+50XP";
     </script>
   </body>
 </html>

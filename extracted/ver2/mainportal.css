@@ -1,17 +1,25 @@
-/* メインポータル（ver2デザインシステム準拠） */
+/* ==========================================================
+   メインポータル
+   ver1 の「円のお花型レイアウト」と落ち着いた配色を踏襲。
+   ver2 で足した導線（マイページ／今日のチャレンジ）は、
+   主役である教科の円を邪魔しない静かな1枚の帯にまとめる。
+   ========================================================== */
+
+:root {
+  --pb: 150px;   /* 円の直径 */
+  --pgap: 10px;
+}
 
 body {
-  font-family: var(--font, system-ui);
+  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN",
+    "Hiragino Sans", "Yu Gothic UI", sans-serif;
   margin: 0;
-  background:
-    radial-gradient(900px 480px at 85% -10%, rgba(254, 208, 0, .07), transparent 60%),
-    radial-gradient(700px 420px at -10% 110%, rgba(88, 183, 255, .06), transparent 60%),
-    var(--c-bg, #14161b);
-  color: var(--c-text, #f2f4f8);
+  background: #1e1f23;
+  color: #f2f2f4;
   min-height: 100vh;
 }
 
-/* ヘッダー */
+/* --- ヘッダー --- */
 .top-bar {
   display: flex;
   align-items: center;
@@ -21,12 +29,12 @@ body {
   flex-wrap: wrap;
 }
 .logo {
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: .02em;
-  color: var(--c-text);
+  font-size: 20px;
+  font-weight: 800;
+  color: #8b8f99;
 }
-.logo span { color: var(--c-brand); }
+.logo span { color: #fed000; }
+
 .top-bar__right {
   display: flex;
   align-items: center;
@@ -34,26 +42,26 @@ body {
   flex-wrap: wrap;
 }
 .top-link {
-  color: var(--c-muted);
+  color: #9a9ea8;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
-  border: 1px solid var(--c-line);
-  border-radius: 10px;
+  border: 1px solid #34373f;
+  border-radius: 8px;
   padding: 8px 12px;
   min-height: 40px;
   display: inline-flex;
   align-items: center;
   transition: border-color .15s, color .15s;
 }
-.top-link:hover { border-color: var(--c-muted); color: var(--c-text); }
-.top-link--teacher { color: var(--c-brand); border-color: #6b5a00; }
-.top-link--teacher:hover { border-color: var(--c-brand); color: var(--c-brand); }
+.top-link:hover { border-color: #6e727c; color: #f2f2f4; }
+.top-link--teacher { color: #d9b400; border-color: #55491a; }
+.top-link--teacher:hover { border-color: #fed000; color: #fed000; }
 
 .school-badge {
-  color: var(--c-brand);
-  border: 1px solid #6b5a00;
-  border-radius: 10px;
+  color: #d9b400;
+  border: 1px solid #55491a;
+  border-radius: 8px;
   padding: 8px 12px;
   display: inline-flex;
   align-items: center;
@@ -62,57 +70,140 @@ body {
 }
 .school-badge__label { font-size: 11px; opacity: .7; }
 .school-badge a {
-  color: var(--c-muted);
+  color: #9a9ea8;
   font-size: 11px;
   text-decoration: none;
-  border-left: 1px solid var(--c-line);
+  border-left: 1px solid #34373f;
   padding-left: 8px;
 }
 
-/* タイトル */
-main { padding-bottom: 64px; }
+/* --- タイトル --- */
+main { padding-bottom: 56px; }
 .page-title {
   text-align: center;
-  font-size: clamp(30px, 6vw, 44px);
-  font-weight: 900;
-  letter-spacing: .06em;
-  margin: 18px 0 22px;
+  font-size: clamp(28px, 6.4vw, 44px);
+  font-weight: 700;
+  letter-spacing: .04em;
+  margin: 14px 0 20px;
 }
 
-/* マイページカード */
-.mypage-card {
+/* --- 状況バー（マイページ ＋ 今日のチャレンジ） ---
+   2つを1枚の枠に積んで、教科の円より前に出ないようにする */
+.status-bar {
+  width: min(700px, 92vw);
+  margin: 0 auto 26px;
+  border: 1px solid #34373f;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #232529;
+}
+
+.status-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: min(680px, 92vw);
-  margin: 0 auto 14px;
-  padding: 10px 18px;
-  border-radius: var(--r-md, 16px);
-  background: var(--c-surface, #1f2229);
-  border: 1px solid var(--c-line, #3a3f4b);
-  box-shadow: var(--sh-card);
-  color: var(--c-text);
+  padding: 11px 16px;
+  color: inherit;
   text-decoration: none;
-  transition: transform .15s ease, border-color .15s ease;
 }
-.mypage-card:hover { transform: translateY(-2px); border-color: var(--c-brand); }
-.mypage-card__text { display: flex; flex-direction: column; }
-.mypage-card__label { font-weight: 800; font-size: 16px; }
-.mypage-card__info { font-size: 12px; color: var(--c-muted); margin-top: 2px; }
-.mypage-card__arrow { margin-left: auto; font-size: 26px; color: var(--c-muted); }
+.status-row + .status-row { border-top: 1px solid #2e3138; }
 
-/* 教科カードの色（従来の教科カラーを継承） */
-.subj-kokugo  { background: linear-gradient(160deg, #ffe14d, #e6b800); color: #2b2200; }
-.subj-rika    { background: linear-gradient(160deg, #17a83a, #00701a); }
-.subj-english { background: linear-gradient(160deg, #ef5f6e, #c22836); }
-.subj-math    { background: linear-gradient(160deg, #35d4d4, #148f8f); }
-.subj-syakai  { background: linear-gradient(160deg, #b13cff, #7a00c9); }
-.subj-kateika { background: linear-gradient(160deg, #ff9440, #e56700); }
+.status-row__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b8f99;
+  letter-spacing: .1em;
+  flex: 0 0 auto;
+  min-width: 84px;
+}
+.status-row__main {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e8e9ec;
+  line-height: 1.5;
+  min-width: 0;
+}
+.status-row__sub {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9a9ea8;
+  white-space: nowrap;
+}
+
+/* マイページ行はクリックできることを控えめに示す */
+a.status-row { transition: background-color .15s ease; }
+a.status-row:hover { background: #282b31; }
+a.status-row .status-row__sub::after {
+  content: "›";
+  margin-left: 8px;
+  color: #6e727c;
+  font-size: 15px;
+}
+
+/* 今日のチャレンジ行だけ、左に細いアクセント */
+.status-row--challenge { border-left: 3px solid #fed000; padding-left: 13px; }
+.status-row--challenge .status-row__label { color: #d9b400; }
+.status-row--done .status-row__sub { color: #3ecf8e; }
+
+/* 2行の見出し位置をそろえるため、マスコット枠は両方の行で同じ幅を確保する */
+.status-mascot { flex: 0 0 30px; width: 30px; height: 30px; line-height: 0; }
+.status-mascot svg { display: block; }
+
+/* --- 教科の円（ver1のお花型） --- */
+.container {
+  display: grid;
+  grid-template-columns: repeat(5, calc((var(--pb) - 10px) / 2));
+  grid-template-rows: repeat(3, calc(var(--pb) - 20px));
+  grid-auto-rows: calc(var(--pb) - 20px);
+  gap: var(--pgap);
+  justify-items: center;
+  width: fit-content;
+  margin: 0 auto;
+  position: relative;
+}
+
+.portal-button {
+  width: var(--pb);
+  height: var(--pb);
+  border-radius: 50%;
+  border: none;
+  font-family: inherit;
+  font-size: calc(var(--pb) * .195);
+  font-weight: 700;
+  line-height: 1.35;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .28);
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.portal-button:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .38);
+}
+.portal-button:active { transform: scale(.96); }
+.portal-button:focus-visible { outline: 3px solid #fed000; outline-offset: 3px; }
+
+/* 配置と教科カラー（ver1と同じ並び） */
+.container .portal-button:nth-child(1) { grid-column: 2; grid-row: 1; background-color: #ffda07; color: #2b2200; }
+.container .portal-button:nth-child(2) { grid-column: 4; grid-row: 1; background-color: #00791c; }
+.container .portal-button:nth-child(3) { grid-column: 1; grid-row: 2; background-color: #dc3545; }
+.container .portal-button:nth-child(4) { grid-column: 3; grid-row: 2; background-color: #20bbbb; }
+.container .portal-button:nth-child(5) { grid-column: 5; grid-row: 2; background-color: #9e00fa; }
+.container .portal-button:nth-child(6) { grid-column: 2; grid-row: 3; background-color: #fd7e14; }
+.container .portal-button:nth-child(7) { grid-column: 4; grid-row: 3; background-color: #1100fa; }
 
 /* 準備中 */
 .portal-button[data-url=""] {
-  background: var(--c-surface-2, #282c35);
-  font-size: 18px;
+  opacity: .22;
+  filter: grayscale(1);
+  pointer-events: none;
+  cursor: not-allowed;
+  font-size: calc(var(--pb) * .15);
+  box-shadow: none;
 }
 
 /* ページ遷移アニメーション */
@@ -122,8 +213,45 @@ main { padding-bottom: 64px; }
   transition: opacity .4s ease-out, transform .4s ease-out;
 }
 
-/* iPad縦(768px)〜スマホ */
-@media (max-width: 500px) {
-  .v2-portal-grid { grid-template-columns: repeat(2, 1fr); }
-  .v2-portal-card { min-height: 110px; font-size: 22px; }
+/* --- 画面が狭いとき（スマホ縦） --- */
+@media (max-width: 560px) {
+  :root { --pb: 108px; }
+  .page-title { margin: 10px 0 16px; }
+  .status-bar { margin-bottom: 20px; }
+  .status-row { padding: 10px 13px; gap: 10px; flex-wrap: wrap; }
+  .status-row__label { min-width: 0; }
+  .status-row__main { flex: 1 1 100%; order: 3; }
+  .status-row--challenge { padding-left: 10px; }
+}
+@media (max-width: 380px) {
+  :root { --pb: 92px; }
+}
+
+/* --- 画面が低いとき（横向き） ---
+   縦の余白が足りないので、状況バーは2段→横1段にたたんで
+   教科の円が1画面に収まるようにする */
+@media (max-height: 560px) {
+  :root { --pb: 96px; }
+  .top-bar { padding: 8px clamp(12px, 3vw, 24px); }
+  .top-link { min-height: 34px; padding: 6px 10px; font-size: 12px; }
+  .logo { font-size: 17px; }
+  .page-title { font-size: clamp(20px, 4.6vh, 28px); margin: 4px 0 10px; }
+  main { padding-bottom: 20px; }
+
+  .status-bar { display: flex; width: min(880px, 94vw); margin-bottom: 12px; }
+  .status-row { flex: 1 1 0; min-width: 0; padding: 7px 12px; gap: 9px; }
+  .status-row + .status-row { border-top: none; border-left: 1px solid #2e3138; }
+  .status-row__label { font-size: 10px; min-width: 0; letter-spacing: .06em; }
+  .status-row__main {
+    font-size: 12.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .status-row__sub { font-size: 11px; }
+  .status-mascot { display: none; }
+}
+@media (max-height: 420px) {
+  :root { --pb: 80px; }
+  .page-title { font-size: 20px; margin: 2px 0 7px; }
+  .status-bar { margin-bottom: 8px; }
+  .status-row { padding: 5px 11px; }
 }

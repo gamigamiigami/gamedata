@@ -6,11 +6,11 @@
 
 :root {
   /* カラー */
-  --c-bg:        #14161b;
-  --c-bg-deep:   #0e1013;
-  --c-surface:   #1f2229;
-  --c-surface-2: #282c35;
-  --c-line:      #3a3f4b;
+  --c-bg:        #1e1f23;
+  --c-bg-deep:   #17181c;
+  --c-surface:   #232529;
+  --c-surface-2: #2a2c31;
+  --c-line:      #34373f;
   --c-text:      #f2f4f8;
   --c-muted:     #9aa1ad;
   --c-brand:     #fed000;
@@ -21,13 +21,13 @@
 
   /* 形 */
   --r-sm: 10px;
-  --r-md: 16px;
-  --r-lg: 24px;
+  --r-md: 12px;
+  --r-lg: 16px;
 
   /* 影 */
-  --sh-card: 0 4px 16px rgba(0,0,0,.35);
-  --sh-pop:  0 10px 30px rgba(0,0,0,.5);
-  --sh-glow: 0 0 24px rgba(254,208,0,.35);
+  --sh-card: 0 1px 3px rgba(0,0,0,.3);
+  --sh-pop:  0 6px 18px rgba(0,0,0,.4);
+  --sh-glow: 0 0 0 1px rgba(254,208,0,.45);
 
   /* 余白 */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
@@ -66,9 +66,9 @@
 .v2-btn:active { transform: scale(.96); }
 
 .v2-btn--primary {
-  background: linear-gradient(180deg, #ffe14d, var(--c-brand));
+  background: var(--c-brand);
   color: #1a1400;
-  box-shadow: 0 3px 0 #b89600, var(--sh-card);
+  box-shadow: 0 3px 0 #b89600;
 }
 .v2-btn--primary:hover { filter: brightness(1.06); }
 
@@ -93,9 +93,7 @@
   height: 100%;
   width: 0%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #ffb300, var(--c-brand), #fff176);
-  background-size: 200% 100%;
-  animation: v2-xp-shine 2.2s linear infinite;
+  background: var(--c-brand);
   transition: width .9s cubic-bezier(.22,1,.36,1);
 }
 @keyframes v2-xp-shine {
@@ -161,9 +159,10 @@
   max-width: 460px;
   padding: 18px 20px;
   border-radius: var(--r-md);
-  background: linear-gradient(160deg, #2c2400, #201c04);
-  border: 1.5px solid var(--c-brand);
-  box-shadow: var(--sh-glow);
+  background: #262209;
+  border: 1px solid #6b5a00;
+  border-left: 3px solid var(--c-brand);
+  box-shadow: none;
   animation: v2-pop .5s cubic-bezier(.34,1.56,.64,1);
 }
 .v2-celebrate__title {

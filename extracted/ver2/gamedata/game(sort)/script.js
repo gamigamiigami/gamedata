@@ -398,17 +398,17 @@ function showResultScreen() {
   if (r.counted && r.newBadges && r.newBadges.length > 0) {
     const b = r.newBadges[0];
     celebrated = {
-      title: "🏅 新しい称号「" + b.name + "」",
+      title: "新しい称号「" + b.name + "」",
       sub: b.desc + (r.newBadges.length > 1 ? `（ほか${r.newBadges.length - 1}個！マイページで確認）` : ""),
     };
     mood = "cheer";
     speech = mascotComment("badge");
   } else if (r.counted && r.levelUp) {
-    celebrated = { title: "⬆ レベル" + r.levelAfter + "にアップ！", sub: "コツコツ続けるきみがすごい！" };
+    celebrated = { title: "レベル" + r.levelAfter + "にアップ！", sub: "コツコツ続けるきみがすごい！" };
     mood = "cheer";
     speech = mascotComment("levelup", { level: r.levelAfter });
   } else if (r.counted && r.bestUpdated && r.prevBest > 0) {
-    celebrated = { title: "🎉 自己ベスト更新！", sub: `前回ベスト ${r.prevBest} 点をこえた！` };
+    celebrated = { title: "自己ベスト更新！", sub: `前回ベスト ${r.prevBest} 点をこえた！` };
     mood = "cheer";
     speech = mascotComment("best");
   }
@@ -419,7 +419,10 @@ function showResultScreen() {
         <p class="v2-celebrate__title">${celebrated.title}</p>
         <p class="v2-celebrate__sub">${celebrated.sub}</p>
       </div>`;
-    spawnConfetti();
+    // 紙吹雪は本当に特別なときだけ（Sランク or 自己ベスト更新）。毎回だとありがたみがない
+    if (rankFor(correctCount) === "S" || (r.counted && r.bestUpdated && r.prevBest > 0)) {
+      spawnConfetti();
+    }
   }
 
   /* --- ベスト比（お祝い枠を使っていない時は1行で表示） --- */
@@ -834,20 +837,20 @@ async function saveToSupabase(username, score) {
 
 // 特別エントリ定義（ランクの目安行。1正解100点として 30/20/12/5問 に対応）
 const specialEntries = [
-  { username: "👆👆👆👆Sランク（30問）👆👆👆👆", score: 3000, time: new Date("2025-02-15").getTime() },
-  { username: "👆👆👆👆Aランク（20問）👆👆👆👆", score: 2000, time: new Date("2025-02-15").getTime() },
-  { username: "👆👆👆👆Bランク（12問）👆👆👆👆", score: 1200, time: new Date("2025-02-15").getTime() },
-  { username: "👆👆👆👆Cランク（5問）👆👆👆👆",  score:  500, time: new Date("2025-02-15").getTime() },
-  { username: "👆👆👆👆Dランク👆👆👆👆",        score:    0, time: new Date("2025-02-15").getTime() },
+  { username: "── Sランク｜30問正解 ──", score: 3000, time: new Date("2025-02-15").getTime() },
+  { username: "── Aランク｜20問正解 ──", score: 2000, time: new Date("2025-02-15").getTime() },
+  { username: "── Bランク｜12問正解 ──", score: 1200, time: new Date("2025-02-15").getTime() },
+  { username: "── Cランク｜5問正解 ──",  score:  500, time: new Date("2025-02-15").getTime() },
 ];
 
-// 旧基準（6000/4000/2000/1000）の目安行を掃除する
-const OBSOLETE_SPECIAL_SCORES = [6000, 4000, 2000, 1000];
+// 旧仕様の目安行（👆入りや旧点数のもの）を掃除する
 function isObsoleteSpecial(entry) {
-  return typeof entry.username === "string" &&
-    entry.username.includes("ランク👆") &&
-    !entry.username.includes("問") &&
-    OBSOLETE_SPECIAL_SCORES.includes(entry.score);
+  if (typeof entry.username !== "string") return false;
+  if (!/ランク/.test(entry.username)) return false;
+  // 現行の目安行と完全一致するものだけ残す
+  return !specialEntries.some(
+    (s) => s.username === entry.username && s.score === entry.score
+  );
 }
 
 // 特別エントリか判定
@@ -1481,9 +1484,15 @@ function createSortingArea() {
 /* ===============================
    判定ラインY座標
 =============================== */
+/* 仕分けエリアの高さ。
+   横向きスマホのようにプレイエリアが低いときは薄くして落下距離を確保する */
+function sortingAreaHeight() {
+  return playArea.clientHeight < 340 ? 62 : SORTING_AREA_HEIGHT;
+}
+
 function getDecisionLineY() {
-  // 判定ラインは常に仕分けエリア上端で固定（誤答ブロックは積み上げず即フェードアウト）
-  return playArea.clientHeight - SORTING_AREA_HEIGHT;
+  // 判定ラインは常に仕分けエリア上端
+  return playArea.clientHeight - sortingAreaHeight();
 }
 
 
@@ -2170,14 +2179,13 @@ function updateMedalDisplay(playCount) {
   if (!medalImage) return; // メダル非対応のゲーム（品詞選択ゲーム等）では何もしない
   let medalSrc = "";
 
+  // メダルは獲得したときだけ表示する（未獲得の空メダルは出さない）
   if (playCount >= 30) {
     medalSrc = "/images/medals/medal_gold.png";
   } else if (playCount >= 15) {
     medalSrc = "/images/medals/medal_silver.png";
   } else if (playCount >= 5) {
     medalSrc = "/images/medals/medal_bronze.png";
-  } else if (playCount >= 0) {
-    medalSrc = "/images/medals/0.png";
   }
 
   if (medalSrc) {
