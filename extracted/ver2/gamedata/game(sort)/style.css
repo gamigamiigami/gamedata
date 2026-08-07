@@ -87,7 +87,7 @@ body {
   justify-content: center;
 }
 
-/* STARTボタン（メダル + ラベルを横並びの大ボタンに） */
+/* STARTボタン（メダル + ラベルを横並びの主ボタンに） */
 #startButton,
 .medal-button {
   position: relative;
@@ -95,33 +95,35 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-width: min(260px, 72vw);
-  height: 64px;
-  padding: 0 30px;
-  background: linear-gradient(180deg, #ffe14d, var(--g-brand));
+  min-width: min(230px, 68vw);
+  height: 56px;
+  padding: 0 28px;
+  background: var(--g-brand);
   border: none;
-  border-radius: 999px;
+  border-radius: 12px;
   cursor: pointer;
-  box-shadow: 0 4px 0 #b89600, 0 10px 26px rgba(254, 208, 0, .25);
+  box-shadow: 0 3px 0 #b89600;
   transition: transform .13s ease, box-shadow .13s ease, filter .13s ease;
   -webkit-tap-highlight-color: transparent;
 }
-#startButton:hover { filter: brightness(1.06); transform: translateY(-2px); }
-#startButton:active { transform: scale(.96); box-shadow: 0 2px 0 #b89600; }
+#startButton:hover { filter: brightness(1.05); }
+#startButton:active { transform: translateY(2px); box-shadow: 0 1px 0 #b89600; }
+#startButton:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
+/* メダルは獲得したときだけ出す（未獲得の空メダルは表示しない） */
 #medalImage {
-  height: 38px;
+  height: 32px;
   width: auto;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .3));
+  display: none;
 }
 
 .start-label {
   position: static;
   transform: none;
   color: #1a1400;
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: .14em;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: .12em;
   pointer-events: none;
   text-shadow: none;
 }
@@ -362,6 +364,21 @@ h2 {
     height: 68vh;
     aspect-ratio: auto;
   }
+}
+
+/* 画面が低いとき（スマホ・タブレット横向き）は
+   ヘッダーとボタンを詰めてプレイエリアの高さを最大限確保する */
+@media (max-height: 560px) {
+  #gameScreen { min-height: auto; justify-content: flex-start; padding-top: 4px; }
+  #header { margin-bottom: 6px; }
+  #timer, #score, #combo, #maxCombo { padding: 5px clamp(6px, 1.4vw, 12px); }
+  #playArea {
+    height: calc(100vh - 104px);
+    aspect-ratio: auto;
+    border-radius: 14px;
+  }
+  #returnButton { margin: 6px auto; min-height: 36px; padding: 6px 22px; font-size: 13px; }
+  #sortingAreaOverlay::before { top: -19px; padding: 1px 10px; }
 }
 
 /* --- 仕分けエリア --- */

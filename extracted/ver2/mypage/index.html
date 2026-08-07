@@ -54,18 +54,20 @@
       flex-wrap: wrap;
     }
     .hero__level { flex: 1; min-width: 240px; }
-    .hero__level h2 { margin: 0 0 2px; font-size: 26px; }
+    .hero__level h2 { margin: 0 0 2px; font-size: 26px; font-weight: 700; }
     .hero__level .xp-note { font-size: 12px; color: var(--c-muted); margin: 6px 0 0; }
     .stat-chips { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
     .stat-chip {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 5px;
       background: var(--c-surface-2);
       border: 1px solid var(--c-line);
-      border-radius: 12px;
-      padding: 8px 14px;
-      font-size: 13px;
-      font-weight: 700;
+      border-radius: 8px;
+      padding: 7px 13px;
     }
-    .stat-chip b { color: var(--c-brand); font-size: 17px; }
+    .stat-chip b { color: var(--c-brand); font-size: 17px; font-weight: 800; }
+    .stat-chip small { font-size: 12px; color: var(--c-muted); font-weight: 600; }
 
     /* ② バッジ */
     .badge-grid {
@@ -90,7 +92,7 @@
     .weak-bar {
       height: 8px;
       border-radius: 999px;
-      background: linear-gradient(90deg, #ff8a5c, var(--c-danger));
+      background: var(--c-danger);
     }
     .weak-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 0; }
     .weak-row .name { font-size: 14px; font-weight: 700; }
@@ -125,7 +127,7 @@
 <body>
   <header>
     <a class="back" href="../index.html">← ポータル</a>
-    <h1>📖 マイページ</h1>
+    <h1>マイページ</h1>
   </header>
 
   <main>
@@ -140,9 +142,9 @@
         <div class="v2-xpbar" style="height:16px;"><div id="xpFill" class="v2-xpbar__fill"></div></div>
         <p class="xp-note" id="xpNote"></p>
         <div class="stat-chips">
-          <span class="stat-chip">🔥 連続 <b id="streakText">0</b> 日</span>
-          <span class="stat-chip">🎮 プレイ <b id="playsText">0</b> 回</span>
-          <span class="stat-chip">🎯 克服 <b id="clearedText">0</b> 問</span>
+          <span class="stat-chip"><b id="streakText">0</b><small>日連続</small></span>
+          <span class="stat-chip"><b id="playsText">0</b><small>回プレイ</small></span>
+          <span class="stat-chip"><b id="clearedText">0</b><small>問 克服</small></span>
         </div>
       </div>
       <p id="mascotSpeech" class="v2-speech" style="width:100%; max-width:none;"></p>
@@ -156,7 +158,7 @@
 
     <!-- ③ 間違いノート＆苦手分析 -->
     <section class="v2-card">
-      <p class="v2-section-title">📝 間違いノート</p>
+      <p class="v2-section-title">間違いノート</p>
       <p style="font-size:12px; color:var(--c-muted); margin:0 0 8px;">
         ここにある問題はゲーム中に出やすくなるよ。正解すると消えていく！
       </p>
@@ -168,7 +170,7 @@
     </section>
 
     <section class="v2-card">
-      <p class="v2-section-title">🏅 ゲーム別ベストスコア</p>
+      <p class="v2-section-title">ゲーム別ベストスコア</p>
       <table class="best-table"><tbody id="bestBody"></tbody></table>
       <p id="bestEmpty" class="empty" style="display:none;">まだ記録がないよ。ゲームで遊ぶとここに記録される！</p>
     </section>

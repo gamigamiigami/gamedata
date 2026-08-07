@@ -1,68 +1,120 @@
 /* ==========================================================
    教科ポータル共通スキン（portal.css の後に読み込んで上書き）
-   - 教科ごとのボタン色はそのまま活かし、形・影・動きだけ刷新
+
+   ver1 の「円のお花型レイアウト」をそのまま踏襲する。
+   円の直径 --pb を変えるとグリッドの升目も連動して縮むので、
+   スマホ／タブレット／PC の縦横どの比率でも配置が崩れない。
+     升の横幅 = (直径 - 10px) / 2   … 同じ行の円の間隔が10pxになる寸法
+     升の高さ = 直径 - 20px         … 上下の行が10px重なるお花型の寸法
    ========================================================== */
 
+:root {
+  --pb: 150px;   /* 円の直径 */
+  --pgap: 10px;  /* 升の間隔 */
+}
+
 body {
-  font-family: var(--font, system-ui, sans-serif);
-  background:
-    radial-gradient(800px 440px at 90% -10%, rgba(254, 208, 0, .06), transparent 60%),
-    radial-gradient(640px 400px at -10% 110%, rgba(88, 183, 255, .05), transparent 60%),
-    #14161b;
-  color: #f2f4f8;
+  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN",
+    "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  background: #1e1f23;
+  color: #f2f2f4;
   min-height: 100vh;
 }
 
+/* 左上のサイト名 */
 h1 {
-  font-size: 18px;
-  font-weight: 900;
-  color: #5b6170;
-  letter-spacing: .02em;
+  font-size: 17px;
+  font-weight: 700;
+  color: #6e6e6e;
+  margin-top: 18px;
+  letter-spacing: .01em;
 }
 
+/* 教科名 */
 h2 {
-  font-size: clamp(30px, 6vw, 46px);
-  font-weight: 900;
-  letter-spacing: .08em;
-  margin-top: 56px;
-  margin-bottom: 8px;
+  font-size: clamp(28px, 7vw, 46px);
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: .04em;
+  margin: 44px 0 26px;
+}
+
+.container {
+  grid-template-columns: repeat(5, calc((var(--pb) - 10px) / 2));
+  grid-template-rows: repeat(3, calc(var(--pb) - 20px));
+  grid-auto-rows: calc(var(--pb) - 20px);
+  gap: var(--pgap);
 }
 
 .portal-button {
-  width: 138px;
-  height: 138px;
-  border-radius: 26px;
-  border: 2px solid rgba(0, 0, 0, .4);
+  width: var(--pb);
+  height: var(--pb);
+  border-radius: 50%;
+  border: none;
   font-family: inherit;
-  font-weight: 800;
-  font-size: 25px;
-  line-height: 1.3;
+  font-size: calc(var(--pb) * .195);
+  font-weight: 700;
+  line-height: 1.35;
+  color: #fff;
   cursor: pointer;
-  /* 元の背景色の上に光沢を重ねる（教科カラーは維持） */
-  background-image: linear-gradient(165deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, .22));
-  box-shadow: 0 6px 16px rgba(0, 0, 0, .35), inset 0 -4px 0 rgba(0, 0, 0, .22);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
-  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .28);
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
   -webkit-tap-highlight-color: transparent;
 }
 .portal-button:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, .45), inset 0 -4px 0 rgba(0, 0, 0, .22);
   filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .38);
 }
 .portal-button:active { transform: scale(.96); }
-
-/* 「戻る」ボタンは控えめに（data-urlが1つ上のポータルを指すもの） */
-.container .portal-button[data-url="../index.html"] {
-  background-image: none;
-  background-color: #282c35;
-  color: #9aa1ad;
-  border: 1.5px solid #3a3f4b;
-  box-shadow: none;
-  font-size: 22px;
+.portal-button:focus-visible {
+  outline: 3px solid #fed000;
+  outline-offset: 3px;
 }
-.container .portal-button[data-url="../index.html"]:hover {
-  color: #f2f4f8;
-  border-color: #9aa1ad;
+
+/* 「戻る」は主張させない */
+.container .portal-button[data-url="../index.html"],
+.container .portal-button[data-url="../../index.html"],
+.container .portal-button[data-url="../../../index.html"] {
+  background-color: #2a2c31;
+  color: #9a9ea8;
+  box-shadow: none;
+  font-size: calc(var(--pb) * .165);
+}
+.container .portal-button[data-url="../index.html"]:hover,
+.container .portal-button[data-url="../../index.html"]:hover,
+.container .portal-button[data-url="../../../index.html"]:hover {
+  color: #f2f2f4;
   filter: none;
+}
+
+/* 準備中 */
+.portal-button[data-url=""] {
+  opacity: .22;
+  filter: grayscale(1);
+  pointer-events: none;
+  cursor: not-allowed;
+  font-size: calc(var(--pb) * .15);
+  box-shadow: none;
+}
+
+/* --- 画面が狭いとき（スマホ縦など） --- */
+@media (max-width: 560px) {
+  :root { --pb: 108px; }
+  h2 { margin: 26px 0 18px; }
+}
+@media (max-width: 380px) {
+  :root { --pb: 92px; }
+}
+
+/* --- 画面が低いとき（スマホ・タブレット横向き） ---
+   縦に詰まるので見出しの余白と円を小さくして1画面に収める */
+@media (max-height: 560px) {
+  :root { --pb: 96px; }
+  h1 { margin-top: 8px; font-size: 15px; }
+  h2 { font-size: clamp(22px, 5vh, 30px); margin: 10px 0 12px; }
+}
+@media (max-height: 420px) {
+  :root { --pb: 80px; }
+  h2 { margin: 6px 0 8px; }
 }
