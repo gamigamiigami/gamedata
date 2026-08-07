@@ -3,8 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>英語不規則動詞</title>
-    <link rel="stylesheet" href="style.css" />
+    <title>英語不規則動詞ゲーム</title>
+    <link rel="stylesheet" href="/gamedata/game(sort)/style.css" />
+
+    <!-- ランキングキーを固定（h1の文言を変えてもランキングが分裂しないように） -->
+    <script>window.GAME_TITLE = "不規則動詞";</script>
 
     <!-- Supabase SDK -->
     <script type="module">
@@ -20,39 +23,28 @@
   <body>
     <!-- スタート画面 -->
     <div id="startScreen" class="screen">
-      <h1>不規則動詞
-        <span class="sub">Irregular Verbs — 原形 / 過去形 / 過去分詞</span>
-      </h1>
+      <h1>不規則動詞</h1>
       <p class="game-meta" style="margin:6px auto 10px; max-width:92%; font-size:13px; color:#cfcfcf; line-height:1.6;"><span style="color:#fed000; font-weight:bold;">中2〜3</span>　/　英語：不規則動詞の変化型　/　約1分</p>
       <p>
-        落ちてくる動詞を <strong style="color:#3d7aff">原形</strong>・
-        <strong style="color:#ff8c1a">過去形</strong>・
-        <strong style="color:#2dba6a">過去分詞</strong> に仕分けよう！<br/>
-        ランキングでみんなと競えるぞ！
+        落ちてくる動詞を <strong style="color:#4f7cff">原形</strong>・
+        <strong style="color:#ff9f43">過去形</strong>・
+        <strong style="color:#2ec27e">過去分詞</strong> に仕分けよう！<br />
+        タイルの下に日本語の意味も出るよ。
       </p>
       <p class="credit">Produce by igami</p>
 
-      <!-- 意味モード -->
-      <div id="optionRow">
-        <label id="meaningModeLabel">
-          <input type="checkbox" id="meaningModeCheck" />
-          意味ヒントを表示する
-        </label>
-      </div>
-      <p class="meaning-note">※ ON にすると単語に日本語訳が表示されます（初心者向け）</p>
-
-      <!-- カテゴリ選択 -->
-      <div id="categorySelection">
-        <h3>出題するカテゴリを選択してください</h3>
-        <div id="categoryCheckboxes">
-          <!-- 動的生成 -->
-        </div>
+      <div id="typeSelection">
+        <h3>出題する動詞のグループを選んでください</h3>
+        <div id="typeCheckboxes"></div>
       </div>
 
       <div class="button-container">
         <div class="button-row">
           <button id="bonusToggleButton">ボーナス: OFF</button>
-          <button id="startButton">START</button>
+          <button id="startButton" class="medal-button">
+            <img id="medalImage" src="" alt="Medal" />
+            <span class="start-label">START</span>
+          </button>
         </div>
         <button id="backButton">戻る</button>
       </div>
@@ -62,7 +54,11 @@
 
         <table id="ranking-table">
           <thead>
-            <tr><th>日付</th><th>プレイヤー名</th><th>スコア</th></tr>
+            <tr>
+              <th>日付</th>
+              <th>プレイヤー名</th>
+              <th>スコア</th>
+            </tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -74,14 +70,17 @@
             <col style="width: 25%" />
           </colgroup>
           <thead>
-            <tr><th>順位</th><th>プレイヤー名</th><th>スコア</th></tr>
+            <tr>
+              <th>順位</th>
+              <th>プレイヤー名</th>
+              <th>スコア</th>
+            </tr>
           </thead>
           <tbody></tbody>
         </table>
 
         <button id="resetRankingButton">リセット</button>
         <button id="changeNameButton">名前変更</button>
-        <button id="globalResetButton" style="display:none;">グローバルリセット</button>
       </div>
     </div>
 
@@ -92,38 +91,19 @@
         <div id="score">Score: 0</div>
         <div id="combo">Combo: 0</div>
         <div id="maxCombo">Max: 0</div>
-        <button id="pauseButton">⏸</button>
       </div>
       <div id="playArea"></div>
       <button id="returnButton">Return to START</button>
     </div>
 
-    <!-- ポーズオーバーレイ -->
-    <div id="pauseOverlay">
-      <div id="pauseBox">
-        <p>一時停止中</p>
-        <button id="resumeButton">▶ 再開</button>
-      </div>
-    </div>
-
-    <!-- 結果画面 -->
-    <div id="resultScreen" class="screen" style="display: none">
-      <h2>ゲーム結果</h2>
-      <div id="resultStats">
-        <p>スコア: <span id="resultScore"></span></p>
-        <p>最大コンボ: <span id="resultMaxCombo"></span></p>
-        <p>間違えた問題: <span id="resultWrongCount"></span> 問</p>
-      </div>
-      <div id="wrongListContainer">
-        <h3>間違えた動詞</h3>
-        <ul id="wrongList"></ul>
-      </div>
-      <div class="button-container">
-        <button id="reviewButton">📝 復習モード</button>
-        <button id="resultReturnButton">スタートに戻る</button>
-      </div>
-    </div>
-
-    <script type="module" src="script.js"></script>
+    <!-- ゲーム起動（品詞選択 → 共通エンジン） -->
+    <script type="module">
+      import wordData from "./worddata.js";
+      import { initFilterSelectionGame } from "/gamedata/game(sort)/script.js";
+      initFilterSelectionGame(wordData, {
+        filterKey: "category",
+        typeOrder: ["原形", "過去形", "過去分詞"],
+      });
+    </script>
   </body>
 </html>

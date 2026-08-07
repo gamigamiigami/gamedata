@@ -22,8 +22,9 @@ function freshData() {
     v: 1,
     xp: 0,
     streak: { last: "", count: 0 },
-    games: {},    // gameId -> { best, bestCombo }
+    games: {},    // gameId -> { best, bestCombo, bestCorrect }
     subjects: {}, // subject -> best score
+    subjectsC: {},// subject -> best 正解数
     badges: {},   // badgeId -> 取得日(ISO)
     note: [],     // { g, w, t, s, n } 間違いノート
     stats: { noteCleared: 0, challengeDone: 0, reviewDone: 0, plays: 0 },
@@ -91,15 +92,15 @@ export function subjectName(key) { return SUBJECTS[key] || key || ""; }
 const MEDAL = (f) => new URL("../images/medals/" + f, import.meta.url).href;
 
 export const BADGES = [
-  { id: "first_clear",  name: "はじめの一歩",   desc: "どれかのゲームで1000点以上",           icon: "🎈" },
-  { id: "rank_b",       name: "ブロンズの腕前", desc: "2000点（Bランク）を達成",              img: MEDAL("medal_bronze.png") },
-  { id: "rank_a",       name: "シルバーの腕前", desc: "4000点（Aランク）を達成",              img: MEDAL("medal_silver.png") },
-  { id: "rank_s",       name: "ゴールドの腕前", desc: "6000点（Sランク）を達成",              img: MEDAL("medal_gold.png") },
-  { id: "perfect",      name: "パーフェクト",   desc: "ノーミスで2000点以上",                 icon: "✨" },
+  { id: "first_clear",  name: "はじめの一歩",   desc: "どれかのゲームで5問正解（Cランク）",   icon: "🎈" },
+  { id: "rank_b",       name: "ブロンズの腕前", desc: "12問正解（Bランク）を達成",            img: MEDAL("medal_bronze.png") },
+  { id: "rank_a",       name: "シルバーの腕前", desc: "20問正解（Aランク）を達成",            img: MEDAL("medal_silver.png") },
+  { id: "rank_s",       name: "ゴールドの腕前", desc: "30問正解（Sランク）を達成",            img: MEDAL("medal_gold.png") },
+  { id: "perfect",      name: "パーフェクト",   desc: "ノーミスで12問以上正解",               icon: "✨" },
   { id: "combo30",      name: "コンボ職人",     desc: "30コンボを達成",                       icon: "🔥" },
   { id: "combo50",      name: "コンボの鬼",     desc: "50コンボを達成",                       icon: "⚡" },
-  { id: "subjects3",    name: "三教科の旅人",   desc: "3つの教科で1000点以上",                icon: "🎒" },
-  { id: "subjects_all", name: "全教科マスター", desc: "6つの教科すべてで1000点以上",          icon: "👑" },
+  { id: "subjects3",    name: "三教科の旅人",   desc: "3つの教科で5問以上正解",               icon: "🎒" },
+  { id: "subjects_all", name: "全教科マスター", desc: "6つの教科すべてで5問以上正解",         icon: "👑" },
   { id: "note10",       name: "弱点ハンター",   desc: "間違いノートの問題を10問克服",         icon: "🎯" },
   { id: "note30",       name: "弱点バスター",   desc: "間違いノートの問題を30問克服",         icon: "🛡️" },
   { id: "streak3",      name: "3日連続",        desc: "3日連続でプレイ",                      icon: "📅" },
@@ -112,14 +113,15 @@ export const BADGES = [
 
 /* ctx: { score, wrongCount, maxCombo } その回のプレイ内容（プレイ以外の文脈では {} ） */
 function badgeEarned(id, data, ctx) {
-  const bestAll = Math.max(0, ...Object.values(data.games).map((g) => g.best || 0));
-  const subjCleared = Object.values(data.subjects).filter((s) => s >= 1000).length;
+  // ランク系は「正解数」で判定する（1正解あたりの点数はゲームで違うため）
+  const bestCorrectAll = Math.max(0, ...Object.values(data.games).map((g) => g.bestCorrect || 0));
+  const subjCleared = Object.values(data.subjectsC || {}).filter((c) => c >= 5).length;
   switch (id) {
-    case "first_clear":  return bestAll >= 1000;
-    case "rank_b":       return bestAll >= 2000;
-    case "rank_a":       return bestAll >= 4000;
-    case "rank_s":       return bestAll >= 6000;
-    case "perfect":      return !!ctx.score && ctx.score >= 2000 && ctx.wrongCount === 0;
+    case "first_clear":  return bestCorrectAll >= 5;
+    case "rank_b":       return bestCorrectAll >= 12;
+    case "rank_a":       return bestCorrectAll >= 20;
+    case "rank_s":       return bestCorrectAll >= 30;
+    case "perfect":      return (ctx.correctCount || 0) >= 12 && ctx.wrongCount === 0;
     case "combo30":      return (ctx.maxCombo || 0) >= 30;
     case "combo50":      return (ctx.maxCombo || 0) >= 50;
     case "subjects3":    return subjCleared >= 3;
@@ -172,9 +174,13 @@ export const GAME_LIST = [
   { p: "kokugo/敬語/index.html",              t: "敬語仕分けゲーム",              s: "kokugo" },
   { p: "syakai/歴史/②/index.html",           t: "歴史人物・文化仕分けゲーム",    s: "syakai" },
   { p: "math/正負の数/index.html",            t: "計算結果の正負ゲーム",          s: "math" },
+  { p: "math/sign/index.html",                t: "正負の符号",                    s: "math" },
+  { p: "english/irregular-verbs/index.html",  t: "不規則動詞",                    s: "english" },
+  { p: "kokugo/品詞比較/index.html",          t: "品詞比較",                      s: "kokugo" },
 ];
 
-const CHALLENGE_GOALS = [1500, 2000, 2500];
+// 今日のチャレンジ目標は「正解数」（点数より子どもに伝わりやすい）
+const CHALLENGE_GOALS = [12, 16, 20];
 
 export function getTodayChallenge() {
   const d = new Date();
@@ -289,16 +295,21 @@ export function recordPlay(info) {
   const before = levelInfo(data.xp);
 
   // ゲーム別記録
-  const g = data.games[gameId] || { best: 0, bestCombo: 0 };
+  const g = data.games[gameId] || { best: 0, bestCombo: 0, bestCorrect: 0 };
   const prevBest = g.best;
   g.best = Math.max(g.best, score);
+  g.bestCorrect = Math.max(g.bestCorrect || 0, correctCount);
   g.bestCombo = Math.max(g.bestCombo, maxCombo);
   data.games[gameId] = g;
   data.stats.plays++;
 
   // 教科別ベスト
   const subj = subjectOf(location.pathname);
-  if (subj) data.subjects[subj] = Math.max(data.subjects[subj] || 0, score);
+  if (subj) {
+    data.subjects[subj] = Math.max(data.subjects[subj] || 0, score);
+    if (!data.subjectsC) data.subjectsC = {};
+    data.subjectsC[subj] = Math.max(data.subjectsC[subj] || 0, correctCount);
+  }
 
   // ストリーク（連続プレイ日数）
   if (data.streak.last !== today) {
@@ -316,7 +327,7 @@ export function recordPlay(info) {
   // 今日のチャレンジ達成判定
   let challengeCleared = false;
   const ch = getTodayChallengeRaw();
-  if (ch.t === gameId && score >= ch.goal && !(data.challenge.date === today && data.challenge.done)) {
+  if (ch.t === gameId && correctCount >= ch.goal && !(data.challenge.date === today && data.challenge.done)) {
     data.challenge = { date: today, done: true };
     data.stats.challengeDone++;
     xpGained += 50;
@@ -338,7 +349,7 @@ export function recordPlay(info) {
   }
 
   // バッジ判定
-  const newBadges = evalBadges(data, { score, wrongCount, maxCombo });
+  const newBadges = evalBadges(data, { score, wrongCount, maxCombo, correctCount });
 
   const after = levelInfo(data.xp);
   save(data);
