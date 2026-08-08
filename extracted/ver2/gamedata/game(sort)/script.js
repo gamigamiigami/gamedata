@@ -627,7 +627,7 @@ function startTokkunMode(wordData) {
   playArea.appendChild(createSortingArea());
 
   const td = document.getElementById("timer");
-  if (td) { td.textContent = "弱点特訓"; td.classList.remove("hurry"); }
+  if (td) { td.innerHTML = '<span class="hud-num">弱点特訓</span>'; td.classList.remove("hurry"); }
   const cd = document.getElementById("combo");
   if (cd) cd.textContent = "";
   const md = document.getElementById("maxCombo");
@@ -1438,19 +1438,26 @@ displayRanking();
 /* ===============================
    表示更新
 =============================== */
+/* HUDはラベルと数字を別要素にする。
+   狭い画面ではCSSでラベルだけ隠し、アイコンと数字で読ませる
+   （1要素に詰め込むと数字まで省略記号で切れてしまうため） */
+function hudHTML(label, value) {
+  return `<span class="hud-label">${label}</span><span class="hud-num">${value}</span>`;
+}
+
 function updateTimerDisplay() {
-  timerDisplay.textContent = `Time: ${remainingTime}`;
+  timerDisplay.innerHTML = hudHTML("Time", remainingTime);
   // 残り10秒で点滅して緊張感を出す
   timerDisplay.classList.toggle("hurry", remainingTime <= 10 && remainingTime > 0);
 }
 
 function updateScoreDisplay() {
-  scoreDisplay.textContent = `Score: ${score}`;
+  scoreDisplay.innerHTML = hudHTML("Score", score);
 }
 
 function updateComboDisplay() {
-  comboDisplay.textContent = `Combo: ${currentCombo}`;
-  maxComboDisplay.textContent = `Max: ${maxCombo}`;
+  comboDisplay.innerHTML = hudHTML("Combo", currentCombo);
+  maxComboDisplay.innerHTML = hudHTML("Max", maxCombo);
 
   if (currentCombo > 0 && currentCombo % 15 === 0) {
     comboDisplay.classList.add("combo-effect-50");

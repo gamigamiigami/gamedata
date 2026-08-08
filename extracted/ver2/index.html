@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IOgames | メインポータル</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&amp;family=Saira+Condensed:wght@500;700&amp;display=swap" />
     <link rel="stylesheet" href="shared/design.css" />
     <link rel="stylesheet" href="mainportal.css" />
   </head>
@@ -38,13 +42,13 @@
 
       <!-- 教科選択 -->
       <div class="container">
-        <button class="portal-button" data-url="kokugo/index.html">国語</button>
-        <button class="portal-button" data-url="rika/index.html">理科</button>
-        <button class="portal-button" data-url="english/index.html">英語</button>
-        <button class="portal-button" data-url="math/index.html">数学</button>
-        <button class="portal-button" data-url="syakai/index.html">社会</button>
-        <button class="portal-button" data-url="kateika/index.html">家庭科</button>
-        <button class="portal-button" data-url="">準備中</button>
+        <button class="portal-button" data-url="kokugo/index.html"><span class="pb-jp">国語</span><span class="pb-en">Japanese</span></button>
+        <button class="portal-button" data-url="rika/index.html"><span class="pb-jp">理科</span><span class="pb-en">Science</span></button>
+        <button class="portal-button" data-url="english/index.html"><span class="pb-jp">英語</span><span class="pb-en">English</span></button>
+        <button class="portal-button" data-url="math/index.html"><span class="pb-jp">数学</span><span class="pb-en">Math</span></button>
+        <button class="portal-button" data-url="syakai/index.html"><span class="pb-jp">社会</span><span class="pb-en">Social</span></button>
+        <button class="portal-button" data-url="kateika/index.html"><span class="pb-jp">家庭科</span><span class="pb-en">Home</span></button>
+        <button class="portal-button" data-url=""><span class="pb-jp">準備中</span></button>
       </div>
     </main>
 
@@ -70,12 +74,12 @@
           // 学校専用/先生管理ボタンを教科グリッドに追加
           var isTeacher = localStorage.getItem('teacherRole') === 'teacher';
           var schoolBtn = document.createElement('button');
-          schoolBtn.className = 'portal-button v2-portal-card';
+          schoolBtn.className = 'portal-button portal-button--school';
           schoolBtn.dataset.url = isTeacher ? 'teacher-games/index.html' : 'school-games/index.html';
-          schoolBtn.style.background = isTeacher
-            ? 'linear-gradient(160deg,#3d3dbb,#22228a)'
-            : 'linear-gradient(160deg,#e05545,#b03225)';
-          schoolBtn.innerHTML = '<span class="v2-portal-card__icon">' + (isTeacher ? '🧑‍🏫' : '🏫') + '</span>' + (isTeacher ? '先生管理' : '学校専用');
+          schoolBtn.style.setProperty('--c', isTeacher ? '#3d3dbb' : '#e05545');
+          schoolBtn.innerHTML = isTeacher
+            ? '<span class="pb-jp">先生管理</span><span class="pb-en">Teacher</span>'
+            : '<span class="pb-jp">学校専用</span><span class="pb-en">School</span>';
           document.querySelector('.container').appendChild(schoolBtn);
         } else {
           area.innerHTML = '<a href="school-login/" class="top-link">学校ログイン</a>';

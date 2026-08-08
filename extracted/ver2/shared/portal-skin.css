@@ -1,11 +1,17 @@
+
 /* ==========================================================
    教科ポータル共通スキン（portal.css の後に読み込んで上書き）
 
-   ver1 の「円のお花型レイアウト」をそのまま踏襲する。
+   ver1 の「円のお花型レイアウト」を踏襲しつつ、
+   メインポータルと同じ「成形パーツ」の質感に揃える。
+
    円の直径 --pb を変えるとグリッドの升目も連動して縮むので、
    スマホ／タブレット／PC の縦横どの比率でも配置が崩れない。
      升の横幅 = (直径 - 10px) / 2   … 同じ行の円の間隔が10pxになる寸法
      升の高さ = 直径 - 20px         … 上下の行が10px重なるお花型の寸法
+
+   教科ごとの色は portal.css の background-color をそのまま活かし、
+   その上に光と影だけを重ねる（色を知らなくても立体になる作り）。
    ========================================================== */
 
 :root {
@@ -14,29 +20,48 @@
 }
 
 body {
-  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN",
-    "Hiragino Sans", "Yu Gothic UI", sans-serif;
-  background: #1e1f23;
+  font-family: "Zen Kaku Gothic New", system-ui, -apple-system,
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", sans-serif;
   color: #f2f2f4;
   min-height: 100vh;
+  /* メインポータルと同じ筐体パネル調のヘアライン地 */
+  background-color: #1b1c20;
+  background-image:
+    radial-gradient(1100px 640px at 50% -12%, #2a2c33 0%, rgba(42, 44, 51, 0) 62%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, .017) 0 1px, transparent 1px 7px);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
 }
 
 /* 左上のサイト名 */
 h1 {
-  font-size: 17px;
+  font-family: "Saira Condensed", "Zen Kaku Gothic New", sans-serif;
+  font-size: 21px;
   font-weight: 700;
+  letter-spacing: .05em;
   color: #6e6e6e;
   margin-top: 18px;
-  letter-spacing: .01em;
 }
 
 /* 教科名 */
 h2 {
-  font-size: clamp(28px, 7vw, 46px);
-  font-weight: 700;
-  color: #ffffff;
-  letter-spacing: .04em;
-  margin: 44px 0 26px;
+  font-size: clamp(24px, 5.6vw, 38px);
+  font-weight: 900;
+  color: #e6e7ea;
+  letter-spacing: .2em;
+  text-indent: .2em;   /* letter-spacing の右アキ分を戻して光学的に中央へ */
+  margin: 34px 0 8px;
+}
+/* 見出し下の細い罫（メインポータルと同じ作法） */
+h2::after {
+  content: "";
+  display: block;
+  width: 52px;
+  height: 2px;
+  margin: 11px auto 0;
+  background: #fed000;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .55);
 }
 
 .container {
@@ -44,64 +69,129 @@ h2 {
   grid-template-rows: repeat(3, calc(var(--pb) - 20px));
   grid-auto-rows: calc(var(--pb) - 20px);
   gap: var(--pgap);
+  margin-top: 26px;
 }
 
+/* 縁・面・側面・接地影の4層。色は portal.css の background-color を使う */
 .portal-button {
+  position: relative;
   width: var(--pb);
   height: var(--pb);
   border-radius: 50%;
   border: none;
+  padding: 0;
   font-family: inherit;
-  font-size: calc(var(--pb) * .195);
-  font-weight: 700;
-  line-height: 1.35;
+  font-size: calc(var(--pb) * .185);
+  font-weight: 900;
+  letter-spacing: .04em;
+  line-height: 1.12;
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, .28);
-  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
+  /* 面の陰影。下地の色を知らなくても球面に見えるよう、白と黒だけで重ねる */
+  background-image:
+    radial-gradient(112% 100% at 32% 14%,
+      rgba(255, 255, 255, .30) 0%,
+      rgba(255, 255, 255, .04) 46%,
+      rgba(0, 0, 0, .18) 80%,
+      rgba(0, 0, 0, .34) 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .5),
+    inset 0 calc(var(--pb) * .012) 0 rgba(255, 255, 255, .34),
+    inset 0 calc(var(--pb) * -.045) calc(var(--pb) * .06) rgba(0, 0, 0, .3),
+    0 calc(var(--pb) * .028) 0 rgba(0, 0, 0, .38),
+    0 calc(var(--pb) * .04) 0 rgba(0, 0, 0, .45),
+    0 calc(var(--pb) * .085) calc(var(--pb) * .13) rgba(0, 0, 0, .48);
+  /* 上に陰、下にハイライトで打ち出された文字に */
+  text-shadow:
+    0 -1px 0 rgba(0, 0, 0, .32),
+    0 1px 0 rgba(255, 255, 255, .2),
+    0 2px 3px rgba(0, 0, 0, .3);
+  transition: transform .18s cubic-bezier(.2, .8, .3, 1),
+    box-shadow .18s cubic-bezier(.2, .8, .3, 1);
   -webkit-tap-highlight-color: transparent;
 }
-.portal-button:hover {
-  filter: brightness(1.08);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, .38);
-}
-.portal-button:active { transform: scale(.96); }
-.portal-button:focus-visible {
-  outline: 3px solid #fed000;
-  outline-offset: 3px;
+
+/* 上端のツヤ。弧を一本だけ */
+.portal-button::after {
+  content: "";
+  position: absolute;
+  left: 17%;
+  right: 17%;
+  top: 7%;
+  height: 30%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .19), rgba(255, 255, 255, 0));
+  filter: blur(1px);
+  pointer-events: none;
 }
 
-/* 「戻る」は主張させない */
+.portal-button:hover {
+  transform: translateY(calc(var(--pb) * -.026));
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .5),
+    inset 0 calc(var(--pb) * .012) 0 rgba(255, 255, 255, .34),
+    inset 0 calc(var(--pb) * -.045) calc(var(--pb) * .06) rgba(0, 0, 0, .3),
+    0 calc(var(--pb) * .054) 0 rgba(0, 0, 0, .38),
+    0 calc(var(--pb) * .066) 0 rgba(0, 0, 0, .45),
+    0 calc(var(--pb) * .13) calc(var(--pb) * .17) rgba(0, 0, 0, .52);
+}
+/* 押し込む：側面の厚み分だけ沈めて、面の光を弱める */
+.portal-button:active {
+  transform: translateY(calc(var(--pb) * .026));
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .5),
+    inset 0 calc(var(--pb) * -.045) calc(var(--pb) * .06) rgba(0, 0, 0, .3),
+    0 1px 0 rgba(0, 0, 0, .38),
+    0 2px 0 rgba(0, 0, 0, .45),
+    0 calc(var(--pb) * .03) calc(var(--pb) * .05) rgba(0, 0, 0, .45);
+  transition-duration: .05s;
+}
+.portal-button:active::after { opacity: .35; }
+.portal-button:focus-visible { outline: 3px solid #fed000; outline-offset: 3px; }
+
+/* 「戻る」は主張させない。面をはめず、受け皿のグレーだけにする */
 .container .portal-button[data-url="../index.html"],
 .container .portal-button[data-url="../../index.html"],
 .container .portal-button[data-url="../../../index.html"] {
-  background-color: #2a2c31;
+  background-color: #2a2d34;
+  background-image: none;
   color: #9a9ea8;
-  box-shadow: none;
-  font-size: calc(var(--pb) * .165);
+  font-size: calc(var(--pb) * .155);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .5);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .5),
+    inset 0 1px 0 rgba(255, 255, 255, .07),
+    0 calc(var(--pb) * .022) 0 rgba(0, 0, 0, .4),
+    0 calc(var(--pb) * .05) calc(var(--pb) * .08) rgba(0, 0, 0, .4);
 }
+.container .portal-button[data-url="../index.html"]::after,
+.container .portal-button[data-url="../../index.html"]::after,
+.container .portal-button[data-url="../../../index.html"]::after { display: none; }
 .container .portal-button[data-url="../index.html"]:hover,
 .container .portal-button[data-url="../../index.html"]:hover,
-.container .portal-button[data-url="../../../index.html"]:hover {
-  color: #f2f2f4;
-  filter: none;
-}
+.container .portal-button[data-url="../../../index.html"]:hover { color: #f2f2f4; }
 
-/* 準備中 */
+/* 準備中：明るさを落とすのではなく「面がはまっていない」ことで伝える */
 .portal-button[data-url=""] {
-  opacity: .22;
-  filter: grayscale(1);
+  background-color: transparent;
+  background-image: none;
+  color: #5c6069;
+  font-size: calc(var(--pb) * .14);
+  opacity: 1;
+  filter: none;
   pointer-events: none;
   cursor: not-allowed;
-  font-size: calc(var(--pb) * .15);
-  box-shadow: none;
+  text-shadow: none;
+  border: 2px dashed #3a3e47;
+  box-shadow: inset 0 0 calc(var(--pb) * .2) rgba(0, 0, 0, .45);
 }
+.portal-button[data-url=""]::after { display: none; }
 
 /* --- 画面が狭いとき（スマホ縦など） --- */
 @media (max-width: 560px) {
   :root { --pb: 108px; }
-  h2 { margin: 26px 0 18px; }
+  h2 { margin: 20px 0 6px; }
+  .container { margin-top: 20px; }
 }
 @media (max-width: 380px) {
   :root { --pb: 92px; }
@@ -111,10 +201,13 @@ h2 {
    縦に詰まるので見出しの余白と円を小さくして1画面に収める */
 @media (max-height: 560px) {
   :root { --pb: 96px; }
-  h1 { margin-top: 8px; font-size: 15px; }
-  h2 { font-size: clamp(22px, 5vh, 30px); margin: 10px 0 12px; }
+  h1 { margin-top: 8px; font-size: 17px; }
+  h2 { font-size: clamp(20px, 4.6vh, 28px); margin: 8px 0 4px; }
+  h2::after { margin-top: 7px; }
+  .container { margin-top: 12px; }
 }
 @media (max-height: 420px) {
   :root { --pb: 80px; }
-  h2 { margin: 6px 0 8px; }
+  h2 { margin: 4px 0 2px; }
+  .container { margin-top: 8px; }
 }
