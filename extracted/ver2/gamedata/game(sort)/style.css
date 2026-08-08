@@ -14,7 +14,15 @@
   --g-brand: #fed000;
   --g-success: #3ecf8e;
   --g-danger: #ff5d6c;
-  --g-font: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  --g-font: "Zen Kaku Gothic New", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  --g-num: "Saira Condensed", "Zen Kaku Gothic New", sans-serif;
+
+  /* HUDのアイコン。絵文字は端末ごとに形も色も変わってしまうので、
+     自前の単色グリフをマスクとして持つ（字色にそのまま追従する） */
+  --ico-clock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12.6' r='8.4'/%3E%3Cpath d='M12 7.8v5l3.1 1.9'/%3E%3Cpath d='M9.2 1.9h5.6'/%3E%3C/svg%3E");
+  --ico-star: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000'%3E%3Cpath d='M12 2.6l2.83 5.9 6.37.86-4.65 4.4 1.17 6.44L12 17.09l-5.72 3.11 1.17-6.44-4.65-4.4 6.37-.86z'/%3E%3C/svg%3E");
+  --ico-flame: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000'%3E%3Cpath d='M13.1 1.7c.5 3.1-.7 5-2.2 6.6-1.6 1.7-3.4 3.2-3.4 6.1a6.5 6.5 0 0 0 13 .3c0-3.6-2.1-6.4-4.3-8.6.2 1.7-.3 2.9-1.2 3.5.4-2.9-.4-5.6-1.9-7.9zm-.6 11.2c1.2 1 1.9 2.1 1.9 3.4a2.4 2.4 0 0 1-4.8.1c0-1.3.9-2 1.6-2.7.2.8.6 1.3 1.1 1.6-.2-.9-.1-1.7.2-2.4z'/%3E%3C/svg%3E");
+  --ico-trophy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000'%3E%3Cpath d='M7 2.6h10v5.2a5 5 0 0 1-10 0z'/%3E%3Cpath d='M6.2 3.4H3.1v1.5c0 2.2 1.6 4 3.7 4.3v-1.7a3.3 3.3 0 0 1-2.2-2.6h1.6zm11.6 0h3.1v1.5c0 2.2-1.6 4-3.7 4.3V7.5a3.3 3.3 0 0 0 2.2-2.6h-1.6z'/%3E%3Cpath d='M10.6 12.9h2.8l.5 3.4h-3.8z'/%3E%3Crect x='7' y='17.6' width='10' height='2.5' rx='1.2'/%3E%3C/svg%3E");
 }
 
 /* --- 全体 --- */
@@ -22,15 +30,20 @@ body {
   margin: 0;
   padding: 0;
   font-family: var(--g-font);
-  background:
-    radial-gradient(900px 500px at 85% -10%, rgba(254, 208, 0, .06), transparent 60%),
-    radial-gradient(700px 460px at -10% 110%, rgba(79, 124, 255, .07), transparent 60%),
-    var(--g-bg);
+  /* 広いカラーグローをやめ、筐体のような細かいヘアライン地にする。
+     光らせるのではなく、素材で奥行きを出す */
+  background-color: var(--g-bg);
+  background-image:
+    radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, .045), transparent 66%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, .016) 0 1px, transparent 1px 7px);
+  background-attachment: fixed;
   color: var(--g-text);
   display: flex;
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
 }
 
 .screen {
@@ -46,20 +59,35 @@ body {
 }
 
 #startScreen h1 {
-  font-size: clamp(24px, 5vw, 38px);
+  font-size: clamp(23px, 4.6vw, 35px);
   font-weight: 900;
-  letter-spacing: .04em;
-  margin: 10px auto 4px;
+  letter-spacing: .05em;
+  margin: 10px auto 0;
   max-width: 94vw;
-  line-height: 1.3;
+  line-height: 1.28;
+  color: #f0f2f6;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .45);
+}
+/* タイトル下の罫。1本だけ引いて、ここが表紙だと決める */
+#startScreen h1::after {
+  content: "";
+  display: block;
+  width: 52px;
+  height: 3px;
+  margin: 14px auto 0;
+  border-radius: 2px;
+  background: var(--g-brand);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .55);
 }
 
 #startScreen > p {
-  color: #c9cedb;
-  line-height: 1.9;
-  font-size: clamp(13px, 2.6vw, 16px);
-  max-width: 92vw;
-  margin: 12px auto;
+  color: #a8b0c0;
+  line-height: 1.85;
+  font-size: clamp(13px, 2.2vw, 15px);
+  font-weight: 500;
+  letter-spacing: .01em;
+  max-width: min(560px, 88vw);
+  margin: 18px auto 22px;
 }
 
 /* 隠しメッセージ */
@@ -87,7 +115,8 @@ body {
   justify-content: center;
 }
 
-/* STARTボタン（メダル + ラベルを横並びの主ボタンに） */
+/* STARTボタン。平らな黄色の四角ではなく、縁・面・側面・接地影を
+   持った成形パーツとして組み立てる */
 #startButton,
 .medal-button {
   position: relative;
@@ -95,20 +124,46 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-width: min(230px, 68vw);
-  height: 56px;
-  padding: 0 28px;
-  background: var(--g-brand);
+  min-width: min(240px, 70vw);
+  height: 58px;
+  padding: 0 30px;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
-  box-shadow: 0 3px 0 #b89600;
-  transition: transform .13s ease, box-shadow .13s ease, filter .13s ease;
+  isolation: isolate;
+  background: linear-gradient(180deg, #ffe45c 0%, var(--g-brand) 42%, #e0b800 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .42),
+    inset 0 2px 0 rgba(255, 255, 255, .6),
+    inset 0 -6px 8px rgba(140, 96, 0, .3),
+    0 4px 0 #9c7d00,
+    0 6px 0 rgba(0, 0, 0, .4),
+    0 12px 22px rgba(0, 0, 0, .45);
+  transition: transform .13s cubic-bezier(.2, .8, .3, 1),
+    box-shadow .13s cubic-bezier(.2, .8, .3, 1);
   -webkit-tap-highlight-color: transparent;
 }
-#startButton:hover { filter: brightness(1.05); }
-#startButton:active { transform: translateY(2px); box-shadow: 0 1px 0 #b89600; }
-#startButton:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+#startButton:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .5),
+    inset 0 2px 0 rgba(255, 255, 255, .68),
+    inset 0 -6px 8px rgba(140, 96, 0, .3),
+    0 6px 0 #9c7d00,
+    0 8px 0 rgba(0, 0, 0, .4),
+    0 16px 28px rgba(0, 0, 0, .5);
+}
+#startButton:active {
+  transform: translateY(4px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .35),
+    inset 0 2px 6px rgba(140, 96, 0, .4),
+    0 1px 0 #9c7d00,
+    0 2px 0 rgba(0, 0, 0, .4),
+    0 4px 10px rgba(0, 0, 0, .4);
+  transition-duration: .05s;
+}
+#startButton:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
 /* メダルは獲得したときだけ出す（未獲得の空メダルは表示しない） */
 #medalImage {
@@ -120,40 +175,77 @@ body {
 .start-label {
   position: static;
   transform: none;
-  color: #1a1400;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: .12em;
+  color: #4a3800;
+  font-family: "Saira Condensed", var(--g-font);
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-indent: .18em;
   pointer-events: none;
-  text-shadow: none;
+  /* 上に陰、下にハイライトで打ち出し文字に */
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .18), 0 1px 0 rgba(255, 255, 255, .55);
 }
 
-/* サブボタン（ボーナス/戻る/リセット/名前変更） */
+/* サブボタン。STARTと同じ「成形パーツ」の考え方を、
+   彩度を抜いたグレーで揃える。主従関係は色でつける */
 #bonusToggleButton,
 #backButton,
 #resetRankingButton,
-#changeNameButton {
+#changeNameButton,
+#returnButton,
+#rankingToggleButton {
   font-family: var(--g-font);
-  background: var(--g-surface);
-  color: #c9cedb;
-  border: 1.5px solid var(--g-line);
-  border-radius: 12px;
+  background: linear-gradient(180deg, #343c4a 0%, #262d3a 100%);
+  color: #cfd5e1;
+  border: 1px solid #10151d;
+  border-radius: 10px;
   padding: 10px 18px;
   font-size: 14px;
   font-weight: 700;
+  letter-spacing: .02em;
   cursor: pointer;
   min-height: 44px;
-  transition: border-color .15s, color .15s, transform .13s;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .1),
+    0 2px 0 rgba(0, 0, 0, .45),
+    0 5px 12px rgba(0, 0, 0, .3);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .45);
+  transition: transform .12s cubic-bezier(.2, .8, .3, 1),
+    box-shadow .12s cubic-bezier(.2, .8, .3, 1), filter .12s ease;
   -webkit-tap-highlight-color: transparent;
 }
 #bonusToggleButton:hover,
 #backButton:hover,
 #resetRankingButton:hover,
-#changeNameButton:hover { border-color: var(--g-muted); color: var(--g-text); }
+#changeNameButton:hover,
+#returnButton:hover,
+#rankingToggleButton:hover {
+  filter: brightness(1.16);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .13),
+    0 3px 0 rgba(0, 0, 0, .45),
+    0 8px 16px rgba(0, 0, 0, .36);
+}
 #bonusToggleButton:active,
 #backButton:active,
 #resetRankingButton:active,
-#changeNameButton:active { transform: scale(.96); }
+#changeNameButton:active,
+#returnButton:active,
+#rankingToggleButton:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, .5);
+  transition-duration: .05s;
+}
+#bonusToggleButton:focus-visible,
+#backButton:focus-visible,
+#resetRankingButton:focus-visible,
+#changeNameButton:focus-visible,
+#returnButton:focus-visible,
+#rankingToggleButton:focus-visible {
+  outline: 3px solid var(--g-brand);
+  outline-offset: 3px;
+}
 
 #backButton { display: block; margin: auto; }
 #resetRankingButton, #changeNameButton { margin-top: 12px; font-size: 13px; padding: 8px 14px; }
@@ -173,23 +265,7 @@ h2 {
   margin-top: 18px;
 }
 
-#rankingToggleButton {
-  font-family: var(--g-font);
-  background: linear-gradient(180deg, #333a48, #262c38);
-  color: var(--g-brand);
-  padding: 10px 22px;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
-  margin: 10px 0 12px;
-  border: 1.5px solid #514a1e;
-  border-radius: 999px;
-  min-height: 44px;
-  transition: border-color .15s, transform .13s;
-  -webkit-tap-highlight-color: transparent;
-}
-#rankingToggleButton:hover { border-color: var(--g-brand); }
-#rankingToggleButton:active { transform: scale(.96); }
+/* \u30e9\u30f3\u30ad\u30f3\u30b0\u5207\u66ff\u306f\u5171\u901a\u30b5\u30d6\u30dc\u30bf\u30f3\u5f62\u72b6\u306e\u307e\u307e\u3001\u5b57\u8272\u3068\u7e01\u3060\u3051\u91d1\u306b\u3057\u3066\n   \u300c\u3053\u3053\u3092\u62bc\u3059\u3068\u5207\u308a\u66ff\u308f\u308b\u300d\u3053\u3068\u3092\u793a\u3059 */\n#rankingToggleButton {\n  color: var(--g-brand);\n  border-color: #4a4118;\n  margin: 10px 0 12px;\n  font-weight: 800;\n  padding: 10px 22px;\n}
 
 /* 現在どの状態を見ているか（ボーナス有無 × 自分/みんな） */
 #rankingStateChip {
@@ -264,75 +340,159 @@ h2 {
   box-sizing: border-box;
 }
 
-/* --- HUD（固定幅を廃止しレスポンシブに） --- */
+/* HUDは盤面なので、1枚のパネルに掛け穴が並んでいる形にする */
 #header {
   width: min(900px, 94vw);
   display: flex;
   align-items: stretch;
   justify-content: center;
-  gap: clamp(4px, 1.2vw, 10px);
+  gap: clamp(4px, 1.2vw, 9px);
   margin: 0 auto 10px auto;
+  padding: 6px;
   position: relative;
+  border: 1px solid #333b49;
+  border-radius: 13px;
+  background: linear-gradient(180deg, #2b323f 0%, #232936 100%);
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .075),
+    0 3px 0 rgba(0, 0, 0, .35),
+    0 8px 20px rgba(0, 0, 0, .4);
 }
 
+/* HUDは「計器盤の掛け穴」として作る。浮いた丸ピルではなく、
+   盤面に彫り込まれたスロット。数値は桁の揃うコンデンス体で、
+   カウント中に幅が暴れないようにする */
 #timer, #score, #combo, #maxCombo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 7px;
   flex: 1 1 0;
   min-width: 0;
-  background: linear-gradient(180deg, #232936, var(--g-surface));
-  border: 1px solid var(--g-line);
-  border-radius: 999px;
-  padding: 7px clamp(6px, 1.6vw, 14px);
-  font-size: clamp(11px, 2.5vw, 15px);
-  font-weight: 800;
+  background: linear-gradient(180deg, #161b25 0%, #1c222e 100%);
+  border: 1px solid #0d1118;
+  border-radius: 9px;
+  padding: 8px clamp(6px, 1.6vw, 14px);
+  font-family: "Saira Condensed", var(--g-font);
+  font-size: clamp(15px, 3.2vw, 21px);
+  font-weight: 700;
+  letter-spacing: .03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #e4e8f0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, .3);
+  /* 内側の落ち影 + 下端の反射で、掜っているように見せる */
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, .55),
+    inset 0 -1px 0 rgba(255, 255, 255, .07),
+    0 1px 0 rgba(255, 255, 255, .05);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .6);
 }
 
-#timer::before   { content: "⏱"; }
-#score::before   { content: "⭐"; }
-#combo::before   { content: "🔥"; }
-#maxCombo::before{ content: "🏆"; }
+/* ラベル（Time / Score …）と数字を別要素で持つ。
+   数字は絶対に切らせず、狭いときはラベルの方を畳む */
+.hud-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  opacity: .72;
+  font-weight: 500;
+}
+.hud-label::after { content: ":"; }
+.hud-num {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 画面が狭いときはラベルを隠し、アイコンと数字だけで読ませる */
+@media (max-width: 560px) {
+  #timer, #score, #combo, #maxCombo { gap: 5px; padding: 8px 6px; }
+  .hud-label { display: none; }
+}
+
+/* 絵文字をやめて描き起こしのグリフにする。端末ごとに形が変わらず、
+   字色にもちゃんと追従する */
 #timer::before, #score::before, #combo::before, #maxCombo::before {
-  font-size: .95em;
-  flex-shrink: 0;
+  content: "";
+  flex: 0 0 auto;
+  width: 1.05em;
+  height: 1.05em;
+  background-color: currentColor;
+  opacity: .72;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+#timer::before {
+  -webkit-mask-image: var(--ico-clock);
+  mask-image: var(--ico-clock);
+}
+#score::before {
+  -webkit-mask-image: var(--ico-star);
+  mask-image: var(--ico-star);
+  color: var(--g-brand);
+}
+#combo::before {
+  -webkit-mask-image: var(--ico-flame);
+  mask-image: var(--ico-flame);
+  color: #ff8a4c;
+}
+#maxCombo::before {
+  -webkit-mask-image: var(--ico-trophy);
+  mask-image: var(--ico-trophy);
 }
 
-/* 残り10秒: タイマー点滅 */
+/* 残り10秒。光らせるのではなく、スロット自体が赤く切り替わって
+   静かに脈打つ（目に痛くない範囲で不安を作る） */
 #timer.hurry {
-  color: #fff;
-  background: linear-gradient(180deg, #b3323f, #8f2530);
-  border-color: var(--g-danger);
-  animation: hud-hurry .8s ease-in-out infinite;
+  color: #ffd9dd;
+  background: linear-gradient(180deg, #7d1f29 0%, #a02b38 100%);
+  border-color: #5c1219;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, .45),
+    inset 0 -1px 0 rgba(255, 255, 255, .14);
+  animation: hud-hurry .9s ease-in-out infinite;
 }
+#timer.hurry::before { opacity: 1; }
 @keyframes hud-hurry {
-  0%, 100% { box-shadow: 0 0 0 rgba(255, 93, 108, 0); }
-  50%      { box-shadow: 0 0 18px rgba(255, 93, 108, .8); }
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.32); }
 }
 
-/* ポーズボタン（エンジンが#headerに注入） */
+/* ポーズボタン（エンジンが#headerに注入）。
+   プレイ中の重要な操作なので、横向きでもタップ領域44pxを割らない */
 #pauseButton {
   flex: 0 0 auto;
-  width: 40px;
-  min-width: 40px;
-  border-radius: 999px;
-  background: var(--g-surface-2);
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #2b323f, #212734);
   color: #c9cedb;
-  border: 1px solid var(--g-line);
+  border: 1px solid #0d1118;
   font-size: 15px;
   cursor: pointer;
-  transition: border-color .15s, transform .13s;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .1),
+    0 2px 0 rgba(0, 0, 0, .45);
+  transition: transform .13s ease, box-shadow .13s ease;
   -webkit-tap-highlight-color: transparent;
 }
-#pauseButton:hover { border-color: var(--g-muted); }
-#pauseButton:active { transform: scale(.94); }
+#pauseButton:hover { filter: brightness(1.14); }
+#pauseButton:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5);
+}
 
-/* --- プレイエリア：赤黒→夜空グラデ＋星 --- */
+/* プレイエリア。筐体にはめ込まれた画面として扱い、
+   外周にベゼル（縁）を作る。星は手で置いた位置のまま残す */
 #playArea {
   position: relative;
   width: min(94vw, 900px);
@@ -347,15 +507,20 @@ h2 {
     radial-gradient(1.2px 1.2px at 22% 48%, rgba(255,255,255,.25), transparent 100%),
     radial-gradient(1.6px 1.6px at 66% 52%, rgba(255,255,255,.22), transparent 100%),
     radial-gradient(1.2px 1.2px at 44% 66%, rgba(255,255,255,.18), transparent 100%),
-    radial-gradient(900px 400px at 50% -20%, rgba(79, 124, 255, .14), transparent 70%),
-    linear-gradient(180deg, #182036 0%, #10162a 55%, #0b101f 100%);
-  border: 1px solid rgba(255, 255, 255, .14);
+    linear-gradient(180deg, #161d31 0%, #0f1526 55%, #0a0f1c 100%);
+  border: none;
   border-radius: 18px;
   box-shadow:
-    0 14px 40px rgba(0, 0, 0, .5),
-    inset 0 0 60px rgba(20, 30, 60, .5);
+    /* 外周のベゼル：黒い縁 → 上のハイライト → 接地影 */
+    0 0 0 1px #0a0e18,
+    0 0 0 4px #262d3b,
+    0 0 0 5px #0a0e18,
+    inset 0 1px 0 rgba(255, 255, 255, .1),
+    inset 0 0 70px rgba(0, 0, 0, .55),
+    0 5px 0 rgba(0, 0, 0, .3),
+    0 18px 44px rgba(0, 0, 0, .55);
   overflow: hidden;
-  margin: 0 auto 10px auto;
+  margin: 5px auto 14px auto;
 }
 
 /* 画面幅が小さいとき、縦を大きくする */
@@ -373,11 +538,13 @@ h2 {
   #header { margin-bottom: 6px; }
   #timer, #score, #combo, #maxCombo { padding: 5px clamp(6px, 1.4vw, 12px); }
   #playArea {
-    height: calc(100vh - 104px);
+    height: calc(100vh - 140px);
     aspect-ratio: auto;
     border-radius: 14px;
   }
-  #returnButton { margin: 6px auto; min-height: 36px; padding: 6px 22px; font-size: 13px; }
+  /* 小さくしたくなるが、ボタンなので高さ44pxは維持し、
+     余白と字の大きさで調整する */
+  #returnButton { margin: 3px auto 6px; min-height: 44px; padding: 6px 22px; font-size: 13px; }
   #sortingAreaOverlay::before { top: -19px; padding: 1px 10px; }
 }
 
@@ -388,30 +555,39 @@ h2 {
   left: 0;
   width: 100%;
   height: 90px;
-  border-top: 2px solid rgba(254, 208, 0, .85);
-  box-shadow: 0 -1px 14px rgba(254, 208, 0, .35);
+  /* 光らせるのではなく、彫られた判定線にする。
+     金色の線の上に陰を一本入れると、盤に切り込んだように見える */
+  border-top: 2px solid #fed000;
+  box-shadow:
+    0 -3px 0 rgba(0, 0, 0, .45),
+    inset 0 1px 0 rgba(255, 255, 255, .16);
+  background: rgba(6, 9, 16, .5);
   box-sizing: border-box;
   pointer-events: none;
   z-index: 1;
   display: flex;
 }
 
-/* 判定ラインのラベル */
+/* 判定ラインのラベル。盤にネジ止めされた金属プレートのつもり */
 #sortingAreaOverlay::before {
-  content: "▼ ここで判定！";
+  content: "ここで判定";
   position: absolute;
-  top: -24px;
+  top: -23px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(13, 17, 23, .82);
+  background: linear-gradient(180deg, #2a3140, #1b2029);
   color: var(--g-brand);
-  border: 1px solid rgba(254, 208, 0, .5);
-  border-radius: 999px;
-  padding: 2px 12px;
+  border: 1px solid #4a5364;
+  border-bottom-color: #0d1118;
+  border-radius: 7px 7px 0 0;
+  padding: 3px 14px;
   font-size: clamp(10px, 2vw, 12px);
-  font-weight: 800;
-  letter-spacing: .06em;
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-indent: .16em;
   white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .6);
 }
 
 .sorting-column {
@@ -421,79 +597,109 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 3px 4px;
+  padding: 10px 3px 4px;
   box-sizing: border-box;
   pointer-events: none;
-  border-right: 1px solid rgba(255, 255, 255, .08);
+  /* 列の切れ目は、陰とハイライトの2本で彫る */
+  border-right: 1px solid rgba(0, 0, 0, .5);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .05);
   transition: background-color .12s ease;
 }
-.sorting-column:last-child { border-right: none; }
+.sorting-column:last-child { border-right: none; box-shadow: none; }
 
 .sorting-label {
   font-size: clamp(11px, 2.4vw, 19px);
-  font-weight: 800;
+  font-weight: 900;
   color: #fff;
   line-height: 1.25;
   text-align: center;
   word-break: break-word;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, .7);
+  letter-spacing: .02em;
+  /* 床の帯と重ならないよう、ラベルはわずかに上に寄せる */
+  margin-bottom: 4px;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, .85), 0 0 1px rgba(0, 0, 0, .9);
   transition: transform .12s ease;
 }
 
-/* 列カラー（彩度を抑えた半透明 + 上端アクセントバー） */
+/* 列カラー。彩度のある色を暗い地に半透明で重ねると、どんな色でも
+   オリーブや茶に澁んでしまう。だから列の地は全部同じ暗いスレートに統一して
+   ラベルの読みやすさを優先し、識別の色は床の帯に集める。
+   上の黄色の判定線と競合しないのが狂い */
+.sorting-column {
+  --col: #4f7cff;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .055) 0%, rgba(4, 7, 13, .6) 100%);
+}
+/* 床の帯。ここだけ彩度を全部使って、列の識別子にする */
 .sorting-column::before {
   content: "";
   position: absolute;
-  top: 0; left: 0;
+  bottom: 0; left: 0;
   width: 100%;
-  height: 4px;
+  height: 5px;
+  background: var(--col);
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, .6);
 }
-.sorting-column:nth-child(10n+1) { background: rgba(79, 124, 255, .17); }
-.sorting-column:nth-child(10n+1)::before { background: #4f7cff; }
-.sorting-column:nth-child(10n+2) { background: rgba(46, 194, 126, .16); }
-.sorting-column:nth-child(10n+2)::before { background: #2ec27e; }
-.sorting-column:nth-child(10n+3) { background: rgba(255, 159, 67, .16); }
-.sorting-column:nth-child(10n+3)::before { background: #ff9f43; }
-.sorting-column:nth-child(10n+4) { background: rgba(160, 107, 255, .17); }
-.sorting-column:nth-child(10n+4)::before { background: #a06bff; }
-.sorting-column:nth-child(10n+5) { background: rgba(255, 107, 157, .16); }
-.sorting-column:nth-child(10n+5)::before { background: #ff6b9d; }
-.sorting-column:nth-child(10n+6) { background: rgba(41, 199, 199, .16); }
-.sorting-column:nth-child(10n+6)::before { background: #29c7c7; }
-.sorting-column:nth-child(10n+7) { background: rgba(255, 209, 102, .15); }
-.sorting-column:nth-child(10n+7)::before { background: #ffd166; }
-.sorting-column:nth-child(10n+8) { background: rgba(112, 161, 255, .16); }
-.sorting-column:nth-child(10n+8)::before { background: #70a1ff; }
-.sorting-column:nth-child(10n+9) { background: rgba(123, 237, 159, .15); }
-.sorting-column:nth-child(10n+9)::before { background: #7bed9f; }
-.sorting-column:nth-child(10n+10) { background: rgba(255, 140, 105, .16); }
-.sorting-column:nth-child(10n+10)::before { background: #ff8c69; }
+.sorting-column:nth-child(10n+1)  { --col: #4f7cff; }
+.sorting-column:nth-child(10n+2)  { --col: #2ec27e; }
+.sorting-column:nth-child(10n+3)  { --col: #ff9f43; }
+.sorting-column:nth-child(10n+4)  { --col: #a06bff; }
+.sorting-column:nth-child(10n+5)  { --col: #ff6b9d; }
+.sorting-column:nth-child(10n+6)  { --col: #29c7c7; }
+.sorting-column:nth-child(10n+7)  { --col: #ffd166; }
+.sorting-column:nth-child(10n+8)  { --col: #70a1ff; }
+.sorting-column:nth-child(10n+9)  { --col: #7bed9f; }
+.sorting-column:nth-child(10n+10) { --col: #ff8c69; }
 
-/* ドラッグ中：真下の列を発光ハイライト（エンジンが .active を付与） */
+/* ドラッグ中：真下の列を強調。発光ではなく、地が明るくなり
+   床の帯が厚くなって、列が手前に浮き上がったように見せる */
 .sorting-column.active {
-  background-color: rgba(254, 208, 0, .3);
-  box-shadow: inset 0 0 26px rgba(254, 208, 0, .4);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .2) 0%, rgba(255, 255, 255, .05) 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, .28),
+    inset -1px 0 0 rgba(255, 255, 255, .06);
 }
-.sorting-column.active::before { background: var(--g-brand); height: 5px; }
-.sorting-column.active .sorting-label { transform: scale(1.12); color: #fff; }
+.sorting-column.active::before {
+  background: var(--g-brand);
+  height: 8px;
+}
+.sorting-column.active::before { background: var(--g-brand); height: 6px; }
+.sorting-column.active .sorting-label {
+  transform: scale(1.1);
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, .9);
+}
 
-/* --- 落下タイル --- */
+/* --- 落下タイル：夜空の上を滑ってくる「物」として作る。
+   上面の光・下の側面・接地影の3層 --- */
 .word {
   position: absolute;
-  padding: 7px 14px;
-  background: linear-gradient(180deg, #ffffff, #eef1f6);
-  color: #1a2030;
+  padding: 8px 15px;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f6fa 55%, #e2e6ee 100%);
+  color: #131a28;
   border: none;
-  border-radius: 11px;
+  border-radius: 10px;
   font-size: clamp(14px, 2.8vw, 18px);
   font-weight: 700;
+  letter-spacing: .01em;
   line-height: 1.35;
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
   z-index: 2;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, .45), inset 0 -2px 0 rgba(0, 0, 0, .08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 0 0 1px rgba(10, 15, 28, .55),
+    0 3px 0 #a8b0c0,
+    0 6px 12px rgba(0, 0, 0, .5);
   touch-action: none;
+}
+.word:active {
+  cursor: grabbing;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 0 0 1px rgba(10, 15, 28, .55),
+    0 5px 0 #a8b0c0,
+    0 12px 22px rgba(0, 0, 0, .55);
 }
 
 /* すべてのタイルに「判定の中心」マーカー（下向き▼） */
@@ -705,34 +911,20 @@ h2 {
   100% { transform: translate(-50%, -44px) scale(1); opacity: 0; }
 }
 
-/* Returnボタン */
+/* Returnボタン（共通のサブボタン形状を使い、位置だけ指定） */
 #returnButton {
-  font-family: var(--g-font);
-  padding: 10px 26px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  margin: 10px auto;
+  margin: 4px auto 18px;
   display: block;
-  background: var(--g-surface);
-  color: #c9cedb;
-  border: 1.5px solid var(--g-line);
-  border-radius: 999px;
-  min-height: 44px;
-  transition: border-color .15s, color .15s, transform .13s;
-  -webkit-tap-highlight-color: transparent;
 }
-#returnButton:hover { border-color: var(--g-muted); color: var(--g-text); }
-#returnButton:active { transform: scale(.96); }
 
-/* --- COMBOエフェクト --- */
+/* COMBOエフェクト。発光ではなく、スロットが一瞬跡ねる表現にする */
 #combo.combo-effect {
-  animation: comboGlow 0.5s ease-in-out;
+  animation: comboGlow .42s cubic-bezier(.34, 1.56, .64, 1);
 }
 @keyframes comboGlow {
-  0%   { text-shadow: 0 0 5px yellow; }
-  50%  { text-shadow: 0 0 15px yellow; transform: scale(1.15); }
-  100% { text-shadow: 0 0 5px yellow; }
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.09); color: var(--g-brand); }
+  100% { transform: scale(1); }
 }
 
 #combo.combo-effect-50 {
@@ -746,39 +938,95 @@ h2 {
 }
 
 /* ==========================================================
-   結果画面のランク表示
+   結果画面
+   ランクは「刻印されたメダル」として作る。平らな円に文字を置くと
+   量産感が出るので、リム（ふち）・ベベル・下の影で厚みを持たせる。
    ========================================================== */
+#resultScreen h2 {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: .34em;
+  text-indent: .34em;
+  color: #9aa1ad;
+}
+#resultScreen h2::after {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 2px;
+  margin: 10px auto 0;
+  background: var(--g-brand);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .5);
+}
+#resultScreen .v2-card {
+  background: linear-gradient(180deg, #232936, #1b2029);
+  border: 1px solid #3d4552;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .055),
+    0 10px 30px rgba(0, 0, 0, .45);
+}
+
 #resultRankBox {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  margin: 4px 0 12px;
-  background: linear-gradient(135deg, rgba(254, 208, 0, .09), rgba(255, 255, 255, .03));
-  border: 1px solid var(--g-line);
-  border-radius: 16px;
+  gap: 16px;
+  padding: 15px 16px;
+  margin: 4px 0 14px;
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,.018) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, #2a3040, #202531);
+  border: 1px solid #454e5e;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
 }
 
 #resultRankBadge {
+  position: relative;
   flex: 0 0 auto;
-  width: 62px;
-  height: 62px;
+  width: 70px;
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 34px;
-  font-weight: 900;
+  font-family: "Saira Condensed", var(--g-font);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
   color: #1a1400;
-  background: linear-gradient(160deg, #d8dde6, #a8b0bd);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .4), inset 0 -3px 0 rgba(0, 0, 0, .12);
+  background: linear-gradient(160deg, #d8dde6, #98a1af);
+  /* 外側のリム＋内側のベベル＋接地影で、印刷ではなく「打刻」に見せる */
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, .3),
+    inset 0 3px 4px rgba(255, 255, 255, .45),
+    inset 0 -5px 6px rgba(0, 0, 0, .28),
+    0 3px 0 rgba(0, 0, 0, .35),
+    0 8px 18px rgba(0, 0, 0, .45);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .35), 0 -1px 0 rgba(0, 0, 0, .2);
   animation: rank-pop .5s cubic-bezier(.34, 1.56, .64, 1);
 }
-#resultRankBadge.rank-S { background: linear-gradient(160deg, #fff3a8, #f5c518); box-shadow: 0 0 26px rgba(245, 197, 24, .55), inset 0 -3px 0 rgba(0,0,0,.14); }
-#resultRankBadge.rank-A { background: linear-gradient(160deg, #ffd9a8, #e8944a); }
-#resultRankBadge.rank-B { background: linear-gradient(160deg, #d5dbe6, #9aa6b8); }
-#resultRankBadge.rank-C { background: linear-gradient(160deg, #d9c3a5, #b08b5e); }
-#resultRankBadge.rank-D { background: linear-gradient(160deg, #b9c0cc, #8d94a2); }
+/* ふち取りのリング。金属の縁が1周しているように見せる */
+#resultRankBadge::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, .17);
+  pointer-events: none;
+}
+#resultRankBadge.rank-S {
+  background: linear-gradient(160deg, #fff6c2 8%, #f3c623 52%, #c69208 100%);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, .42),
+    inset 0 3px 4px rgba(255, 255, 255, .5),
+    inset 0 -5px 6px rgba(120, 80, 0, .32),
+    0 3px 0 rgba(0, 0, 0, .35),
+    0 8px 20px rgba(0, 0, 0, .5);
+}
+#resultRankBadge.rank-A { background: linear-gradient(160deg, #ffe0b5 8%, #e08c3e 55%, #a45f1d 100%); }
+#resultRankBadge.rank-B { background: linear-gradient(160deg, #e6ebf3 8%, #9aa6b8 55%, #6d7889 100%); }
+#resultRankBadge.rank-C { background: linear-gradient(160deg, #e3cfb2 8%, #ac8657 55%, #7d5f39 100%); }
+#resultRankBadge.rank-D { background: linear-gradient(160deg, #c8ced9 8%, #8d94a2 55%, #666d7a 100%); }
 @keyframes rank-pop {
   0%   { transform: scale(.4) rotate(-14deg); opacity: 0; }
   70%  { transform: scale(1.14) rotate(3deg); opacity: 1; }
@@ -787,17 +1035,56 @@ h2 {
 
 #resultRankInfo { min-width: 0; }
 #resultRankTitle {
-  margin: 0 0 3px;
-  font-size: 19px;
+  margin: 0 0 4px;
+  font-size: 20px;
   font-weight: 900;
   color: var(--g-brand);
-  letter-spacing: .04em;
+  letter-spacing: .06em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .45);
 }
 #resultRankDetail {
   margin: 0;
-  font-size: 12.5px;
-  color: var(--g-muted);
-  line-height: 1.5;
+  font-size: 13px;
+  color: #b3bac6;
+  line-height: 1.55;
+}
+
+/* --- 数値行：ラベルは小さく静かに、数字は計器のように太く揃える --- */
+#resultScreen .v2-result-row {
+  align-items: baseline;
+  padding: 6px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  font-size: 13.5px;
+  color: #aeb5c1;
+}
+#resultScreen .v2-result-row:last-of-type { border-bottom: none; }
+#resultScreen .v2-result-row > span:first-child {
+  letter-spacing: .08em;
+  font-weight: 700;
+}
+#resultScreen .v2-result-row b {
+  font-family: "Saira Condensed", var(--g-font);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--g-text);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .5);
+}
+/* スコアだけブランド色にして、視線の落ちる先を1か所に決める。
+   （nth-of-type は前に別の div があるとずれるので id で直揇しする） */
+#resultScreen #resultScore { color: var(--g-brand); }
+#resultScreen .v2-result-row .v2-plus {
+  font-family: var(--g-font);
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+
+#resultScreen #wrongListContainer h3 {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  color: #9aa1ad;
 }
 
 /* ==========================================================
