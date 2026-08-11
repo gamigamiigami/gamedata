@@ -109,7 +109,7 @@ export const BADGES = [
   { id: "challenge10",  name: "チャレンジ王",   desc: "今日のチャレンジを10回達成",           icon: "🏆" },
   { id: "acc_90",       name: "ていねい",       desc: "12問以上・正確さ90%以上でクリア",      icon: "◎" },
   { id: "acc_95_20",    name: "確かな20問",     desc: "20問以上・正確さ95%以上でクリア",      icon: "◇" },
-  { id: "acc_games3",   name: "安定してる",     desc: "3つのゲームで正確さ90%以上",           icon: "≡" },
+  { id: "acc_games3",   name: "安定してる",     desc: "3つのゲームで正確さ90%以上",           icon: "◉" },
   { id: "sec_exact",    name: "ぴったり賞",     desc: "スコアがちょうど2000点",               icon: "🎁", secret: true },
   { id: "sec_review",   name: "復習マニア",     desc: "復習モードを10回完走",                 icon: "📖", secret: true },
 ];

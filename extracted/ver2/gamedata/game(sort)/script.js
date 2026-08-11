@@ -110,10 +110,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!old) return;
     const row = old.closest(".button-row") || old.parentNode;
     if (!row || !row.parentNode) return;
-    const fs = document.createElement("fieldset");
+    const fs = document.createElement("div");
     fs.id = "modeChooser";
+    fs.setAttribute("role", "radiogroup");
+    fs.setAttribute("aria-label", "モードをえらぶ");
     fs.innerHTML = `
-      <legend>モードをえらぶ</legend>
+      <p class="mode-legend">モードをえらぶ</p>
       <label class="mode-opt">
         <input type="radio" name="playMode" value="challenge">
         <span class="mode-body">
@@ -480,7 +482,7 @@ function showResultScreen() {
     if (accUnit) accUnit.style.display = "none";
   }
   el("resultAccSub").textContent =
-    (answered > 0 ? `${answered}問中` : "") + (skipCount > 0 ? `　見送り ${skipCount}問` : "");
+    (answered > 0 ? `こたえた${answered}問` : "") + (skipCount > 0 ? `　見送り ${skipCount}問` : "");
   const chip = el("resultComboChip");
   if (chip) chip.textContent = maxCombo >= 15 ? `最大コンボ ${maxCombo}` : "";
 
@@ -777,6 +779,8 @@ function showNextReviewWord() {
    正解するとその場でノートから削除される（克服バッジには数えない）
 =============================== */
 function startTokkunMode(wordData) {
+  const gbT = document.getElementById("goalBar");
+  if (gbT) gbT.style.display = "none";   // 特訓にランクも目標もない
   let entries = [];
   try { entries = v2p.getNoteFor(title); } catch (e) {}
   const queue = [];
@@ -1245,7 +1249,9 @@ function nextGoal(correct, wrong, cols) {
 
   const bar = accuracyBarFor(target.rank, cols);
   if (bar > 0 && acc < bar) {
-    const n = Math.max(1, needFor(bar));
+    // 正確さと正解数の両方を満たす必要がある。少ない方だけを出すと、
+    // その数だけ正解しても届かない（この関数が防ぐはずだった嘘の目標そのもの）
+    const n = Math.max(1, needFor(bar), target.need - correct);
     return { kind: "acc", rank: target.rank, remain: n, text: `あと<b>${n}</b>問正解で ${target.rank}ランク` };
   }
   // Aにいる時は正確さで上がれない（Sは正解数でしか届かない）ので、昇格の話はしない
@@ -1284,6 +1290,7 @@ let lastPlayResult = null;   // recordPlay の結果（結果画面で使用）
 let deck = null;
 let skipCount = 0;           // 触らずに落ちて「見送り」になった数（正答率には数えない）
 let passHintShown = false;   // 「見送り」の説明は1プレイ1回だけ
+let hintTipShown = false;    // 「タップでヒント」の案内も1プレイ1回だけ
 let bonusTimeGained = 0;     // じっくりモードで加算した時間の合計（上限管理用）
 let resolvedNotes = new Set(); // 今回のプレイで克服したノートの語（終了時にまとめて保存）
 const CONF_SEP = "\u0001";   // 混同の集計キー用の区切り
@@ -1450,6 +1457,7 @@ export function initGame(wordData, opts = {}) {
   stuckWrongs = [];
   skipCount = 0;
   passHintShown = false;
+  hintTipShown = false;
   bonusTimeGained = 0;
   resolvedNotes = new Set();
   sessionConfusion = {};
@@ -1775,7 +1783,8 @@ function hudHTML(label, value) {
 }
 
 function updateTimerDisplay() {
-  timerDisplay.innerHTML = hudHTML("Time", remainingTime);
+  // じっくりモードの加算は1.5秒刻みなので、そのまま出すと「61.5」になる
+  timerDisplay.innerHTML = hudHTML("Time", Math.max(0, Math.ceil(remainingTime)));
   // 残り10秒で点滅して緊張感を出す
   timerDisplay.classList.toggle("hurry", remainingTime <= 10 && remainingTime > 0);
 }
@@ -1834,16 +1843,14 @@ function updateGoalBar() {
   } else if (acc >= PROMOTE_ACCURACY && c >= PROMOTE_MIN_CORRECT) {
     keep = true;
     // Aまで上がりきったら「ランクUP」ではなく、次はSに必要な正解数を示す
-    const atA = rankFor(c, w, categories.length) === "A";
+    const cur = rankFor(c, w, categories.length);
     const need = Math.max(0, 30 - c);
     const pctTxt = Math.round(acc * 100);
-    if (tight) {
-      html = atA ? `<b>${pctTxt}%</b>・Sまで${need}問` : `<b>${pctTxt}%</b> キープ中`;
-    } else {
-      html = atA
-        ? `正確さ <b>${pctTxt}%</b> キープ中<span class="goal-sub"> ・ Sまであと${need}問</span>`
-        : `正確さ <b>${pctTxt}%</b> キープ中<span class="goal-sub"> → ランクUP</span>`;
-    }
+    // すでにSならこれ以上のランクはない。Aなら次はSに必要な正解数を示す
+    const tail = cur === "S" ? "・Sランク達成中" : cur === "A" ? `・Sまで${need}問` : "→ ランクUP";
+    html = tight
+      ? `<b>${pctTxt}%</b> ${tail}`
+      : `正確さ <b>${pctTxt}%</b> キープ中<span class="goal-sub"> ${tail}</span>`;
     pct = 100;
   } else {
     const g = nextGoal(c, w, categories.length);
@@ -2031,9 +2038,16 @@ function spawnWord(presetX, presetData) {
       if (delay <= 0) {
         attachHint(wordDiv, false);
       } else if (isFinite(delay)) {
+        if (!hintTipShown) {
+          hintTipShown = true;
+          showMicroFeedback({ body: "ヒントが出るのがゆっくりになったよ。すぐ見たい時はタイルをタップ", ms: 2400 });
+        }
         wordDiv._hintTimer = setTimeout(() => {
           if (wordDiv.isConnected && wordDiv.dataset.locked === "false") attachHint(wordDiv, false);
         }, delay);
+      } else if (!hintTipShown) {
+        hintTipShown = true;
+        showMicroFeedback({ body: "この問題はもう覚えたね。ヒントが見たい時はタイルをタップ", ms: 2400 });
       }
       // Infinity のときは自動では出さない（タイルをタップすれば見られる）
     }
@@ -2204,7 +2218,8 @@ function stickWrongWord(wordElem, droppedCategory) {
 function showPairBonusEffect(x, y, addedSec) {
   const effect = document.createElement("div");
   effect.className = "pair-bonus-effect";
-  effect.textContent = addedSec > 0 ? `ペア完成！ +${addedSec}秒` : "ペア完成！";
+  const sec = Math.round(addedSec * 10) / 10;
+  effect.textContent = sec > 0 ? `ペア完成！ +${sec}秒` : "ペア完成！";
   effect.style.left = x + "px";
   effect.style.top = Math.max(0, y - 26) + "px";
   playArea.appendChild(effect);
@@ -2264,7 +2279,7 @@ function passWord(word, atY) {
   showPassNote(word.x + el.offsetWidth / 2, Math.max(0, atY - 18));
   if (!passHintShown) {
     passHintShown = true;
-    showMicroFeedback({ body: "置かないと点にならないよ。あとでもう一度出るね。", ms: 2200 });
+    showMicroFeedback({ body: "置かないと点にならないよ。でも減点もないから、迷ったら見送ってOK。あとでもう一度出るね。", ms: 2200 });
   }
   setTimeout(() => el.remove(), 520);
 }

@@ -1530,13 +1530,12 @@ h1 .sub {
   margin: 0 auto 14px;
   padding: 0; border: 0;
 }
-#modeChooser > legend {
-  float: left; width: 100%;        /* legend を通常フローに戻す */
-  margin: 0 0 8px; padding: 0;
+#modeChooser > .mode-legend {
+  grid-column: 1 / -1;             /* 見出しはグリッドの1行を全幅で使う */
+  margin: 0; padding: 0;
   font-size: 12px; font-weight: 800; letter-spacing: .14em;
   color: var(--g-muted); text-align: center;
 }
-#modeChooser::after { content: ""; display: table; clear: both; }
 
 .mode-opt {
   position: relative;
@@ -1669,13 +1668,7 @@ h1 .sub {
 }
 .v2-btn--quiet:hover { color: var(--g-text); border-color: var(--g-muted); }
 
-/* 画面が低い端末では、ボタンを下に貼り付けて常に押せるようにする */
 @media (max-height: 780px) {
-  #resultActions {
-    position: sticky; bottom: 0; z-index: 5;
-    padding: 10px 0 12px; margin-bottom: 8px;
-    background: linear-gradient(180deg, rgba(13,17,23,0) 0%, var(--g-bg) 40%);
-  }
   #replayButton { min-height: 54px; }
 }
 

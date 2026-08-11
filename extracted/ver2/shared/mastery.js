@@ -174,9 +174,23 @@ function buildDeck(gameId, items, opts) {
   }
   if (units.length > MAX_ITEMS_PER_GAME) units.length = MAX_ITEMS_PER_GAME;
 
-  /* 先生が問題を編集した場合、消えた問題の記録を掃除する */
-  const alive = new Set(units.map((u) => u.key));
-  for (const k of Object.keys(g.i)) if (!alive.has(k)) { delete g.i[k]; dirty = true; }
+  /* 使われなくなった問題の記録を掃除する。
+     ただし毎回消してはいけない。出題範囲をチェックボックスで絞るゲーム
+     （不規則動詞・＋か−・品詞カスタム・品詞プラス）では、
+     ここに渡ってくるのは「今回選ばれた範囲」だけなので、
+     外した範囲の習熟が毎回まるごと消えてしまう。
+     上限に達したときだけ、今回使わない問題から落とす。 */
+  const keys = Object.keys(g.i);
+  if (keys.length > MAX_ITEMS_PER_GAME) {
+    const alive = new Set(units.map((u) => u.key));
+    for (const k of keys) {
+      if (!alive.has(k)) {
+        delete g.i[k];
+        dirty = true;
+        if (Object.keys(g.i).length <= MAX_ITEMS_PER_GAME) break;
+      }
+    }
+  }
 
   const boost = opts.boost instanceof Set ? opts.boost : null;
   if (boost && boost.size) {

@@ -313,6 +313,7 @@ function duck() {
 export const bgm = {
   start(i) {
     if (!ready || dead || mode !== "all" || timer) return;
+    live = 0;   // onended の取りこぼしで発音数が張り付き、以後無音になるのを防ぐ
     intensity = i || 0; step = 0; walk = 2; chord = 0;
     const t = ctx.currentTime;
     padLP = ctx.createBiquadFilter();
@@ -376,6 +377,10 @@ export const bgm = {
 
 function tick() {
   if (!ctx || ctx.state !== "running") return;
+  try { scheduleAhead(); } catch (e) { /* 音でゲームを止めない */ }
+}
+
+function scheduleAhead() {
   /* タブが裏に回ると setInterval が1秒に間引かれ、戻った瞬間に数十音が一斉に鳴る。
      必ず現在時刻に貼り直す */
   if (nextT < ctx.currentTime - 0.5) nextT = ctx.currentTime + 0.05;
