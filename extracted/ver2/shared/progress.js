@@ -107,6 +107,9 @@ export const BADGES = [
   { id: "streak7",      name: "継続の達人",     desc: "7日連続でプレイ",                      icon: "🚀" },
   { id: "challenge1",   name: "本日のヒーロー", desc: "今日のチャレンジを達成",               icon: "🌟" },
   { id: "challenge10",  name: "チャレンジ王",   desc: "今日のチャレンジを10回達成",           icon: "🏆" },
+  { id: "acc_90",       name: "ていねい",       desc: "12問以上・正確さ90%以上でクリア",      icon: "◎" },
+  { id: "acc_95_20",    name: "確かな20問",     desc: "20問以上・正確さ95%以上でクリア",      icon: "◇" },
+  { id: "acc_games3",   name: "安定してる",     desc: "3つのゲームで正確さ90%以上",           icon: "≡" },
   { id: "sec_exact",    name: "ぴったり賞",     desc: "スコアがちょうど2000点",               icon: "🎁", secret: true },
   { id: "sec_review",   name: "復習マニア",     desc: "復習モードを10回完走",                 icon: "📖", secret: true },
 ];
@@ -114,16 +117,25 @@ export const BADGES = [
 /* ctx: { score, wrongCount, maxCombo } その回のプレイ内容（プレイ以外の文脈では {} ） */
 function badgeEarned(id, data, ctx) {
   // ランク系は「正解数」で判定する（1正解あたりの点数はゲームで違うため）
-  const bestCorrectAll = Math.max(0, ...Object.values(data.games).map((g) => g.bestCorrect || 0));
+  const gs = Object.values(data.games);
+  const bestCorrectAll = Math.max(0, ...gs.map((g) => g.bestCorrect || 0));
+  const bestComboAll   = Math.max(0, ...gs.map((g) => g.bestCombo   || 0));
+  const bestPerfectAll = Math.max(0, ...gs.map((g) => g.bestPerfect || 0));
   const subjCleared = Object.values(data.subjectsC || {}).filter((c) => c >= 5).length;
   switch (id) {
     case "first_clear":  return bestCorrectAll >= 5;
     case "rank_b":       return bestCorrectAll >= 12;
     case "rank_a":       return bestCorrectAll >= 20;
     case "rank_s":       return bestCorrectAll >= 30;
-    case "perfect":      return (ctx.correctCount || 0) >= 12 && ctx.wrongCount === 0;
-    case "combo30":      return (ctx.maxCombo || 0) >= 30;
-    case "combo50":      return (ctx.maxCombo || 0) >= 50;
+    // 見送り（触らずに落とす）を使えば誤答ゼロは簡単に作れてしまうので、
+    // 見送りが多い回はパーフェクト扱いにしない
+    case "perfect":      return ((ctx.correctCount || 0) >= 12 && ctx.wrongCount === 0
+                              && (ctx.skipped || 0) <= 2) || bestPerfectAll >= 12;
+    case "combo30":      return Math.max(ctx.maxCombo || 0, bestComboAll) >= 30;
+    case "combo50":      return Math.max(ctx.maxCombo || 0, bestComboAll) >= 50;
+    case "acc_90":       return gs.some((g) => (g.bestAcc   || 0) >= 90);
+    case "acc_95_20":    return gs.some((g) => (g.bestAcc20 || 0) >= 95);
+    case "acc_games3":   return gs.filter((g) => (g.bestAcc || 0) >= 90).length >= 3;
     case "subjects3":    return subjCleared >= 3;
     case "subjects_all": return subjCleared >= Object.keys(SUBJECTS).length;
     case "note10":       return data.stats.noteCleared >= 10;
@@ -208,6 +220,25 @@ export function getNoteFor(gameId) {
   return load().note.filter((n) => n.g === gameId);
 }
 
+/* 「どのゲームで」ではなく「どの分類で」つまずいているかを返す。
+   ノートには正解の分類（t）が既に入っているので、集計の仕方を変えるだけで出せる。
+   保存形式は一切変えていない。 */
+export function getWeaknessByType(limit = 6) {
+  const SEP = "\u0001";
+  const map = new Map();
+  for (const n of load().note) {
+    const k = n.g + SEP + n.t;
+    map.set(k, (map.get(k) || 0) + n.n);
+  }
+  return [...map.entries()]
+    .map(([k, count]) => {
+      const i = k.indexOf(SEP);
+      return { game: k.slice(0, i), type: k.slice(i + 1), count };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
 export function getWeakness(limit = 5) {
   // ゲームごとの間違い数を集計して多い順に返す（苦手分析）
   const map = new Map();
@@ -279,6 +310,7 @@ const MIN_DURATION = 30; // 秒
 
 export function recordPlay(info) {
   const { gameId, score, correctCount, wrongCount, maxCombo, durationSec, scorePerCorrect, wrongItems } = info;
+  const skipped = info.skipped || 0;   // 触らずに見送った数（古い呼び出しでは 0 になる）
 
   if (!validateResult({ score, correctCount, scorePerCorrect, durationSec })) {
     return { valid: false, counted: false };
@@ -300,6 +332,15 @@ export function recordPlay(info) {
   g.best = Math.max(g.best, score);
   g.bestCorrect = Math.max(g.bestCorrect || 0, correctCount);
   g.bestCombo = Math.max(g.bestCombo, maxCombo);
+  /* ★ 正確さの自己ベストも残す（追加のみ。古いデータは undefined → || 0 で読む）。
+     その回の文脈だけで判定していた称号は、条件を満たしたのに
+     ノーカウントの回だったりすると二度と取れなくなっていた。
+     記録しておけば、あとから遡って解放できる。 */
+  const answeredNow = correctCount + wrongCount;
+  const accNow = answeredNow > 0 ? Math.round((correctCount / answeredNow) * 100) : 0;
+  if (correctCount >= 12) g.bestAcc = Math.max(g.bestAcc || 0, accNow);
+  if (correctCount >= 20) g.bestAcc20 = Math.max(g.bestAcc20 || 0, accNow);
+  if (wrongCount === 0 && skipped <= 2) g.bestPerfect = Math.max(g.bestPerfect || 0, correctCount);
   data.games[gameId] = g;
   data.stats.plays++;
 
@@ -321,8 +362,17 @@ export function recordPlay(info) {
   }
 
   // XP計算（成果ベース。プレイ回数による減衰なし）
-  const noMissBonus = wrongCount === 0 && score >= 1000 ? 30 : 0;
-  let xpGained = Math.max(1, Math.round(score / 50 + noMissBonus));
+  // ノーミスは「見送りを乱用していない」ことが条件。わかる問題だけ置いて
+  // 誤答ゼロにするのは、正確さではなく回避なので
+  const noMissBonus = wrongCount === 0 && skipped <= 2 && score >= 1000 ? 30 : 0;
+  // 正確さボーナスはXPにだけ乗せる。スコアに足すと整合性チェックで
+  // プレイ丸ごと無効になるので絶対に触らない
+  const answered = correctCount + wrongCount;
+  const acc = answered > 0 ? correctCount / answered : 1;
+  const accBonus = correctCount >= 12
+    ? (acc >= 0.95 ? 40 : acc >= 0.9 ? 25 : acc >= 0.8 ? 10 : 0)
+    : 0;
+  let xpGained = Math.max(1, Math.round(score / 50 + noMissBonus + accBonus));
 
   // 今日のチャレンジ達成判定
   let challengeCleared = false;
@@ -349,7 +399,7 @@ export function recordPlay(info) {
   }
 
   // バッジ判定
-  const newBadges = evalBadges(data, { score, wrongCount, maxCombo, correctCount });
+  const newBadges = evalBadges(data, { score, wrongCount, maxCombo, correctCount, skipped });
 
   const after = levelInfo(data.xp);
   save(data);
