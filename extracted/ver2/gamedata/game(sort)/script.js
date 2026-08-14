@@ -127,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <input type="radio" name="playMode" value="slow">
         <span class="mode-body">
           <span class="mode-name">じっくりモード</span>
-          <span class="mode-desc">正解するたびに時間がふえる（最長2分）</span>
+          <span class="mode-desc">正解するたびに時間がふえる（最長5分）</span>
         </span>
       </label>`;
     row.parentNode.insertBefore(fs, row);
@@ -1130,11 +1130,11 @@ const PENALTY_TIME = 3; // ペナルティ秒数
    正確に積み上げるほど長く遊べる、という形で「正確さ」を報いる。
    得点の計算式には触れない（スコア＝正解数×配点 を崩すと記録が無効になるため）。
    加算の総量に上限を置いて、うまい子が延々と終わらなくなるのを防ぐ。 */
-/* 区切り方は「増やせる合計」ではなく「試合が終わる時刻」にする。
-   合計に上限を置くと、上限に達した時点でそれ以降の正解では
-   1秒も増えなくなり、後半は仕掛けが死んでしまう。
-   終わりの時刻で区切れば、最後の1問まで加算が効いたまま必ず終わる。 */
-const SESSION_MAX_SEC = 120;  // じっくりモードの最長プレイ時間（秒）
+/* 区切り方は「増やせる時間の合計」ではなく「1回のプレイの長さ」にする。
+   合計に上限を置くと、15〜20問ほどで上限に達し、それ以降は
+   どれだけ正解しても1秒も増えない。後半は仕掛けが死んでしまう。
+   プレイの長さで区切れば、最後の1問まで加算が効いたまま必ず終わる。 */
+const SESSION_MAX_SEC = 300;  // じっくりモードの上限（秒）＝最長5分
 const PAIR_TIME_BONUS = 2;    // ペアをそろえたときの加算（秒）
 function comboTimeBonus(combo) {
   return combo >= 10 ? 2 : combo >= 5 ? 1.5 : 1;
@@ -2717,8 +2717,8 @@ function startTimer() {
   timerIntervalId = setInterval(() => {
     remainingTime--;
     if (bonusEnabled) {
-      // 終わりの時刻に近づいたら持ち時間もそこへ収束させる。
-      // 打ち切るのではなく、残りが自然に減っていくので終わりが読める
+      // 上限に近づいたら持ち時間もそこへ収束させる。
+      // 突然打ち切るのではなく、残りが自然に減っていくので終わりが読める
       const left = Math.max(0, Math.ceil(SESSION_MAX_SEC - elapsedSec()));
       if (remainingTime > left) remainingTime = left;
     }
