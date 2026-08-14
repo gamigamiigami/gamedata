@@ -1703,3 +1703,63 @@ h1 .sub {
   animation: hint-in .22s ease-out both;
 }
 .word:has(.tile-hint--answer) { opacity: .82; }
+
+/* --- 「考え方」（スタート画面・一時停止画面） ---
+   遊ぶ前に、どう考えれば見分けられるのか／覚えるしかないのかを一度読める場所。
+   長いので折りたたみ、見出しだけでどちらのタイプか分かるようにする */
+#howToBox {
+  width: min(560px, 92vw);
+  margin: 0 auto 12px;
+  text-align: left;
+  border: 1px solid #10151d;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #262d3a 0%, #1e242f 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 0 rgba(0,0,0,.4);
+  overflow: hidden;
+}
+#howToBox > summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  font-size: 14px; font-weight: 800;
+  color: var(--g-brand);
+  -webkit-tap-highlight-color: transparent;
+}
+#howToBox > summary::-webkit-details-marker { display: none; }
+#howToBox > summary::before {
+  content: "＋"; flex: 0 0 auto;
+  font-size: 13px; font-weight: 900; color: var(--g-muted);
+}
+#howToBox[open] > summary::before { content: "−"; }
+#howToBox.is-memo > summary { color: #9fd7ff; }
+#howToBox:hover { filter: brightness(1.08); }
+
+.howto-body {
+  padding: 2px 14px 14px;
+  font-size: clamp(12.5px, 2.7vw, 14px);
+  line-height: 1.75;
+  color: #cfd5e1;
+  white-space: pre-wrap;      /* 改行をそのまま活かす */
+  word-break: break-word;
+}
+
+/* 一時停止中にも読めるようにする。詰まって手を止めた瞬間がいちばん読みたい */
+#pauseHowTo {
+  max-width: min(460px, 84vw);
+  margin: 18px auto 0;
+  text-align: left;
+  max-height: 42vh;
+  overflow-y: auto;
+  border-top: 1px solid #39404e;
+}
+.pause-howto-title {
+  margin: 14px 0 2px;
+  font-size: 12px; font-weight: 800; letter-spacing: .12em;
+  color: var(--g-muted);
+}
+#pauseHowTo .howto-body { padding: 0; }
+@media (max-height: 560px) {
+  #pauseHowTo { max-height: 30vh; margin-top: 10px; }
+}

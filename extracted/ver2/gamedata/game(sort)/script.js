@@ -11,6 +11,7 @@ import { mascotSVG, mascotComment } from "../../shared/mascot.js";
 import { createDeck, masteryFor, recordDay, todayStats, hintDelayMs, flush as masteryFlush } from "../../shared/mastery.js";
 import audio from "../../shared/audio.js";
 import { getSetting, setSetting } from "../../shared/settings.js";
+import { getHowTo } from "../../shared/howto.js";
 
 // 共有デザインCSSを注入
 (function injectDesignCSS() {
@@ -103,6 +104,26 @@ document.addEventListener("DOMContentLoaded", () => {
     header.appendChild(pauseBtn);
   }
 
+  /* スタート画面に「考え方」を置く。
+     どう考えれば見分けられるのか、それとも覚えるしかないのかを、
+     遊ぶ前に一度でも読めるようにする。長いので折りたたみにして、
+     見出しだけで「どちらのタイプか」が分かるようにした */
+  (function injectHowTo() {
+    const how = getHowTo(title);
+    if (!how || !how.think) return;
+    const anchor = document.getElementById("bonusToggleButton");
+    const row = anchor && (anchor.closest(".button-row") || anchor.parentNode);
+    if (!row || !row.parentNode) return;
+    const d = document.createElement("details");
+    d.id = "howToBox";
+    if (how.memorize) d.classList.add("is-memo");
+    d.innerHTML =
+      "<summary>" + (how.memorize ? "覚え方を見る（暗記が中心）" : "考え方を見る") + "</summary>" +
+      '<div class="howto-body"></div>';
+    d.querySelector(".howto-body").textContent = how.think;
+    row.parentNode.insertBefore(d, row);
+  })();
+
   // スタート画面：「ボーナス: OFF」という機械の言葉をやめ、
   // 何が起きるかを1行で言い切った2枚のカードから選ばせる
   (function injectModeChooser() {
@@ -171,9 +192,23 @@ document.addEventListener("DOMContentLoaded", () => {
       <p style="font-size:15px; margin:0 0 6px; letter-spacing:.3em; color:#9aa1ad; font-weight:800;">PAUSE</p>
       <p style="font-size:23px; margin:0 0 22px; color:#fed000; font-weight:900;">一時停止中</p>
       <button id="resumeButton" style="min-width:180px; height:52px; padding:0 26px; font-size:17px; cursor:pointer; background:linear-gradient(180deg,#ffe14d,#fed000); color:#1a1400; border:none; border-radius:999px; font-weight:900; box-shadow:0 4px 0 #b89600, 0 8px 20px rgba(254,208,0,.3);">▶ 再開する</button>
+      <div id="pauseHowTo"></div>
     </div>`;
   document.body.appendChild(pauseOverlay);
   pauseOverlay.querySelector("#resumeButton").addEventListener("click", resumeGame);
+  (function fillPauseHowTo() {
+    const how = getHowTo(title);
+    const box = pauseOverlay.querySelector("#pauseHowTo");
+    if (!how || !how.think || !box) return;
+    const h = document.createElement("p");
+    h.className = "pause-howto-title";
+    h.textContent = how.memorize ? "覚え方" : "考え方";
+    const b2 = document.createElement("div");
+    b2.className = "howto-body";
+    b2.textContent = how.think;
+    box.appendChild(h);
+    box.appendChild(b2);
+  })();
 
   // 結果画面を動的生成
   const resultScreen = document.createElement("div");
