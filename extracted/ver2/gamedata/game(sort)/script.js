@@ -1298,6 +1298,7 @@ let deck = null;
 let skipCount = 0;           // 触らずに落ちて「見送り」になった数（正答率には数えない）
 let passHintShown = false;   // 「見送り」の説明は1プレイ1回だけ
 let hintTipShown = false;    // 「タップでヒント」の案内も1プレイ1回だけ
+let revealTipShown = false;  // 「こたえを見た問題は数えない」の案内も1回だけ
 let bonusTimeGained = 0;     // じっくりモードで加算した時間の合計（上限管理用）
 let resolvedNotes = new Set(); // 今回のプレイで克服したノートの語（終了時にまとめて保存）
 const CONF_SEP = "\u0001";   // 混同の集計キー用の区切り
@@ -1465,6 +1466,7 @@ export function initGame(wordData, opts = {}) {
   skipCount = 0;
   passHintShown = false;
   hintTipShown = false;
+  revealTipShown = false;
   bonusTimeGained = 0;
   resolvedNotes = new Set();
   sessionConfusion = {};
@@ -2312,6 +2314,32 @@ function attachHint(el, manual) {
   }
 }
 
+/* こたえを見る。解説はたいてい正解を含むので、見た時点で
+   その問題は「今回は数えない」ことにする。だまって満点になるより誠実で、
+   「わからないなら見ていい」という許可にもなる */
+function revealAnswer(el) {
+  if (el.dataset.revealed === "1") return;
+  el.dataset.revealed = "1";
+  el.dataset.hinted = "1";
+  const s = document.createElement("small");
+  s.className = "tile-hint tile-hint--answer";
+  s.textContent = (el.dataset.type || "") + "／" + el.dataset.expl;
+  el.appendChild(s);
+  fitWordSize(el);
+  const maxLeft = playArea.clientWidth - el.offsetWidth - 4;
+  if ((parseFloat(el.style.left) || 0) > maxLeft) {
+    const nx = Math.max(4, maxLeft);
+    el.style.left = nx + "px";
+    const fw = fallingWords.find((w) => w.element === el);
+    if (fw) fw.x = nx;
+  }
+  if (!revealTipShown) {
+    revealTipShown = true;
+    showMicroFeedback({ body: "こたえを見た問題は数えないよ。あとでもう一度出るね。", ms: 2200 });
+  }
+  audio.sfx("skip");
+}
+
 function showPassNote(x, y) {
   const n = document.createElement("div");
   n.className = "pass-note";
@@ -2478,13 +2506,33 @@ function handleMouseUp(e) {
   clearColumnHighlight();
   const top = parseInt(wordElem.style.top);
 
-  /* 動かさずにタップして離した ＝ ヒントを見たい、という合図。
+  /* 動かさずにタップして離した ＝ 助けが欲しい、という合図。
      専用ボタンは作らない。横向きの盤面には常設する余地がないうえ、
-     ボタンだと「どのタイルで迷ったのか」が分からないため */
-  if (!currentDrag.moved && top < getDecisionLineY() &&
-      wordElem.dataset.hint && !wordElem.querySelector(".tile-hint")) {
-    attachHint(wordElem, true);
-    wordElem.classList.remove("dragging");
+     ボタンだと「どのタイルで迷ったのか」が分からないため。
+
+     ヒント（hint）があればそれを出す。無くても解説（explanation）があれば
+     「こたえ」として出す。ただし解説の6割強は正解の分類名をそのまま含むので、
+     見たらその問題は得点に数えない（見送りと同じ扱いにして、あとでまた出す）。 */
+  if (!currentDrag.moved && top < getDecisionLineY() && !wordElem.querySelector(".tile-hint")) {
+    if (wordElem.dataset.hint) {
+      attachHint(wordElem, true);
+      wordElem.classList.remove("dragging");
+      currentDrag = null;
+      return;
+    }
+    if (wordElem.dataset.expl) {
+      revealAnswer(wordElem);
+      wordElem.classList.remove("dragging");
+      currentDrag = null;
+      return;
+    }
+  }
+
+  // こたえを見た問題は、どこに置いても数えない（見送りと同じ扱い）
+  if (wordElem.dataset.revealed === "1" && top >= getDecisionLineY()
+      && wordElem.dataset.locked === "false" && !reviewMode) {
+    const fwR = fallingWords.find((w) => w.element === wordElem);
+    if (fwR) passWord(fwR, top);
     currentDrag = null;
     return;
   }
@@ -2619,7 +2667,8 @@ function gameLoop() {
       // ★ 見送り：一度も動かしていないタイルは正誤判定しない。
       //    今までは運よく正解の列に流れ着くと満点＋コンボが付いていた（2列のゲームなら約50%）。
       //    学習が起きていないのに報酬が出るうえ、間違いノートや習熟の記録まで汚れる。
-      if (word.element.dataset.placed !== "1" && !reviewMode) {
+      if ((word.element.dataset.placed !== "1" || word.element.dataset.revealed === "1")
+          && !reviewMode) {
         passWord(word, newY);
         return;
       }

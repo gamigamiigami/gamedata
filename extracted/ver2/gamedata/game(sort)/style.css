@@ -1692,3 +1692,14 @@ h1 .sub {
 }
 .tile-hint--asked { color: #7a6a2a; }
 @keyframes hint-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* こたえを見たタイル。ヒントとは見た目を分ける（数えられないので） */
+.tile-hint--answer {
+  display: block;
+  margin-top: 3px; padding-top: 3px;
+  border-top: 1px solid #b9a24a;
+  color: #6b5a1e; font-weight: 700;
+  white-space: normal; word-break: break-word;
+  animation: hint-in .22s ease-out both;
+}
+.word:has(.tile-hint--answer) { opacity: .82; }
