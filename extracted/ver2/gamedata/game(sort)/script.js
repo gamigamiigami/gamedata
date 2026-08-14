@@ -482,7 +482,7 @@ function showResultScreen() {
     if (accUnit) accUnit.style.display = "none";
   }
   el("resultAccSub").textContent =
-    (answered > 0 ? `こたえた${answered}問` : "") + (skipCount > 0 ? `　見送り ${skipCount}問` : "");
+    (answered > 0 ? `こたえた${answered}問` : "") + (skipCount > 0 ? `　こたえを見た ${skipCount}問` : "");
   const chip = el("resultComboChip");
   if (chip) chip.textContent = maxCombo >= 15 ? `最大コンボ ${maxCombo}` : "";
 
@@ -1215,7 +1215,7 @@ function accuracyBarFor(rank, cols) {
 }
 
 /* 正確さ ＝ 正解 ÷（正解＋誤答）。
-   見送りは分母に入れない。わからない問題を置かずに見送るのは失敗ではなく判断だから。 */
+   こたえを見た問題は分母に入れない（自力で答えた分だけで正確さを出す）。 */
 function accuracyOf(correct, wrong) {
   const answered = correct + wrong;
   return answered > 0 ? correct / answered : 1;
@@ -1295,15 +1295,14 @@ let lastPlayResult = null;   // recordPlay の結果（結果画面で使用）
 
 // ★ 出題デッキ（山札＋習熟度）。null のときは素の抽選にフォールバックする
 let deck = null;
-let skipCount = 0;           // 触らずに落ちて「見送り」になった数（正答率には数えない）
-let passHintShown = false;   // 「見送り」の説明は1プレイ1回だけ
+let skipCount = 0;           // こたえを見て「数えない」ことにした数（正答率には入れない）
 let hintTipShown = false;    // 「タップでヒント」の案内も1プレイ1回だけ
 let revealTipShown = false;  // 「こたえを見た問題は数えない」の案内も1回だけ
 let bonusTimeGained = 0;     // じっくりモードで加算した時間の合計（上限管理用）
 let resolvedNotes = new Set(); // 今回のプレイで克服したノートの語（終了時にまとめて保存）
 const CONF_SEP = "\u0001";   // 混同の集計キー用の区切り
 let sessionConfusion = {};   // 「正解の分類 → 入れた分類」の回数
-let sessionByType = {};      // 分類ごとの 正解/誤答/見送り
+let sessionByType = {};      // 分類ごとの 正解/誤答/ノーカウント
 // 仕分け列の色（style.css の .sorting-column:nth-child(10n+N) と同じ並び）。
 // 結果画面のメーターを同じ色にすれば、60秒間見ていた列と文字なしで対応づく
 const COL_COLORS = ["#4f7cff", "#2ec27e", "#ff9f43", "#a06bff", "#ff6b9d",
@@ -1464,7 +1463,6 @@ export function initGame(wordData, opts = {}) {
   wrongAnswers = [];
   stuckWrongs = [];
   skipCount = 0;
-  passHintShown = false;
   hintTipShown = false;
   revealTipShown = false;
   bonusTimeGained = 0;
@@ -1558,7 +1556,6 @@ function showTutorial(done) {
         <li><span class="n">1</span>ことばが上から落ちてくる！</li>
         <li><span class="n">2</span>ゆびでドラッグして、同じなかまの色エリアへ運ぼう</li>
         <li><span class="n">3</span>黄色いラインにとどく前に仕分け！正解でスコア＆コンボUP</li>
-        <li><span class="n">4</span>わからないものは、さわらずに見送ってOK！減点なし</li>
       </ul>
       <button class="tut-go" type="button">わかった！はじめる</button>
     </div>`;
@@ -2241,7 +2238,7 @@ function showPairBonusEffect(x, y, addedSec) {
    この“どこに入れたか”があって初めて、
    「連体詞を形容動詞と3回まちがえた」という言い方ができる
 =============================== */
-function tally(type, kind) {          // kind: "c" 正解 / "w" 誤答 / "s" 見送り
+function tally(type, kind) {          // kind: "c" 正解 / "w" 誤答 / "s" ノーカウント
   if (!type) return;
   const e = sessionByType[type] || (sessionByType[type] = { c: 0, w: 0, s: 0 });
   e[kind]++;
@@ -2267,7 +2264,7 @@ function recordWrong(wordElem, droppedCategory) {
 }
 
 /* ===============================
-   見送り（触らずに落ちたタイル）
+   数えない扱いにする（こたえを見たタイル）
    減点しない・コンボも切らない。ただし得点にもしない。
    その問題は山札に戻して、数問あとにもう一度出す
 =============================== */
@@ -2286,10 +2283,6 @@ function passWord(word, atY) {
   audio.sfx("skip");
 
   showPassNote(word.x + el.offsetWidth / 2, Math.max(0, atY - 18));
-  if (!passHintShown) {
-    passHintShown = true;
-    showMicroFeedback({ body: "置かないと点にならないよ。でも減点もないから、迷ったら見送ってOK。あとでもう一度出るね。", ms: 2200 });
-  }
   setTimeout(() => el.remove(), 520);
 }
 
@@ -2343,7 +2336,7 @@ function revealAnswer(el) {
 function showPassNote(x, y) {
   const n = document.createElement("div");
   n.className = "pass-note";
-  n.textContent = "見送り";
+  n.textContent = "カウントしない";
   n.style.left = x + "px";
   n.style.top = y + "px";
   playArea.appendChild(n);
@@ -2452,7 +2445,7 @@ function handleMouseMove(e) {
   newY = Math.max(0, Math.min(newY, playArea.clientHeight - elemHeight));
 
   // 6px以上動かしたら「自分で置いた」とみなす。
-  // ここが立っていないタイルは判定せず「見送り」にする
+  // 「自分で置いた」かどうかの記録（習熟の判断に使う）
   if (!currentDrag.moved &&
       Math.abs(newX - currentDrag.startX) + Math.abs(newY - currentDrag.startY) > 6) {
     currentDrag.moved = true;
@@ -2512,7 +2505,7 @@ function handleMouseUp(e) {
 
      ヒント（hint）があればそれを出す。無くても解説（explanation）があれば
      「こたえ」として出す。ただし解説の6割強は正解の分類名をそのまま含むので、
-     見たらその問題は得点に数えない（見送りと同じ扱いにして、あとでまた出す）。 */
+     見たらその問題は得点に数えない（あとでまた出す）。 */
   if (!currentDrag.moved && top < getDecisionLineY() && !wordElem.querySelector(".tile-hint")) {
     if (wordElem.dataset.hint) {
       attachHint(wordElem, true);
@@ -2528,7 +2521,7 @@ function handleMouseUp(e) {
     }
   }
 
-  // こたえを見た問題は、どこに置いても数えない（見送りと同じ扱い）
+  // こたえを見た問題は、どこに置いても数えない
   if (wordElem.dataset.revealed === "1" && top >= getDecisionLineY()
       && wordElem.dataset.locked === "false" && !reviewMode) {
     const fwR = fallingWords.find((w) => w.element === wordElem);
@@ -2664,11 +2657,8 @@ function gameLoop() {
       const columnIndex = Math.floor(dropX / columnWidth);
       const dropCategory = categories[columnIndex];
 
-      // ★ 見送り：一度も動かしていないタイルは正誤判定しない。
-      //    今までは運よく正解の列に流れ着くと満点＋コンボが付いていた（2列のゲームなら約50%）。
-      //    学習が起きていないのに報酬が出るうえ、間違いノートや習熟の記録まで汚れる。
-      if ((word.element.dataset.placed !== "1" || word.element.dataset.revealed === "1")
-          && !reviewMode) {
+      // こたえを見たタイルだけは正誤判定しない（見てから置けば満点、を防ぐ）
+      if (word.element.dataset.revealed === "1" && !reviewMode) {
         passWord(word, newY);
         return;
       }

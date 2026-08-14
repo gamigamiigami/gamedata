@@ -741,6 +741,14 @@
     </div>
     
     <!-- 外部ファイルから問題データを読み込み -->
+    <!-- 共通モジュールを橋渡しする。本体は onclick 属性を多用しているため
+         module 化できない（module のスコープは window に出ず、全ボタンが黙って壊れる） -->
+    <script type="module">
+      import * as v2p from "../../shared/progress.js";
+      import audio from "../../shared/audio.js";
+      window.__v2p = v2p;
+      window.__audio = audio;
+    </script>
     <script src="questions.js"></script>
     
     <script>
@@ -761,6 +769,9 @@
         let timeRemaining = 60;
         let buttonsDisabled = false;
         let streak = 0; // 連続正解数
+
+        /* 共通の進捗エンジン（XP・称号・連続日数）へ渡す集計 */
+        let v2Correct = 0, v2Wrong = 0, v2MaxStreak = 0;
         let gameStarted = false; // ゲーム開始フラグ
         
         const TIME_LIMITS = { 1: 60, 2: 60, 3: 60, 4: 60 };
@@ -860,6 +871,22 @@
         }
         
         function showGameOver() {
+            window.__audio?.sfx("gameover");
+            /* ★ 共通の進捗エンジンに記録。得点の作り方が
+               「問題数×レベル×100＋コンボ」で共通エンジンと違うので freeScore */
+            try {
+                window.__v2p?.recordPlay({
+                    gameId: "用言の活用パズル Pro",
+                    score,
+                    correctCount: v2Correct,
+                    wrongCount: v2Wrong,
+                    maxCombo: v2MaxStreak,
+                    durationSec: 60,
+                    scorePerCorrect: 100,
+                    freeScore: true,
+                    wrongItems: [],
+                });
+            } catch (e) {}
             const m = document.getElementById("message");
             m.innerHTML = `
                 <div style="text-align: center;">
@@ -1593,6 +1620,8 @@
             if (allCorrect) {
                 // 連続正解カウント
                 streak++;
+                v2Correct++;
+                if (streak > v2MaxStreak) v2MaxStreak = streak;
                 updateStreakDisplay();
                 
                 // コンボボーナス
@@ -1617,6 +1646,8 @@
             } else {
                 // 連続正解リセット
                 streak = 0;
+                v2Wrong++;
+                window.__audio?.sfx("wrong");
                 updateStreakDisplay();
                 
                 addPenaltyTime();
@@ -1643,6 +1674,7 @@
         
         // 正解エフェクト：紙吹雪
         function celebrateCorrect() {
+            window.__audio?.sfx("correct", typeof streak !== "undefined" ? streak : 0);
             const container = document.getElementById('confetti-container');
             const colors = ['#ff6b6b', '#feca57', '#48dbfb', '#ff9ff3', '#54a0ff', '#5f27cd'];
             
@@ -1700,6 +1732,7 @@
         }
         
         function showCountdown() {
+            window.__audio?.unlock();   // 音はユーザー操作の中で起動する
             const overlay = document.getElementById('countdown-overlay');
             const number = document.getElementById('countdown-number');
             const message = document.getElementById('countdown-message');

@@ -296,8 +296,12 @@ export function recordReviewComplete() {
 /* ---------- スコア整合性チェック（チート対策） ----------
    エンジン内で score は「正解数 × scorePerCorrect」でしか増えないため、
    一致しないスコアは不正（または異常状態）として拒否する */
-export function validateResult({ score, correctCount, scorePerCorrect, durationSec }) {
-  if (score !== correctCount * scorePerCorrect) return false;
+export function validateResult({ score, correctCount, scorePerCorrect, durationSec, freeScore }) {
+  /* freeScore: 得点の作り方が「正解数×配点」ではないゲーム用の逃げ道。
+     竹の節（1切り50点＋収穫100点）や活用パズル（レベル×問題数）が該当する。
+     この検査はランキング不正を止めるためのもので、
+     得点の作り方が違うだけのゲームまで弾くのは筋が違う。 */
+  if (!freeScore && score !== correctCount * scorePerCorrect) return false;
   if (durationSec < 5) return false;
   // 落下ゲームの物理的な上限（余裕をみて1秒3問まで）を超える正解数は不可能
   if (correctCount > durationSec * 3 + 5) return false;
@@ -312,7 +316,7 @@ export function recordPlay(info) {
   const { gameId, score, correctCount, wrongCount, maxCombo, durationSec, scorePerCorrect, wrongItems } = info;
   const skipped = info.skipped || 0;   // 触らずに見送った数（古い呼び出しでは 0 になる）
 
-  if (!validateResult({ score, correctCount, scorePerCorrect, durationSec })) {
+  if (!validateResult({ score, correctCount, scorePerCorrect, durationSec, freeScore: info.freeScore })) {
     return { valid: false, counted: false };
   }
 
