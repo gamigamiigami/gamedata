@@ -7,6 +7,11 @@
 // ★ ver2 進捗エンジン＆マスコット（import.meta.url 基準なのでHTML側の変更不要）
 import * as v2p from "../../shared/progress.js";
 import { mascotSVG, mascotComment } from "../../shared/mascot.js";
+// ★ 出題エンジン（山札＋習熟度）と 音（Web Audio 合成）
+import { createDeck, masteryFor, recordDay, todayStats, hintDelayMs, flush as masteryFlush } from "../../shared/mastery.js";
+import audio from "../../shared/audio.js";
+import { getSetting, setSetting } from "../../shared/settings.js";
+import { getHowTo } from "../../shared/howto.js";
 
 // 共有デザインCSSを注入
 (function injectDesignCSS() {
@@ -54,15 +59,109 @@ document.addEventListener("DOMContentLoaded", () => {
     if (rc) rc.insertBefore(badge, rc.firstChild);
   })();
 
-  // ポーズボタンをヘッダーに動的生成
+  // ヘッダーに「目標バー」「音」「ポーズ」を動的生成（HTML側は全ゲーム無改修）
   const header = document.getElementById("header");
   if (header) {
+    // 最大コンボはプレイ中に手の打ちようがない数字なので、HUDからは下ろす。
+    // （変数は残すので結果画面と称号判定はそのまま動く）
+    header.classList.add("hud-lean");
+
+    // 目標バー：HUDが「いまの数字」なら、こちらは「次の一手」
+    const goal = document.createElement("div");
+    goal.id = "goalBar";
+    goal.setAttribute("role", "status");
+    goal.setAttribute("aria-live", "polite");
+    goal.innerHTML = '<span class="goal-main"></span><span class="goal-track"><i class="goal-fill"></i></span>';
+    header.appendChild(goal);
+
+    // 音：教室やバスの中で、止めるのにポーズを挟ませない。1タップで循環
+    const sndBtn = document.createElement("button");
+    sndBtn.id = "soundButton";
+    sndBtn.type = "button";
+    const paintSound = () => {
+      const m = audio.getMode();
+      sndBtn.dataset.mode = m;
+      // 3状態を色だけで区別させない。字形も変える
+      sndBtn.textContent = m === "all" ? "♪" : m === "sfx" ? "♩" : "×";
+      sndBtn.setAttribute("aria-label", audio.modeLabel());
+      sndBtn.title = audio.modeLabel();
+    };
+    paintSound();
+    sndBtn.addEventListener("click", () => {
+      audio.unlock();
+      const m = audio.nextMode();
+      paintSound();
+      if (m === "all" && !gameOver && !isPaused && gameLoopId) audio.bgm.start(Math.min(1, correctCount / 30));
+      if (m !== "off") audio.sfx("tick");
+      showSoundToast(audio.modeLabel());
+    });
+    header.appendChild(sndBtn);
+
     const pauseBtn = document.createElement("button");
     pauseBtn.id = "pauseButton";
     pauseBtn.textContent = "⏸";
     pauseBtn.addEventListener("click", pauseGame);
     header.appendChild(pauseBtn);
   }
+
+  /* スタート画面に「考え方」を置く。
+     どう考えれば見分けられるのか、それとも覚えるしかないのかを、
+     遊ぶ前に一度でも読めるようにする。長いので折りたたみにして、
+     見出しだけで「どちらのタイプか」が分かるようにした */
+  (function injectHowTo() {
+    const how = getHowTo(title);
+    if (!how || !how.think) return;
+    const anchor = document.getElementById("bonusToggleButton");
+    const row = anchor && (anchor.closest(".button-row") || anchor.parentNode);
+    if (!row || !row.parentNode) return;
+    const d = document.createElement("details");
+    d.id = "howToBox";
+    if (how.memorize) d.classList.add("is-memo");
+    d.innerHTML =
+      "<summary>" + (how.memorize ? "覚え方を見る（暗記が中心）" : "考え方を見る") + "</summary>" +
+      '<div class="howto-body"></div>';
+    d.querySelector(".howto-body").textContent = how.think;
+    row.parentNode.insertBefore(d, row);
+  })();
+
+  // スタート画面：「ボーナス: OFF」という機械の言葉をやめ、
+  // 何が起きるかを1行で言い切った2枚のカードから選ばせる
+  (function injectModeChooser() {
+    const old = document.getElementById("bonusToggleButton");
+    if (!old) return;
+    const row = old.closest(".button-row") || old.parentNode;
+    if (!row || !row.parentNode) return;
+    const fs = document.createElement("div");
+    fs.id = "modeChooser";
+    fs.setAttribute("role", "radiogroup");
+    fs.setAttribute("aria-label", "モードをえらぶ");
+    fs.innerHTML = `
+      <p class="mode-legend">モードをえらぶ</p>
+      <label class="mode-opt">
+        <input type="radio" name="playMode" value="challenge">
+        <span class="mode-body">
+          <span class="mode-name">60秒チャレンジ</span>
+          <span class="mode-desc">60秒でどこまで正解できるか</span>
+        </span>
+      </label>
+      <label class="mode-opt">
+        <input type="radio" name="playMode" value="slow">
+        <span class="mode-body">
+          <span class="mode-name">じっくりモード</span>
+          <span class="mode-desc">正解するたびに時間がふえる（最長5分）</span>
+        </span>
+      </label>`;
+    row.parentNode.insertBefore(fs, row);
+    fs.addEventListener("change", (e) => {
+      if (e.target.name === "playMode") setPlayMode(e.target.value);
+    });
+    const cur = bonusEnabled ? "slow" : "challenge";
+    fs.querySelectorAll(".mode-opt").forEach((elm) => {
+      const on = elm.querySelector("input").value === cur;
+      elm.classList.toggle("is-on", on);
+      elm.querySelector("input").checked = on;
+    });
+  })();
 
   // ★ スタート画面に弱点特訓ボタンを注入（ノートに問題がある時だけ表示）
   (function () {
@@ -74,7 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
     tk.id = "tokkunButton";
     tk.className = "v2-btn v2-btn--ghost";
     tk.style.cssText = "margin:10px auto 0; display:" + (count > 0 ? "inline-flex" : "none") + "; border-color:#fed000; color:#fed000;";
-    tk.textContent = `🎯 弱点特訓（${count}問）`;
+    tk.textContent = `弱点特訓（${count}問）`;
     tk.addEventListener("click", () => {
       tokkunPending = true;
       startBtn.click();
@@ -93,9 +192,23 @@ document.addEventListener("DOMContentLoaded", () => {
       <p style="font-size:15px; margin:0 0 6px; letter-spacing:.3em; color:#9aa1ad; font-weight:800;">PAUSE</p>
       <p style="font-size:23px; margin:0 0 22px; color:#fed000; font-weight:900;">一時停止中</p>
       <button id="resumeButton" style="min-width:180px; height:52px; padding:0 26px; font-size:17px; cursor:pointer; background:linear-gradient(180deg,#ffe14d,#fed000); color:#1a1400; border:none; border-radius:999px; font-weight:900; box-shadow:0 4px 0 #b89600, 0 8px 20px rgba(254,208,0,.3);">▶ 再開する</button>
+      <div id="pauseHowTo"></div>
     </div>`;
   document.body.appendChild(pauseOverlay);
   pauseOverlay.querySelector("#resumeButton").addEventListener("click", resumeGame);
+  (function fillPauseHowTo() {
+    const how = getHowTo(title);
+    const box = pauseOverlay.querySelector("#pauseHowTo");
+    if (!how || !how.think || !box) return;
+    const h = document.createElement("p");
+    h.className = "pause-howto-title";
+    h.textContent = how.memorize ? "覚え方" : "考え方";
+    const b2 = document.createElement("div");
+    b2.className = "howto-body";
+    b2.textContent = how.think;
+    box.appendChild(h);
+    box.appendChild(b2);
+  })();
 
   // 結果画面を動的生成
   const resultScreen = document.createElement("div");
@@ -119,16 +232,15 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="v2-result-row" style="animation-delay:.05s;">
         <span>正解数</span><span><b id="resultCorrectCount">0</b> 問</span>
       </div>
-      <div class="v2-result-row" style="animation-delay:.05s;">
-        <span>スコア</span>
-        <span><b id="resultScore">0</b> <span id="resultBestDiff" class="v2-plus"></span></span>
+      <div class="v2-result-row" style="animation-delay:.1s;">
+        <span>正確さ</span>
+        <span><b id="resultAccuracy">0</b><span class="v2-unit">%</span><span id="resultAccSub" class="v2-sub"></span></span>
       </div>
       <div class="v2-result-row" style="animation-delay:.15s;">
-        <span>最大コンボ</span><b id="resultMaxCombo"></b>
+        <span>スコア</span>
+        <span><b id="resultScore">0</b> <span id="resultBestDiff" class="v2-plus"></span><span id="resultComboChip" class="v2-sub"></span></span>
       </div>
-      <div class="v2-result-row" style="animation-delay:.25s;">
-        <span>間違えた問題</span><span><b id="resultWrongCount"></b> 問</span>
-      </div>
+      <p id="resultTrend" class="v2-trend"></p>
       <div id="resultXpArea" style="margin-top:14px; display:none;">
         <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;">
           <span id="resultLevelLabel" style="font-weight:700; color:var(--c-brand,#fed000);"></span>
@@ -139,15 +251,27 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
       <p id="resultNotice" style="display:none; font-size:13px; color:var(--c-muted,#9aa1ad); background:var(--c-bg-deep,#0e1013); border-radius:10px; padding:10px 12px; margin:14px 0 0;"></p>
     </div>
+    <div id="masteryCard" class="v2-card" style="max-width:520px; margin:14px auto 0; text-align:left; display:none;">
+      <p class="v2-section-title" style="margin-bottom:2px;">わかってきた度</p>
+      <p class="mst-sub">くり返すほど育つよ</p>
+      <ul id="masteryList" class="mst-list"></ul>
+      <p id="masteryTip" class="mst-tip" style="display:none;"></p>
+    </div>
+    <div id="resultActions">
+      <button id="replayButton" class="v2-btn v2-btn--primary">
+        <span class="ra-main">もう1回</span><span class="ra-mode" id="replayModeLabel"></span>
+      </button>
+      <button id="reviewButton" class="v2-btn v2-btn--study">
+        <span class="ra-main">間違えた問題を復習</span><span class="ra-count" id="reviewCountLabel"></span>
+      </button>
+      <button id="resultReturnButton" class="v2-btn v2-btn--quiet">スタートに戻る</button>
+    </div>
     <div id="wrongListContainer" style="max-height:280px; overflow-y:auto; margin:14px auto 0; width:90%; max-width:520px; background:var(--c-surface,#1f2229); border:1px solid var(--c-line,#3a3f4b); border-radius:16px; padding:12px 16px; text-align:left;">
       <h3 style="color:#fed000; margin:0 0 10px; text-align:center; font-size:16px;">間違えた問題（間違いノートに記録）</h3>
       <ul id="wrongList" style="list-style:none; padding:0; margin:0;"></ul>
-    </div>
-    <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:16px;">
-      <button id="reviewButton" class="v2-btn v2-btn--primary">📝 復習モード</button>
-      <button id="resultReturnButton" class="v2-btn v2-btn--ghost">スタートに戻る</button>
     </div>`;
   document.body.appendChild(resultScreen);
+  resultScreen.querySelector("#replayButton").addEventListener("click", replayGame);
   resultScreen.querySelector("#reviewButton").addEventListener("click", startReviewMode);
   resultScreen.querySelector("#resultReturnButton").addEventListener("click", () => {
     resultScreen.style.display = "none";
@@ -212,7 +336,7 @@ function refreshRankingView() {
   }
   if (chip) {
     chip.textContent =
-      (bonusEnabled ? "ボーナスON" : "ボーナスOFF") + " ・ " +
+      (bonusEnabled ? "じっくり" : "60秒") + " ・ " +
       (showingAltRanking ? altRankingLabel() : "自分のベスト");
   }
 }
@@ -296,6 +420,7 @@ function pauseGame() {
   isPaused = true;
   cancelAnimationFrame(gameLoopId);
   clearInterval(timerIntervalId);
+  audio.bgm.pause();
   const ol = document.getElementById("pauseOverlay");
   if (ol) { ol.style.display = "flex"; }
 }
@@ -307,6 +432,7 @@ function resumeGame() {
   lastSpawnTime = Date.now();
   const ol = document.getElementById("pauseOverlay");
   if (ol) { ol.style.display = "none"; }
+  audio.bgm.resume();
   gameLoopId = requestAnimationFrame(gameLoop);
   startTimer();
 }
@@ -336,6 +462,8 @@ let reviewIndex = 0;
 
 /* 紙吹雪エフェクト */
 function spawnConfetti() {
+  // 動きを減らしたい人には出さない（CSSだけでは要素の生成自体は止まらない）
+  try { if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch (e) {}
   const colors = ["#fed000", "#ff6b6b", "#58b7ff", "#3ecf8e", "#c792ea"];
   const wrap = document.createElement("div");
   wrap.className = "v2-confetti";
@@ -374,19 +502,45 @@ function showResultScreen() {
 
   animateCount(el("resultScore"), score);
   el("resultCorrectCount").textContent = correctCount;
-  el("resultMaxCombo").textContent = maxCombo;
-  el("resultWrongCount").textContent = wrongAnswers.length;
 
-  // ランク表示（全ゲーム共通で「正解数」により判定）
-  const rank = rankFor(correctCount);
+  /* --- 正確さを主役にする ---
+     正解数は出題ペースに左右される（速い子ほど分母が増える）ので、
+     セッション間・ゲーム間で比べられるのは正確さの方 */
+  const answered = correctCount + wrongAnswers.length;
+  const accPct = answered > 0 ? Math.round((correctCount / answered) * 100) : 0;
+  const accUnit = el("resultAccuracy").nextElementSibling;
+  if (answered > 0) {
+    animateCount(el("resultAccuracy"), accPct, 700);
+    if (accUnit) accUnit.style.display = "";
+  } else {
+    el("resultAccuracy").textContent = "—";   // 1問も置いていない回に 0% と出すのは事実と違う
+    if (accUnit) accUnit.style.display = "none";
+  }
+  el("resultAccSub").textContent =
+    (answered > 0 ? `こたえた${answered}問` : "") + (skipCount > 0 ? `　こたえを見た ${skipCount}問` : "");
+  const chip = el("resultComboChip");
+  if (chip) chip.textContent = maxCombo >= 15 ? `最大コンボ ${maxCombo}` : "";
+
+  /* --- 今日の積み上げ ---
+     正答率の前日差は、1プレイ十数問では誤差の方が大きく「伸び」と呼べない。
+     自分で増やせる「今日やった数」を返すほうが、行動につながる */
+  const trend = el("resultTrend");
+  if (trend) {
+    const ts = todayStats(title);
+    trend.textContent = ts && ts.attempts > 0
+      ? `今日はここまでで ${ts.attempts}問（正解 ${ts.correct}問）`
+      : "今日はここから！";
+  }
+
+  // ランク表示（正解数 × 正確さ）
+  const rank = rankFor(correctCount, wrongAnswers.length, categories.length);
   const badge = el("resultRankBadge");
   badge.textContent = rank;
   badge.className = "rank-" + rank;
-  const next = nextRankInfo(correctCount);
+  const goal = nextGoal(correctCount, wrongAnswers.length, categories.length);
+  setTimeout(() => audio.sfx("rank", rank), 250);
   el("resultRankTitle").textContent = rank + "ランク";
-  el("resultRankDetail").textContent = next
-    ? `あと ${next.remain} 問正解で ${next.rank} ランク！`
-    : "最高ランク達成！おめでとう！";
+  el("resultRankDetail").innerHTML = rank === "S" ? "最高ランク達成！おめでとう！" : goal.text;
 
   /* --- お祝いは1プレイ最大1つ（称号 > レベルUP > 自己ベスト） --- */
   const slot = el("celebrateSlot");
@@ -405,6 +559,7 @@ function showResultScreen() {
     speech = mascotComment("badge");
   } else if (r.counted && r.levelUp) {
     celebrated = { title: "レベル" + r.levelAfter + "にアップ！", sub: "コツコツ続けるきみがすごい！" };
+    setTimeout(() => audio.sfx("levelup"), 700);
     mood = "cheer";
     speech = mascotComment("levelup", { level: r.levelAfter });
   } else if (r.counted && r.bestUpdated && r.prevBest > 0) {
@@ -420,7 +575,7 @@ function showResultScreen() {
         <p class="v2-celebrate__sub">${celebrated.sub}</p>
       </div>`;
     // 紙吹雪は本当に特別なときだけ（Sランク or 自己ベスト更新）。毎回だとありがたみがない
-    if (rankFor(correctCount) === "S" || (r.counted && r.bestUpdated && r.prevBest > 0)) {
+    if (rank === "S" || (r.counted && r.bestUpdated && r.prevBest > 0)) {
       spawnConfetti();
     }
   }
@@ -442,13 +597,13 @@ function showResultScreen() {
   if (!r.valid) {
     xpArea.style.display = "none";
     notice.style.display = "block";
-    notice.textContent = "⚠ スコアを正しく確認できなかったため、今回の記録は保存されませんでした。";
+    notice.textContent = "スコアを正しく確認できなかったため、今回の記録は保存されませんでした。";
     mood = "think";
     speech = "うーん、なにかおかしいみたい…";
   } else if (!r.counted) {
     xpArea.style.display = "none";
     notice.style.display = "block";
-    notice.textContent = "🌱 5問以上正解＆30秒以上のプレイでXPと記録がもらえるよ。じっくり挑戦してみよう！";
+    notice.textContent = "5問以上正解＆30秒以上のプレイでXPと記録がもらえるよ。じっくり挑戦してみよう！";
     mood = "think";
     speech = mascotComment("nocount");
   } else {
@@ -460,10 +615,64 @@ function showResultScreen() {
     setTimeout(() => { fill.style.width = r.levelPct + "%"; }, 150);
 
     const infoBits = [];
-    if (r.challengeCleared) infoBits.push("🎯 今日のチャレンジ達成！（+50XP）");
-    if (r.streak >= 2) infoBits.push(`🔥 ${r.streak}日連続プレイ中`);
+    if (r.challengeCleared) infoBits.push("今日のチャレンジ達成！（+50XP）");
+    if (r.streak >= 2) infoBits.push(`${r.streak}日連続プレイ中`);
     el("resultSubInfo").textContent = infoBits.join("　");
     if (r.challengeCleared) speech = mascotComment("challenge");
+  }
+
+  /* --- わかってきた度（分類ごとの習熟メーター） ---
+     「何問まちがえたか」ではなく「何を勘違いしているか」を返す唯一の場所。
+     弱い順に並べるので、一番上がそのまま次にやるべきところになる */
+  const mst = masteryFor(title, currentWordData);
+  let rows = (mst && mst.types) ? mst.types.slice() : [];
+  if (!rows.length) {                       // 保存が使えない時は今回のプレイ分だけで描く
+    rows = Object.keys(sessionByType).map((t) => {
+      const v = sessionByType[t];
+      const seen = v.c + v.w;
+      return { type: t, seen, pct: seen ? Math.round((v.c / seen) * 100) : 0 };
+    });
+  }
+  rows = rows
+    .filter((x) => categories.indexOf(x.type) >= 0 && x.seen > 0)
+    .sort((a, b) => a.pct - b.pct || b.seen - a.seen);
+
+  // 初回プレイで短いバーを5本見せるのは通知表になる。十分たまるまで出さない
+  const enough = rows.filter((x) => x.seen >= 3).length >= 2;
+  const mcard = el("masteryCard");
+  if (enough) {
+    const stateOf = (pct, seen) =>
+      seen < 3 ? "これから" : pct >= 90 && seen >= 8 ? "バッチリ"
+        : pct >= 70 ? "いい感じ" : pct >= 40 ? "あと少し" : "これから";
+    el("masteryList").innerHTML = rows.slice(0, 6).map((x) => {
+      const i = Math.max(0, categories.indexOf(x.type)) % 10;
+      return `<li class="mst-row">
+        <span class="mst-name">${escapeHTML(x.type)}</span>
+        <span class="mst-state">${stateOf(x.pct, x.seen)}</span>
+        <span class="mst-meter"><i data-w="${Math.max(3, x.pct)}" style="width:0; background:${COL_COLORS[i]};"></i></span>
+        <span class="mst-num">${x.pct}% ・ ${x.seen}問</span></li>`;
+    }).join("");
+
+    const cx = Object.entries(sessionConfusion)
+      .map(([k, n]) => { const p = k.split(CONF_SEP); return { correct: p[0], dropped: p[1], n }; })
+      .sort((a, b) => b.n - a.n);
+    const tip = el("masteryTip");
+    if (cx.length && cx[0].n >= 2) {
+      tip.textContent = `「${cx[0].correct}」を「${cx[0].dropped}」と${cx[0].n}回まちがえたよ`;
+      tip.style.display = "block";
+      if (!celebrated) speech = `「${cx[0].correct}」がねらい目だね`;
+    } else {
+      tip.style.display = "none";
+      if (!celebrated && rows.length && rows[0].seen >= 3 && rows[0].pct < 70) {
+        speech = `「${rows[0].type}」がねらい目だね`;
+      }
+    }
+    mcard.style.display = "block";
+    setTimeout(() => {
+      rs.querySelectorAll(".mst-meter i").forEach((b) => { b.style.width = b.dataset.w + "%"; });
+    }, 180);
+  } else if (mcard) {
+    mcard.style.display = "none";
   }
 
   /* --- マスコット --- */
@@ -486,17 +695,24 @@ function showResultScreen() {
     const li = document.createElement("li");
     li.style.cssText = "padding:8px 4px; border-bottom:1px dashed var(--c-line,#555); font-size:15px;";
     const countStr = wa.count > 1 ? ` <span style="color:#f90;font-weight:bold;">×${wa.count}</span>` : "";
-    const src = currentWordData.find(d => (d.word || "") === wa.word);
-    const expl = src && src.explanation
-      ? `<div style="font-size:12px; color:var(--c-muted,#9aa1ad); margin-top:3px;">💡 ${src.explanation}</div>`
-      : "";
-    li.innerHTML = `「${wa.word}」→ <strong style="color:var(--c-brand,#fed000);">${wa.correctType}</strong>${countStr}${expl}`;
+    // 解説はタイルに焼いたものを使う。word で引き直すと、
+    // 画像だけの問題では引けず、同じ語で分類が違うペアでは逆の解説を拾ってしまう
+    const expl = wa.expl ? `<div class="wrong-expl">${escapeHTML(wa.expl)}</div>` : "";
+    const put = wa.dropped && wa.dropped !== wa.correctType
+      ? `<span class="wrong-put">（${escapeHTML(wa.dropped)}に入れた）</span>` : "";
+    li.innerHTML = `「${escapeHTML(wa.word)}」→ <strong style="color:var(--c-brand,#fed000);">${escapeHTML(wa.correctType)}</strong>${countStr}${put}${expl}`;
     ul.appendChild(li);
   });
   document.getElementById("wrongListContainer").style.display = wrongAnswers.length > 0 ? "block" : "none";
 
   const reviewBtn = el("reviewButton");
-  if (reviewBtn) reviewBtn.style.display = wrongAnswers.length > 0 ? "inline-flex" : "none";
+  if (reviewBtn) {
+    el("reviewCountLabel").textContent = wrongAnswers.length + "問";
+    reviewBtn.style.display = wrongAnswers.length > 0 ? "inline-flex" : "none";
+  }
+  // 「もう1回」は同じモードで始まる。何が起きるか読めるようにモード名を添える
+  const rml = el("replayModeLabel");
+  if (rml) rml.textContent = bonusEnabled ? "じっくりモード" : "60秒チャレンジ";
   rs.style.display = "block";
 }
 
@@ -524,6 +740,9 @@ function startReviewMode() {
   if (timerDisplay) timerDisplay.textContent = "復習モード";
   if (comboDisplay) comboDisplay.textContent = "";
   if (maxComboDisplay) maxComboDisplay.textContent = "";
+  // 復習にはランクも目標もないので、目標バーは畳む
+  const gb = document.getElementById("goalBar");
+  if (gb) gb.style.display = "none";
   if (returnButton) { returnButton.textContent = "復習を終える"; returnButton._reviewMode = true; }
 
   showNextReviewWord();
@@ -595,6 +814,8 @@ function showNextReviewWord() {
    正解するとその場でノートから削除される（克服バッジには数えない）
 =============================== */
 function startTokkunMode(wordData) {
+  const gbT = document.getElementById("goalBar");
+  if (gbT) gbT.style.display = "none";   // 特訓にランクも目標もない
   let entries = [];
   try { entries = v2p.getNoteFor(title); } catch (e) {}
   const queue = [];
@@ -645,7 +866,7 @@ function updateTokkunButton() {
   let count = 0;
   try { count = v2p.getNoteFor(title).length; } catch (e) {}
   if (count > 0) {
-    btn.textContent = `🎯 弱点特訓（${count}問）`;
+    btn.textContent = `弱点特訓（${count}問）`;
     btn.style.display = "inline-flex";
   } else {
     btn.style.display = "none";
@@ -679,8 +900,15 @@ const title = (typeof window.GAME_TITLE !== "undefined" && window.GAME_TITLE)
   ? window.GAME_TITLE
   : document.querySelector("h1").textContent.trim();
 
-// ★ ボーナスON/OFFの設定 ★
+/* ★ プレイモード ★
+   「60秒チャレンジ」と「じっくりモード」の2つ。中身は従来のボーナスON/OFFと同じで、
+   じっくり＝正解するたびに持ち時間が増える。
+   これまでは読み込みのたびにOFFへ戻っていたため、じっくりで出した記録が
+   次のプレイでは別のランキングに入ってしまい「ベストが消えた」ように見えていた。
+   モードを覚えることでその食い違いも直る。
+   ランキングのキーは読み込み時点で使われるので、ここで確定させておくこと。 */
 let bonusEnabled = false;
+try { bonusEnabled = getSetting("mode") === "slow"; } catch (e) {}
 const bonusToggleButton = document.getElementById("bonusToggleButton");
 
 // ローカルストレージのキーをボーナス有無で切り替える
@@ -836,11 +1064,13 @@ async function saveToSupabase(username, score) {
 }
 
 // 特別エントリ定義（ランクの目安行。1正解100点として 30/20/12/5問 に対応）
+/* 表の中の目安行。ランクは正解数と正確さの両方で決まるようになったので、
+   「◯問正解＝このランク」とは言い切らず、点数の目安としてだけ置く */
 const specialEntries = [
-  { username: "── Sランク｜30問正解 ──", score: 3000, time: new Date("2025-02-15").getTime() },
-  { username: "── Aランク｜20問正解 ──", score: 2000, time: new Date("2025-02-15").getTime() },
-  { username: "── Bランク｜12問正解 ──", score: 1200, time: new Date("2025-02-15").getTime() },
-  { username: "── Cランク｜5問正解 ──",  score:  500, time: new Date("2025-02-15").getTime() },
+  { username: "── Sランクの目安 ──", score: 3000, time: new Date("2025-02-15").getTime() },
+  { username: "── Aランクの目安 ──", score: 2000, time: new Date("2025-02-15").getTime() },
+  { username: "── Bランクの目安 ──", score: 1200, time: new Date("2025-02-15").getTime() },
+  { username: "── Cランクの目安 ──",  score:  500, time: new Date("2025-02-15").getTime() },
 ];
 
 // 旧仕様の目安行（👆入りや旧点数のもの）を掃除する
@@ -931,6 +1161,30 @@ resetRankingButton.addEventListener("click", () => {
 const TIME_LIMIT = 60; // 制限時間（秒）
 const PENALTY_TIME = 3; // ペナルティ秒数
 
+/* --- じっくりモード（ボーナスあり）の加算時間 ---
+   正確に積み上げるほど長く遊べる、という形で「正確さ」を報いる。
+   得点の計算式には触れない（スコア＝正解数×配点 を崩すと記録が無効になるため）。
+   加算の総量に上限を置いて、うまい子が延々と終わらなくなるのを防ぐ。 */
+/* 区切り方は「増やせる時間の合計」ではなく「1回のプレイの長さ」にする。
+   合計に上限を置くと、15〜20問ほどで上限に達し、それ以降は
+   どれだけ正解しても1秒も増えない。後半は仕掛けが死んでしまう。
+   プレイの長さで区切れば、最後の1問まで加算が効いたまま必ず終わる。 */
+const SESSION_MAX_SEC = 300;  // じっくりモードの上限（秒）＝最長5分
+const PAIR_TIME_BONUS = 2;    // ペアをそろえたときの加算（秒）
+function comboTimeBonus(combo) {
+  return combo >= 10 ? 2 : combo >= 5 ? 1.5 : 1;
+}
+function elapsedSec() {
+  return playStartTime ? (Date.now() - playStartTime) / 1000 : 0;
+}
+// 終わりの時刻を越えない範囲で時間を足す。実際に足せた秒数を返す
+function grantBonusTime(sec) {
+  const left = Math.max(0, SESSION_MAX_SEC - elapsedSec());
+  const add = Math.max(0, Math.min(sec, left - remainingTime));
+  if (add > 0) { remainingTime += add; bonusTimeGained += add; }
+  return Math.round(add * 10) / 10;
+}
+
 /* --- 難易度カーブ ---
    加速も出現数も「正解数」を基準にする。
    スコア基準だと1正解あたりの点数が違うゲーム間で難易度がバラバラになるため。 */
@@ -965,8 +1219,16 @@ function lengthSpeedMultiplier(text) {
   return Math.max(0.6, Math.min(1.15, 1.15 - len * 0.02));
 }
 
-/* --- ランク基準（全ゲーム共通・正解数で判定） ---
-   1正解あたりの点数はゲームによって違うので、点数ではなく正解数で決める */
+/* --- ランク基準（全ゲーム共通・2軸） ---
+   軸① 正解数 … どこまで進めたか（従来どおり。過去の記録と地続き）
+   軸② 正確さ … どれだけ確かか
+
+   正確さは「上のランクに上がれない天井」として効くだけでなく、
+   95%以上なら1つ上へ引き上げる。天井だけにすると、
+   出題ペースの上限（1分で40問前後が限界）のせいで
+   慎重な子には上げる手段が残らず、「遅い上に減点される」だけになるため。
+
+   点数の計算式には一切触れない（スコア＝正解数×配点 が崩れると記録が無効になる）。 */
 const RANK_THRESHOLDS = [
   { rank: "S", need: 30 },
   { rank: "A", need: 20 },
@@ -974,12 +1236,73 @@ const RANK_THRESHOLDS = [
   { rank: "C", need: 5 },
   { rank: "D", need: 0 },
 ];
-function rankFor(correct) {
-  return (RANK_THRESHOLDS.find((r) => correct >= r.need) || { rank: "D" }).rank;
+const RANK_ACCURACY = { S: 0.9, A: 0.8, B: 0.7, C: 0, D: 0 };
+const PROMOTE_ACCURACY = 0.95;
+const PROMOTE_MIN_CORRECT = 12;
+
+/* 6列以上のゲームは375px幅だと1列50px前後。指のブレがそのまま誤答になるので5ポイントゆるめる。
+   （列が多いほど当てずっぽうは当たらないので、知識の面ではむしろ厳しい基準になっている） */
+function accuracyBarFor(rank, cols) {
+  const base = RANK_ACCURACY[rank] || 0;
+  if (base <= 0) return 0;
+  const n = cols || categories.length || 3;
+  return Math.max(0, base - (n >= 6 ? 0.05 : 0));
 }
-function nextRankInfo(correct) {
-  const higher = RANK_THRESHOLDS.filter((r) => correct < r.need).pop();
-  return higher ? { rank: higher.rank, remain: higher.need - correct } : null;
+
+/* 正確さ ＝ 正解 ÷（正解＋誤答）。
+   こたえを見た問題は分母に入れない（自力で答えた分だけで正確さを出す）。 */
+function accuracyOf(correct, wrong) {
+  const answered = correct + wrong;
+  return answered > 0 ? correct / answered : 1;
+}
+
+function rankFor(correct, wrong, cols) {
+  const w = wrong || 0;
+  const acc = accuracyOf(correct, w);
+  let base = RANK_THRESHOLDS.findIndex((r) => correct >= r.need);
+  if (base < 0) base = 4;
+
+  // 天井（0=S … 3=C）。5問以上正解して終えた回はCより下に落とさない
+  let ceil = 3;
+  if (acc >= accuracyBarFor("S", cols)) ceil = 0;
+  else if (acc >= accuracyBarFor("A", cols)) ceil = 1;
+  else if (acc >= accuracyBarFor("B", cols)) ceil = 2;
+
+  let idx = Math.max(base, ceil);
+  // 正確さによる昇格は A どまり。S は「30問正解かつ正確さ90%」でしか取れないままにする
+  // （正確なだけで20問そこそこでもSになると、最高ランクの意味がなくなる）
+  if (acc >= PROMOTE_ACCURACY && correct >= PROMOTE_MIN_CORRECT && idx > 1) idx -= 1;
+  return RANK_THRESHOLDS[Math.min(4, idx)].rank;
+}
+
+/* いま実際に足りていない条件を1つだけ返す。
+   正解数が足りているのに正確さで止まっている時に「あと○問」と出すと、
+   追いかけても届かない嘘の目標になってしまう */
+function nextGoal(correct, wrong, cols) {
+  const w = wrong || 0;
+  const acc = accuracyOf(correct, w);
+  const cur = rankFor(correct, w, cols);
+  if (cur === "S") return { kind: "top", rank: "S", text: "Sランク達成中" };
+
+  const curIdx = RANK_THRESHOLDS.findIndex((r) => r.rank === cur);
+  const target = RANK_THRESHOLDS[curIdx - 1];
+  // c/(c+w) >= bar  ⇔  c >= bar*w/(1-bar)
+  const needFor = (bar) => Math.max(0, Math.ceil((bar * w) / (1 - bar)) - correct);
+
+  const bar = accuracyBarFor(target.rank, cols);
+  if (bar > 0 && acc < bar) {
+    // 正確さと正解数の両方を満たす必要がある。少ない方だけを出すと、
+    // その数だけ正解しても届かない（この関数が防ぐはずだった嘘の目標そのもの）
+    const n = Math.max(1, needFor(bar), target.need - correct);
+    return { kind: "acc", rank: target.rank, remain: n, text: `あと<b>${n}</b>問正解で ${target.rank}ランク` };
+  }
+  // Aにいる時は正確さで上がれない（Sは正解数でしか届かない）ので、昇格の話はしない
+  const p = needFor(PROMOTE_ACCURACY);
+  if (cur !== "A" && correct >= PROMOTE_MIN_CORRECT && p > 0 && p <= 3) {
+    return { kind: "promo", rank: target.rank, remain: p, text: `あと<b>${p}</b>問で正確さ95% → ランクUP` };
+  }
+  const r = Math.max(0, target.need - correct);
+  return { kind: "count", rank: target.rank, remain: r, text: `${target.rank}ランクまで あと<b>${r}</b>問` };
 }
 const ROW_HEIGHT = 30;
 const SORTING_AREA_ROWS = 3;
@@ -1004,6 +1327,21 @@ let correctCount = 0;        // 正解数（スコア整合性チェックに使
 let playStartTime = 0;       // プレイ開始時刻
 let noteWords = new Set();   // 間違いノート由来の優先出題ワード
 let lastPlayResult = null;   // recordPlay の結果（結果画面で使用）
+
+// ★ 出題デッキ（山札＋習熟度）。null のときは素の抽選にフォールバックする
+let deck = null;
+let skipCount = 0;           // こたえを見て「数えない」ことにした数（正答率には入れない）
+let hintTipShown = false;    // 「タップでヒント」の案内も1プレイ1回だけ
+let revealTipShown = false;  // 「こたえを見た問題は数えない」の案内も1回だけ
+let bonusTimeGained = 0;     // じっくりモードで加算した時間の合計（上限管理用）
+let resolvedNotes = new Set(); // 今回のプレイで克服したノートの語（終了時にまとめて保存）
+const CONF_SEP = "\u0001";   // 混同の集計キー用の区切り
+let sessionConfusion = {};   // 「正解の分類 → 入れた分類」の回数
+let sessionByType = {};      // 分類ごとの 正解/誤答/ノーカウント
+// 仕分け列の色（style.css の .sorting-column:nth-child(10n+N) と同じ並び）。
+// 結果画面のメーターを同じ色にすれば、60秒間見ていた列と文字なしで対応づく
+const COL_COLORS = ["#4f7cff", "#2ec27e", "#ff9f43", "#a06bff", "#ff6b9d",
+                    "#29c7c7", "#ffd166", "#70a1ff", "#7bed9f", "#ff8c69"];
 
 // ★ 弱点特訓モード（間違いノートの問題だけを集中特訓）
 let tokkunPending = false;   // 特訓ボタン押下 → 次の initGame を特訓として開始
@@ -1050,17 +1388,25 @@ const startButton = document.getElementById("startButton");
 
 
 /* ===============================
-   ボーナスON / OFF 切り替え
+   モード切り替えの唯一の入口
+   ランキングのキーが変わるので、切り替えたら必ず表を描き直す
 =============================== */
+function setPlayMode(mode) {
+  bonusEnabled = mode === "slow";
+  try { setSetting("mode", bonusEnabled ? "slow" : "challenge"); } catch (e) {}
+  document.querySelectorAll("#modeChooser .mode-opt").forEach((elm) => {
+    const on = elm.querySelector("input").value === mode;
+    elm.classList.toggle("is-on", on);
+    elm.querySelector("input").checked = on;
+  });
+  refreshRankingView();
+}
+
+/* 旧「ボーナス: OFF」ボタンは残しておく（全ゲームのHTMLに書かれているため）。
+   CSSで隠し、押されたらモードを入れ替えるだけにする */
 if (bonusToggleButton) {
   bonusToggleButton.addEventListener("click", () => {
-    bonusEnabled = !bonusEnabled;
-
-    bonusToggleButton.textContent =
-      bonusEnabled ? "ボーナス: ON" : "ボーナス: OFF";
-
-    // ボーナス有無でランキングのキーが変わるので必ず描画し直す
-    refreshRankingView();
+    setPlayMode(bonusEnabled ? "challenge" : "slow");
   });
 }
 
@@ -1069,7 +1415,23 @@ if (bonusToggleButton) {
 /* ===============================
    ゲーム初期化（外部公開）
 =============================== */
+/* 「もう1回」用に、最初に渡された出題データとオプションを控えておく。
+   currentWordData は途中で加工されるので再利用できない */
+let lastGameArgs = null;
+
+function replayGame() {
+  const rs = document.getElementById("resultScreen");
+  if (!lastGameArgs) {
+    if (rs) rs.style.display = "none";
+    document.getElementById("startScreen").style.display = "block";
+    return;
+  }
+  initGame(lastGameArgs.wordData, lastGameArgs.opts);
+}
+
 export function initGame(wordData, opts = {}) {
+  audio.unlock();   // 必ずクリック操作の中で呼ぶ（iOSはこれ以外で音を出せない）
+  if (!tokkunPending) lastGameArgs = { wordData, opts };   // 特訓は「もう1回」の対象外
   // ペアゲーム（品詞比較など）：[{a,b}] を1枚ずつのタイルに展開して同じ pairId を持たせる
   pairMode = !!opts.pairMode;
   pairBonus = opts.pairBonus || 150;
@@ -1088,20 +1450,14 @@ export function initGame(wordData, opts = {}) {
   );
   currentWordData = wordData;
 
-  // ★ 間違いノートの問題を優先出題（重み付け: ノート内の問題を3倍の確率で出す）
+  // ★ 間違いノートの問題を集める。
+  //    以前は同じ問題を配列に3回積んで確率を上げていたが、それだと
+  //    「全問が一巡してから繰り返す」という山札の保証が崩れるので、
+  //    出題側（mastery.js）に「優先して前方に置く語」として渡す方式に変えた。
   noteWords = new Set();
   try {
-    const noteEntries = v2p.getNoteFor(title);
-    if (noteEntries.length > 0) {
-      const weighted = [...wordData];
-      for (const n of noteEntries) {
-        const item = wordData.find(w => (w.word || "") === n.w);
-        if (item) {
-          noteWords.add(n.w);
-          weighted.push(item, item, item);
-        }
-      }
-      currentWordData = weighted;
+    for (const n of v2p.getNoteFor(title)) {
+      if (wordData.some((w) => (w.word || "") === n.w)) noteWords.add(n.w);
     }
   } catch (e) { /* 進捗データ異常時もゲーム自体は動かす */ }
   // 列の並び順：opts.categoryOrder があればそれを優先（品詞選択ゲーム用）
@@ -1141,12 +1497,31 @@ export function initGame(wordData, opts = {}) {
   maxCombo = 0;
   wrongAnswers = [];
   stuckWrongs = [];
+  skipCount = 0;
+  hintTipShown = false;
+  revealTipShown = false;
+  bonusTimeGained = 0;
+  resolvedNotes = new Set();
+  sessionConfusion = {};
+  sessionByType = {};
+  clearTimeout(microTimer);
+  microPending = null;
   isPaused = false;
   reviewMode = false;
 
+  const gb = document.getElementById("goalBar");
+  if (gb) gb.style.display = "";     // 復習から戻ったときのために戻す
   updateComboDisplay();
+  updateGoalBar();
 
   fallingWords = [];
+
+  // ★ 山札を作る。ペアゲームはペア単位で配る。
+  //    ノートの語は間引かず前方に寄せてもらう（旧・3倍水増しの置き換え）
+  deck = createDeck(title, currentWordData, {
+    groupKey: pairMode ? "pairId" : null,
+    boost: noteWords,
+  });
 
   lastSpawnTime = Date.now() - BASE_SPAWN_INTERVAL;
   lastFrameTime = Date.now();
@@ -1183,6 +1558,7 @@ function startPlay() {
   lastSpawnTime = Date.now() - BASE_SPAWN_INTERVAL;
   lastFrameTime = Date.now();
   playStartTime = Date.now(); // イントロ時間はプレイ時間に含めない
+  audio.bgm.start(0);
   gameLoopId = requestAnimationFrame(gameLoop);
   startTimer();
 }
@@ -1252,9 +1628,11 @@ function runCountdown(done) {
     step--;
     if (step > 0) {
       num.textContent = step;
+      audio.sfx("tick");
       num.style.animation = "none"; void num.offsetWidth; num.style.animation = "";
     } else if (step === 0) {
       num.textContent = "GO!";
+      audio.sfx("go");
       num.classList.add("go");
       num.style.animation = "none"; void num.offsetWidth; num.style.animation = "";
     } else {
@@ -1446,7 +1824,8 @@ function hudHTML(label, value) {
 }
 
 function updateTimerDisplay() {
-  timerDisplay.innerHTML = hudHTML("Time", remainingTime);
+  // じっくりモードの加算は1.5秒刻みなので、そのまま出すと「61.5」になる
+  timerDisplay.innerHTML = hudHTML("Time", Math.max(0, Math.ceil(remainingTime)));
   // 残り10秒で点滅して緊張感を出す
   timerDisplay.classList.toggle("hurry", remainingTime <= 10 && remainingTime > 0);
 }
@@ -1462,10 +1841,82 @@ function updateComboDisplay() {
   if (currentCombo > 0 && currentCombo % 15 === 0) {
     comboDisplay.classList.add("combo-effect-50");
     setTimeout(() => comboDisplay.classList.remove("combo-effect-50"), 700);
+    audio.sfx("combo", currentCombo);
   } else if (currentCombo > 0 && currentCombo % 5 === 0) {
     comboDisplay.classList.add("combo-effect");
     setTimeout(() => comboDisplay.classList.remove("combo-effect"), 500);
+    audio.sfx("combo", currentCombo);
   }
+}
+
+/* ===============================
+   目標バー
+   HUDが「いまの数字」なら、こちらは「次に何をすればいいか」。
+   実際に足りていない条件だけを出す（正解数が足りているのに
+   正確さで止まっている時に「あと○問」と出すと、追っても届かない嘘になる）
+=============================== */
+/* 狭い場所用の短い言い回し。ランク名は必ず残す（そこが読めないと意味がない） */
+function compactGoal(g) {
+  if (g.kind === "top") return "Sランク達成中";
+  if (g.kind === "acc") return `あと<b>${g.remain}</b>問で${g.rank}`;
+  if (g.kind === "promo") return `あと<b>${g.remain}</b>問でランクUP`;
+  return `${g.rank}まで<b>${g.remain}</b>問`;
+}
+
+function updateGoalBar() {
+  const bar = document.getElementById("goalBar");
+  if (!bar || reviewMode) return;
+  const c = correctCount;
+  const w = wrongAnswers.length;
+  const acc = accuracyOf(c, w);
+  const main = bar.querySelector(".goal-main");
+  const fill = bar.querySelector(".goal-fill");
+
+  // 横向きスマホでは幅が狭く、末尾のランク名が切れて肝心なことが読めない。
+  // 短い言い回しに切り替える
+  const tight = window.innerHeight <= 560;
+
+  let keep = false, html, pct;
+  if (c < 5) {
+    // 最初の20秒ずっと「Dランク」を見せられるのは、情報ゼロで気分だけ削る
+    html = tight ? '<b>5</b>問でCランク' : 'まず <b>5</b>問正解で Cランク';
+    pct = (c / 5) * 100;
+  } else if (acc >= PROMOTE_ACCURACY && c >= PROMOTE_MIN_CORRECT) {
+    keep = true;
+    // Aまで上がりきったら「ランクUP」ではなく、次はSに必要な正解数を示す
+    const cur = rankFor(c, w, categories.length);
+    const need = Math.max(0, 30 - c);
+    const pctTxt = Math.round(acc * 100);
+    // すでにSならこれ以上のランクはない。Aなら次はSに必要な正解数を示す
+    const tail = cur === "S" ? "・Sランク達成中" : cur === "A" ? `・Sまで${need}問` : "→ ランクUP";
+    html = tight
+      ? `<b>${pctTxt}%</b> ${tail}`
+      : `正確さ <b>${pctTxt}%</b> キープ中<span class="goal-sub"> ${tail}</span>`;
+    pct = 100;
+  } else {
+    const g = nextGoal(c, w, categories.length);
+    html = tight ? compactGoal(g) : g.text;
+    const t = RANK_THRESHOLDS.find((r) => r.rank === g.rank);
+    pct = t && t.need ? Math.min(100, (c / t.need) * 100) : 100;
+  }
+  main.innerHTML = html;
+  fill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+  bar.classList.toggle("is-keep", keep);
+}
+
+/* 音の状態を短く知らせる。設定画面を開かせない */
+let soundToastTimer = null;
+function showSoundToast(text) {
+  let t = document.getElementById("soundToast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "soundToast";
+    document.body.appendChild(t);
+  }
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(soundToastTimer);
+  soundToastTimer = setTimeout(() => t.classList.remove("show"), 1200);
 }
 
 
@@ -1561,12 +2012,20 @@ function buildTileHTML(sentence, word) {
    単語 / 画像 共通生成（画像ロード待ち対応）
 =============================== */
 function spawnWord(presetX, presetData) {
+  // 山札から引く。デッキが無い/壊れた場合だけ従来の抽選に落ちる
   const data =
-    presetData || currentWordData[Math.floor(Math.random() * currentWordData.length)];
+    presetData ||
+    (deck && deck.next()) ||
+    currentWordData[Math.floor(Math.random() * currentWordData.length)];
 
   const wordDiv = document.createElement("div");
   wordDiv.classList.add("word");
   wordDiv.dataset.type = data.type;
+  wordDiv._mItem = data;   // 習熟度の記録用。dataset にすると属性化のコストが乗る
+  // 解説はここでタイルに焼き付ける。
+  // 結果画面で word 一致から引き直していたため、word を持たない画像問題では常に出ず、
+  // 品詞比較のように同じ語で分類が違うペアでは逆の解説を引くことがあった
+  if (data.explanation) wordDiv.dataset.expl = data.explanation;
   wordDiv.id = generateUniqueId();
   wordDiv.dataset.locked = "false";
   wordDiv.dataset.penalized = "false";
@@ -1606,12 +2065,32 @@ function spawnWord(presetX, presetData) {
     wordDiv.style.whiteSpace = "nowrap";
     contentReadyPromise = Promise.resolve();
   } else {
-    // 補助表示（英単語の意味など）があれば小さく添える
+    wordDiv.textContent = data.word;
+    /* 補助表示（英単語の意味など）は「出す／出さない」ではなく「遅らせる」。
+       すぐ出すと思い出す前に答えが見えてしまい、消すと詰まった子が困る。
+       覚えてきた問題ほど遅らせて、最後は自分から見に行く形にする。
+       data.hintRequired が true のデータは、ヒント無しでは解けないので常に即出し。 */
     if (data.hint) {
-      wordDiv.innerHTML =
-        `${escapeHTML(data.word)}<small class="tile-hint">${escapeHTML(data.hint)}</small>`;
-    } else {
-      wordDiv.textContent = data.word;
+      wordDiv.dataset.hint = data.hint;
+      let delay = 0;
+      if (data.hintRequired !== true) {
+        try { delay = hintDelayMs(title, data); } catch (e) { delay = 0; }
+      }
+      if (delay <= 0) {
+        attachHint(wordDiv, false);
+      } else if (isFinite(delay)) {
+        if (!hintTipShown) {
+          hintTipShown = true;
+          showMicroFeedback({ body: "ヒントが出るのがゆっくりになったよ。すぐ見たい時はタイルをタップ", ms: 2400 });
+        }
+        wordDiv._hintTimer = setTimeout(() => {
+          if (wordDiv.isConnected && wordDiv.dataset.locked === "false") attachHint(wordDiv, false);
+        }, delay);
+      } else if (!hintTipShown) {
+        hintTipShown = true;
+        showMicroFeedback({ body: "この問題はもう覚えたね。ヒントが見たい時はタイルをタップ", ms: 2400 });
+      }
+      // Infinity のときは自動では出さない（タイルをタップすれば見られる）
     }
     wordDiv.dataset.word = data.word;
     wordDiv.style.whiteSpace = "nowrap";
@@ -1669,35 +2148,46 @@ function spawnWord(presetX, presetData) {
 function lockWord(wordElem, dropCategory) {
   if (wordElem.dataset.locked === "true") return;
   wordElem.dataset.locked = "true";
+  clearTimeout(wordElem._hintTimer);
 
   const correct = wordElem.dataset.type === dropCategory;
   if (correct) {
     wordElem.classList.add("correct");
     score += scorePerCorrect;
     correctCount++;
-    // ★ 間違いノートの問題に正解 → 克服（通常プレイのみカウント）
+    tally(wordElem.dataset.type, "c");
+    if (deck) deck.recordAnswer(wordElem._mItem, true, wordElem.dataset.hinted === "1" ? "hinted" : undefined);
+    // ★ 間違いノートの問題に正解 → 克服。
+    //    書き込みはプレイ中に行わず endGame でまとめる（1問ごとに保存すると
+    //    進捗データ全体の読み書きが毎回走ってカクつくため）
     if (!reviewMode && wordElem.dataset.word && noteWords.has(wordElem.dataset.word)) {
       noteWords.delete(wordElem.dataset.word);
-      try { v2p.noteResolve(title, wordElem.dataset.word, true); } catch (e) {}
-    }
-    if (bonusEnabled) {
-      remainingTime += 1;
+      resolvedNotes.add(wordElem.dataset.word);
     }
     // COMBO処理：正解なら＋1して更新
     currentCombo++;
     if (currentCombo > maxCombo) {
       maxCombo = currentCombo;
     }
-    // ペアの両方をそろえたらボーナス
+    // じっくりモードの加算時間。連続正解が伸びるほど増える＝正確さがそのまま持ち時間になる
+    if (bonusEnabled) grantBonusTime(comboTimeBonus(currentCombo));
+    audio.sfx("correct", currentCombo);
+    audio.bgm.setIntensity(Math.min(1, correctCount / 30));
+    // ペアの両方をそろえたら称える。
+    // ここで score を足すと「スコア＝正解数×配点」が崩れて
+    // プレイ全体が不正判定になる（品詞比較が丸ごと無効化されていた原因）ので、
+    // 得点ではなく「時間」と「演出」で返す。
     if (pairMode && wordElem.dataset.pairId !== undefined) {
       const pid = wordElem.dataset.pairId;
       pairProgress[pid] = (pairProgress[pid] || 0) + 1;
       if (pairProgress[pid] === 2) {
-        score += pairBonus;
-        showPairBonusEffect(parseInt(wordElem.style.left) || 0, parseInt(wordElem.style.top) || 0);
+        const got = bonusEnabled ? grantBonusTime(PAIR_TIME_BONUS) : 0;
+        showPairBonusEffect(parseInt(wordElem.style.left) || 0, parseInt(wordElem.style.top) || 0, got);
+        audio.sfx("combo", currentCombo);
       }
     }
     updateComboDisplay();
+    updateGoalBar();
     updateTimerDisplay();
     updateScoreDisplay();
     setTimeout(() => {
@@ -1716,6 +2206,7 @@ const MAX_STUCK_ROWS = 3;    // 1列に積み上げる段数の上限
 let stuckWrongs = [];
 
 function stickWrongWord(wordElem, droppedCategory) {
+  clearTimeout(wordElem._hintTimer);
   wordElem.classList.remove("dragging");
   wordElem.classList.add("stuck");
   wordElem.dataset.locked = "true";
@@ -1750,17 +2241,191 @@ function stickWrongWord(wordElem, droppedCategory) {
     old.element.classList.add("fading");
     setTimeout(() => old.element.remove(), 500);
   }
+
+  /* 間違えたその場で「本当はどれか」と、あれば一言解説を出す。
+     結果画面まで待たせると、いちばん学べる瞬間を逃してしまう。
+     解説が無いデータの方が多いので、その場合は
+     「選んだほうを名指しで否定する」形にする（何と何の区別なのかが伝わる） */
+  if (wordElem.dataset.fedback !== "1") {
+    wordElem.dataset.fedback = "1";
+    showMicroFeedback({
+      head: wordElem.dataset.type || "",
+      body: wordElem.dataset.expl || `「${droppedCategory}」ではないよ`,
+    });
+  }
 }
 
-/* ペア完成ボーナスの表示 */
-function showPairBonusEffect(x, y) {
+/* ペア完成の表示。得点ではなく「そろえられた」という事実と、じっくりモードなら加算時間を返す */
+function showPairBonusEffect(x, y, addedSec) {
   const effect = document.createElement("div");
   effect.className = "pair-bonus-effect";
-  effect.textContent = `ペア完成! +${pairBonus}`;
+  const sec = Math.round(addedSec * 10) / 10;
+  effect.textContent = sec > 0 ? `ペア完成！ +${sec}秒` : "ペア完成！";
   effect.style.left = x + "px";
   effect.style.top = Math.max(0, y - 26) + "px";
   playArea.appendChild(effect);
   setTimeout(() => effect.remove(), 1200);
+}
+
+/* ===============================
+   誤答を1か所で記録する
+   「何を」「本当はどこか」に加えて「どこに入れたか」を残す。
+   この“どこに入れたか”があって初めて、
+   「連体詞を形容動詞と3回まちがえた」という言い方ができる
+=============================== */
+function tally(type, kind) {          // kind: "c" 正解 / "w" 誤答 / "s" ノーカウント
+  if (!type) return;
+  const e = sessionByType[type] || (sessionByType[type] = { c: 0, w: 0, s: 0 });
+  e[kind]++;
+}
+
+function recordWrong(wordElem, droppedCategory) {
+  const correctType = wordElem.dataset.type || "";
+  tally(correctType, "w");
+  wrongAnswers.push({
+    word: wordElem.dataset.word || wordElem.textContent || correctType,
+    sentence: wordElem.dataset.sentence || "",
+    correctType,
+    dropped: droppedCategory || "",
+    expl: wordElem.dataset.expl || "",
+  });
+  if (droppedCategory && droppedCategory !== correctType) {
+    const k = correctType + CONF_SEP + droppedCategory;
+    sessionConfusion[k] = (sessionConfusion[k] || 0) + 1;
+  }
+  if (deck) deck.recordAnswer(wordElem._mItem, false, "drop");
+  audio.sfx("wrong");
+  audio.buzz(18);
+}
+
+/* ===============================
+   数えない扱いにする（こたえを見たタイル）
+   減点しない・コンボも切らない。ただし得点にもしない。
+   その問題は山札に戻して、数問あとにもう一度出す
+=============================== */
+function passWord(word, atY) {
+  const el = word.element;
+  if (el.dataset.locked === "true") return;
+  el.dataset.locked = "true";
+  el.style.pointerEvents = "none";
+  clearTimeout(el._hintTimer);
+  el.classList.add("passed");
+  word.landed = true;
+  skipCount++;
+  tally(el.dataset.type, "s");
+
+  if (deck) deck.recordAnswer(el._mItem, false, "timeout");
+  audio.sfx("skip");
+
+  showPassNote(word.x + el.offsetWidth / 2, Math.max(0, atY - 18));
+  setTimeout(() => el.remove(), 520);
+}
+
+/* ヒントを実際に貼る。manual=true は自分でタップして見に行った場合。
+   自分で見に行ったことは記録しておき、その回の正解では習熟を上げない
+   （ヒントを見て解けたことを「覚えた」と数えると、足場外しが嘘になる） */
+function attachHint(el, manual) {
+  if (!el.dataset.hint || el.querySelector(".tile-hint")) return;
+  const s = document.createElement("small");
+  s.className = "tile-hint " + (manual ? "tile-hint--asked" : "tile-hint--late");
+  s.textContent = el.dataset.hint;
+  el.appendChild(s);
+  if (manual) el.dataset.hinted = "1";
+  fitWordSize(el);
+  // 後から足すと幅が変わるので、画面外へはみ出さないよう measure し直す
+  const maxLeft = playArea.clientWidth - el.offsetWidth - 4;
+  if ((parseFloat(el.style.left) || 0) > maxLeft) {
+    const nx = Math.max(4, maxLeft);
+    el.style.left = nx + "px";
+    const fw = fallingWords.find((w) => w.element === el);
+    if (fw) fw.x = nx;
+  }
+}
+
+/* こたえを見る。解説はたいてい正解を含むので、見た時点で
+   その問題は「今回は数えない」ことにする。だまって満点になるより誠実で、
+   「わからないなら見ていい」という許可にもなる */
+function revealAnswer(el) {
+  if (el.dataset.revealed === "1") return;
+  el.dataset.revealed = "1";
+  el.dataset.hinted = "1";
+  const s = document.createElement("small");
+  s.className = "tile-hint tile-hint--answer";
+  s.textContent = (el.dataset.type || "") + "／" + el.dataset.expl;
+  el.appendChild(s);
+  fitWordSize(el);
+  const maxLeft = playArea.clientWidth - el.offsetWidth - 4;
+  if ((parseFloat(el.style.left) || 0) > maxLeft) {
+    const nx = Math.max(4, maxLeft);
+    el.style.left = nx + "px";
+    const fw = fallingWords.find((w) => w.element === el);
+    if (fw) fw.x = nx;
+  }
+  if (!revealTipShown) {
+    revealTipShown = true;
+    showMicroFeedback({ body: "こたえを見た問題は数えないよ。あとでもう一度出るね。", ms: 2200 });
+  }
+  audio.sfx("skip");
+}
+
+function showPassNote(x, y) {
+  const n = document.createElement("div");
+  n.className = "pass-note";
+  n.textContent = "カウントしない";
+  n.style.left = x + "px";
+  n.style.top = y + "px";
+  playArea.appendChild(n);
+  setTimeout(() => n.remove(), 950);
+}
+
+/* ===============================
+   誤答直後のマイクロ解説
+   判定ラインのすぐ上に細い帯で出す。
+   z-index を落下タイルより下に置くことで、
+   「解説が盤面を隠さない」を重なり順そのもので保証する
+=============================== */
+let microTimer = null;
+let microShownAt = 0;
+let microPending = null;
+
+function ensureMicroStrip() {
+  let s = document.getElementById("microFeedback");
+  if (!s || !s.isConnected) {          // playArea.innerHTML="" で消えるので都度確認
+    s = document.createElement("div");
+    s.id = "microFeedback";
+    s.innerHTML = '<b class="mf-head"></b><span class="mf-body"></span>';
+    playArea.appendChild(s);
+  }
+  return s;
+}
+
+function showMicroFeedback({ head, body, ms }) {
+  const s = ensureMicroStrip();
+  const now = Date.now();
+  // 続けて間違えたとき：古い解説を積まず、最新の1件だけを見せる
+  if (s.classList.contains("show") && now - microShownAt < 500) {
+    microPending = { head, body, ms };
+    return;
+  }
+  microPending = null;
+  microShownAt = now;
+  s.querySelector(".mf-head").textContent = head || "";
+  s.querySelector(".mf-body").textContent = body || "";
+  s.style.bottom = (playArea.clientHeight - getDecisionLineY() + 6) + "px";
+  s.classList.remove("show");
+  void s.offsetWidth;
+  s.classList.add("show");
+  clearTimeout(microTimer);
+  // 解説つきは読む時間が要る。短い言い切りだけなら短く消す
+  const dur = ms || (body && body.length > 14 ? 2600 : 1400);
+  microTimer = setTimeout(() => {
+    s.classList.remove("show");
+    if (microPending) {
+      const p = microPending;
+      microPending = null;
+      setTimeout(() => showMicroFeedback(p), 180);
+    }
+  }, dur);
 }
 
 /* ===============================
@@ -1793,7 +2458,12 @@ function handleMouseDown(e) {
   const offsetX = e.clientX - rect.left;
   const offsetY = e.clientY - rect.top;
 
-  currentDrag = { element: wordElem, offsetX, offsetY };
+  currentDrag = {
+    element: wordElem, offsetX, offsetY,
+    startX: parseFloat(wordElem.style.left) || 0,
+    startY: parseFloat(wordElem.style.top) || 0,
+    moved: false,
+  };
   wordElem.classList.add("dragging");
 }
 
@@ -1808,6 +2478,14 @@ function handleMouseMove(e) {
   const elemHeight = wordElem.offsetHeight;
   newX = Math.max(0, Math.min(newX, playArea.clientWidth - elemWidth));
   newY = Math.max(0, Math.min(newY, playArea.clientHeight - elemHeight));
+
+  // 6px以上動かしたら「自分で置いた」とみなす。
+  // 「自分で置いた」かどうかの記録（習熟の判断に使う）
+  if (!currentDrag.moved &&
+      Math.abs(newX - currentDrag.startX) + Math.abs(newY - currentDrag.startY) > 6) {
+    currentDrag.moved = true;
+    wordElem.dataset.placed = "1";
+  }
 
   wordElem.style.left = newX + "px";
   wordElem.style.top = newY + "px";
@@ -1856,6 +2534,37 @@ function handleMouseUp(e) {
   clearColumnHighlight();
   const top = parseInt(wordElem.style.top);
 
+  /* 動かさずにタップして離した ＝ 助けが欲しい、という合図。
+     専用ボタンは作らない。横向きの盤面には常設する余地がないうえ、
+     ボタンだと「どのタイルで迷ったのか」が分からないため。
+
+     ヒント（hint）があればそれを出す。無くても解説（explanation）があれば
+     「こたえ」として出す。ただし解説の6割強は正解の分類名をそのまま含むので、
+     見たらその問題は得点に数えない（あとでまた出す）。 */
+  if (!currentDrag.moved && top < getDecisionLineY() && !wordElem.querySelector(".tile-hint")) {
+    if (wordElem.dataset.hint) {
+      attachHint(wordElem, true);
+      wordElem.classList.remove("dragging");
+      currentDrag = null;
+      return;
+    }
+    if (wordElem.dataset.expl) {
+      revealAnswer(wordElem);
+      wordElem.classList.remove("dragging");
+      currentDrag = null;
+      return;
+    }
+  }
+
+  // こたえを見た問題は、どこに置いても数えない
+  if (wordElem.dataset.revealed === "1" && top >= getDecisionLineY()
+      && wordElem.dataset.locked === "false" && !reviewMode) {
+    const fwR = fallingWords.find((w) => w.element === wordElem);
+    if (fwR) passWord(fwR, top);
+    currentDrag = null;
+    return;
+  }
+
   if (reviewMode) {
     if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
       const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
@@ -1901,9 +2610,15 @@ function handleMouseUp(e) {
       currentDrag = null;
       remainingTime -= PENALTY_TIME;
       wordElem.dataset.penalized = "true";
+      // 自動判定側にしか出ていなかった −3秒 の表示を、手で落とした時にも出す
+      showPenaltyEffect(
+        (parseInt(wordElem.style.left) || 0) + wordElem.offsetWidth / 2,
+        (parseInt(wordElem.style.top) || 0) - 20
+      );
       currentCombo = 0;
       updateComboDisplay();
-      wrongAnswers.push({ word: wordElem.dataset.word || wordElem.textContent || wordElem.dataset.type, sentence: wordElem.dataset.sentence || "", correctType: wordElem.dataset.type });
+      recordWrong(wordElem, dropCategory);
+      updateGoalBar();
       if (remainingTime <= 0) {
         clearInterval(timerIntervalId);
         endGame();
@@ -1977,6 +2692,12 @@ function gameLoop() {
       const columnIndex = Math.floor(dropX / columnWidth);
       const dropCategory = categories[columnIndex];
 
+      // こたえを見たタイルだけは正誤判定しない（見てから置けば満点、を防ぐ）
+      if (word.element.dataset.revealed === "1" && !reviewMode) {
+        passWord(word, newY);
+        return;
+      }
+
       if (word.element.dataset.type === dropCategory) {
         lockWord(word.element, dropCategory);
         return;
@@ -1995,7 +2716,8 @@ function gameLoop() {
           showPenaltyEffect(effectX, effectY);
           currentCombo = 0;
           updateComboDisplay();
-          wrongAnswers.push({ word: word.element.dataset.word || word.element.textContent || word.element.dataset.type, sentence: word.element.dataset.sentence || "", correctType: word.element.dataset.type });
+          recordWrong(word.element, dropCategory);
+          updateGoalBar();
           if (remainingTime <= 0 && !gameOver) {
             endGame();
             return;
@@ -2031,8 +2753,15 @@ function gameLoop() {
     const spawnCount = currentSpawnCount();
     if (pairMode) {
       // ペアの2枚を左右に離して同時に出す（見比べさせる）
-      const ids = [...new Set(currentWordData.map((w) => w.pairId))];
-      const pid = ids[Math.floor(Math.random() * ids.length)];
+      // どのペアを出すかは山札に決めてもらう（出題の偏りをなくすため）
+      const seed = deck && deck.next();
+      let pid;
+      if (seed && seed.pairId !== undefined) {
+        pid = seed.pairId;
+      } else {
+        const ids = [...new Set(currentWordData.map((w) => w.pairId))];
+        pid = ids[Math.floor(Math.random() * ids.length)];
+      }
       const items = currentWordData.filter((w) => w.pairId === pid);
       const areaW = playArea.clientWidth;
       items.forEach((it, i) => {
@@ -2061,7 +2790,15 @@ function gameLoop() {
 function startTimer() {
   timerIntervalId = setInterval(() => {
     remainingTime--;
+    if (bonusEnabled) {
+      // 上限に近づいたら持ち時間もそこへ収束させる。
+      // 突然打ち切るのではなく、残りが自然に減っていくので終わりが読める
+      const left = Math.max(0, Math.ceil(SESSION_MAX_SEC - elapsedSec()));
+      if (remainingTime > left) remainingTime = left;
+    }
     updateTimerDisplay();
+    // このinterval は1秒に1回だけ動く。updateTimerDisplay 側に置くと正解のたびに鳴ってしまう
+    if (remainingTime <= 5 && remainingTime > 0) audio.sfx("tick");
     if (remainingTime <= 0) {
       clearInterval(timerIntervalId);
       endGame();
@@ -2080,6 +2817,18 @@ function endGame() {
   fallingWords.forEach((word) => {
     word.element.style.opacity = 0.5;
   });
+  audio.bgm.stop(0.8);
+  audio.sfx("gameover");
+
+  // 習熟データの書き出しはここで1回だけ。1問ごとに保存するとゲーム中に引っかかる
+  try { recordDay(title, correctCount + wrongAnswers.length, correctCount); } catch (e) {}
+  try { masteryFlush(); } catch (e) {}
+
+  // 克服したノートの語も、プレイ中ではなくここでまとめて反映する
+  try {
+    for (const w of resolvedNotes) v2p.noteResolve(title, w, true);
+  } catch (e) {}
+  resolvedNotes = new Set();
 
   // ★ 進捗記録（XP・称号・間違いノート・ストリーク・チャレンジ判定）
   //    スコア整合性チェックに落ちた場合はランキング保存も含め全て拒否
@@ -2090,6 +2839,7 @@ function endGame() {
       score,
       correctCount,
       wrongCount: wrongAnswers.length,
+      skipped: skipCount,
       maxCombo,
       durationSec,
       scorePerCorrect,

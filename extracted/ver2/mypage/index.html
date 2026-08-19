@@ -100,6 +100,7 @@
     }
     .weak-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 0; }
     .weak-row .name { font-size: 14px; font-weight: 700; }
+    .weak-row .name small.weak-game { display: block; font-size: 11px; font-weight: 600; color: var(--c-muted); margin-top: 2px; }
     .weak-row .cnt { font-size: 12px; color: var(--c-muted); }
     .tokkun-link {
       color: var(--c-brand);
@@ -166,6 +167,7 @@
       <p style="font-size:12px; color:var(--c-muted); margin:0 0 8px;">
         ここにある問題はゲーム中に出やすくなるよ。正解すると消えていく！
       </p>
+      <p class="v2-section-title" style="margin:14px 0 6px;">まちがえやすいところ</p>
       <div id="weakArea"></div>
       <details>
         <summary>ノートの中身をぜんぶ見る（<span id="noteTotal">0</span>問）</summary>
@@ -181,7 +183,7 @@
   </main>
 
   <script type="module">
-    import { getProgress, levelInfo, getBadgeState, getWeakness, GAME_LIST } from "../shared/progress.js";
+    import { getProgress, levelInfo, getBadgeState, getWeaknessByType, GAME_LIST } from "../shared/progress.js";
     import { mascotSVG, mascotComment } from "../shared/mascot.js";
 
     const p = getProgress();
@@ -217,11 +219,12 @@
       grid.appendChild(div);
     }
 
-    /* ③ 苦手分析 */
-    const weak = getWeakness(5);
+    /* ③ 苦手分析 — 「どのゲームで」ではなく「どの分類で」つまずいているか。
+          ゲーム名だけだと次に何を直せばいいか分からないので、概念の単位で出す */
+    const weak = getWeaknessByType(6);
     const weakArea = document.getElementById("weakArea");
     if (weak.length === 0) {
-      weakArea.innerHTML = '<p class="empty">間違いノートは空っぽ！すごい！</p>';
+      weakArea.innerHTML = '<p class="empty">まちがえやすいところは、まだないよ。ゲームで遊ぶとここに出るよ。</p>';
     } else {
       const max = weak[0].count;
       // ゲームページへの「特訓する」リンク（GAME_LISTでパスが分かるゲームのみ）
@@ -233,7 +236,7 @@
         const link = pathFor(w.game);
         return `
         <div class="weak-row">
-          <span class="name">${esc(w.game)}</span>
+          <span class="name">${esc(w.type || w.game)}<small class="weak-game">${esc(w.game)}</small></span>
           <span class="cnt">まちがい ${w.count} 回${link ? ` <a class="tokkun-link" href="${link}">特訓する →</a>` : ""}</span>
           <div class="weak-bar" style="grid-column:1/3; width:${Math.max(8, Math.round((w.count / max) * 100))}%;"></div>
         </div>`;

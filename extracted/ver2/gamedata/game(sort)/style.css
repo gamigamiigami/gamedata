@@ -265,7 +265,15 @@ h2 {
   margin-top: 18px;
 }
 
-/* \u30e9\u30f3\u30ad\u30f3\u30b0\u5207\u66ff\u306f\u5171\u901a\u30b5\u30d6\u30dc\u30bf\u30f3\u5f62\u72b6\u306e\u307e\u307e\u3001\u5b57\u8272\u3068\u7e01\u3060\u3051\u91d1\u306b\u3057\u3066\n   \u300c\u3053\u3053\u3092\u62bc\u3059\u3068\u5207\u308a\u66ff\u308f\u308b\u300d\u3053\u3068\u3092\u793a\u3059 */\n#rankingToggleButton {\n  color: var(--g-brand);\n  border-color: #4a4118;\n  margin: 10px 0 12px;\n  font-weight: 800;\n  padding: 10px 22px;\n}
+/* ランキング切替は共通サブボタン形状のまま、字色と縁だけ金にして
+   「ここを押すと切り替わる」ことを示す */
+#rankingToggleButton {
+  color: var(--g-brand);
+  border-color: #4a4118;
+  margin: 10px 0 12px;
+  font-weight: 800;
+  padding: 10px 22px;
+}
 
 /* 現在どの状態を見ているか（ボーナス有無 × 自分/みんな） */
 #rankingStateChip {
@@ -1348,4 +1356,410 @@ h1 .sub {
   width: 18px;
   height: 18px;
   accent-color: var(--g-brand);
+}
+
+/* ==========================================================
+   ここから今回の追加分
+   ・誤答直後のマイクロ解説 / 見送り
+   ・目標バー・音ボタン（HUD）
+   ・モード選択（スタート画面）
+   ・結果画面の正確さ・わかってきた度・アクション
+   既存の「彫り込まれたスロット」「成形パーツ」の作りに合わせ、
+   発光や派手なグラデーションは使わない
+   ========================================================== */
+
+/* --- 誤答直後のマイクロ解説 -----------------------------------------
+   判定ラインのすぐ上。z-index を落下タイル(2)より下に置くことで、
+   「解説が盤面を隠さない」を重なり順そのもので保証する */
+#microFeedback {
+  position: absolute;
+  left: 8px; right: 8px;
+  bottom: 96px;                 /* JSが sortingAreaHeight()+6 で上書きする */
+  z-index: 1;
+  pointer-events: none;
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 5px 10px 6px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, #232b39 0%, #171d27 100%);
+  border: 1px solid #0d1118;
+  border-left: 3px solid var(--g-brand);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 3px 0 rgba(0,0,0,.4);
+  opacity: 0; transform: translateY(6px);
+  transition: opacity .18s ease, transform .18s cubic-bezier(.2,.8,.3,1);
+}
+#microFeedback.show { opacity: 1; transform: translateY(0); }
+#microFeedback .mf-head {
+  flex: 0 0 auto; white-space: nowrap;
+  font-size: clamp(12px, 2.9vw, 15px); font-weight: 900;
+  color: var(--g-brand); text-shadow: 0 1px 0 rgba(0,0,0,.6);
+}
+#microFeedback .mf-body {
+  flex: 1 1 auto; min-width: 0;
+  font-size: clamp(11px, 2.4vw, 13px); font-weight: 600; line-height: 1.35;
+  color: #cfd5e1;
+  display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; overflow: hidden;   /* 続きは結果画面でゆっくり読める */
+}
+@media (max-height: 560px) {
+  #microFeedback { padding: 3px 8px 4px; }
+  #microFeedback .mf-body { -webkit-line-clamp: 1; }
+}
+
+/* --- 見送り。誤答の赤い演出よりはっきり静かにする。
+       この音量差そのものが「ミス」と「放置」の違いを教える --- */
+.pass-note {
+  position: absolute;
+  transform: translateX(-50%);
+  padding: 2px 9px;
+  background: rgba(20,25,34,.9);
+  border: 1px solid #3a4150;
+  border-radius: 999px;
+  color: var(--g-muted);
+  font-size: clamp(10px, 2.1vw, 12px);
+  font-weight: 800; letter-spacing: .06em;
+  white-space: nowrap; pointer-events: none; z-index: 3;
+  animation: pass-fade .95s ease-out forwards;
+}
+@keyframes pass-fade {
+  0%   { opacity: 0; transform: translate(-50%, 4px); }
+  18%  { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -14px); }
+}
+.word.passed { animation: word-pass .5s ease-in forwards; pointer-events: none; }
+.word.passed::after { display: none; }   /* 判定していないので▼マーカーを消す */
+@keyframes word-pass {
+  0%   { opacity: 1; }
+  30%  { opacity: .5; filter: grayscale(.7); }
+  100% { opacity: 0; transform: translateY(24px) scale(.94); filter: grayscale(1); }
+}
+
+/* --- HUD：最大コンボを下ろし、目標バーと音ボタンを入れる --- */
+#header { flex-wrap: wrap; row-gap: 6px; }
+#header.hud-lean #maxCombo { display: none; }
+
+#goalBar {
+  order: 9;                 /* 縦画面では常に2行目へ */
+  flex: 0 0 100%;
+  display: flex; align-items: center; gap: 10px;
+  min-width: 0; min-height: 26px;
+  padding: 5px 12px;
+  box-sizing: border-box;
+  border: 1px solid #0d1118;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #161b25 0%, #1c222e 100%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.55), inset 0 -1px 0 rgba(255,255,255,.07);
+  font-size: clamp(11px, 2.6vw, 14px);
+  font-weight: 700; letter-spacing: .02em;
+  color: #b8c0cd;
+  white-space: nowrap; overflow: hidden;
+  transition: color .25s ease, border-color .25s ease, background .25s ease;
+}
+.goal-main { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.goal-main b {
+  font-family: "Saira Condensed", var(--g-font);
+  font-size: 1.3em; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--g-brand); margin: 0 2px;
+}
+.goal-track {
+  flex: 1 1 auto; min-width: 40px; height: 4px;
+  border-radius: 999px; background: #0b0e14;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.7); overflow: hidden;
+}
+.goal-fill {
+  display: block; height: 100%; width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b89600, var(--g-brand));
+  transition: width .35s cubic-bezier(.22,1,.36,1);
+}
+/* ノーミス圏内。光らせず、面の色だけ替える */
+#goalBar.is-keep {
+  color: #cfead9; border-color: #17402f;
+  background: linear-gradient(180deg, #12271e 0%, #163024 100%);
+}
+#goalBar.is-keep .goal-main b { color: var(--g-success); }
+#goalBar.is-keep .goal-fill   { background: linear-gradient(90deg, #2a8d63, var(--g-success)); }
+
+#soundButton {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #10151d; border-radius: 10px;
+  background: linear-gradient(180deg, #343c4a 0%, #262d3a 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 2px 0 rgba(0,0,0,.45);
+  color: #cfd5e1; font-size: 19px; font-weight: 800; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#soundButton[data-mode="all"] { color: var(--g-brand); }
+#soundButton[data-mode="off"] { color: #6b7382; }
+#soundButton:active { transform: translateY(2px); box-shadow: inset 0 2px 5px rgba(0,0,0,.5); }
+
+#soundToast {
+  position: fixed; left: 50%; bottom: 22px;
+  transform: translate(-50%, 8px);
+  padding: 9px 18px; border-radius: 999px;
+  background: rgba(18,22,30,.94); border: 1px solid #39404e;
+  color: var(--g-text); font-size: 13px; font-weight: 700;
+  z-index: 300; pointer-events: none;
+  opacity: 0; transition: opacity .18s ease, transform .18s ease;
+}
+#soundToast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-height: 560px) {   /* 横向き：2行にする高さがないので1行目へ戻す */
+  #goalBar { order: 0; flex: 1 1 0; min-height: 0; padding: 5px 8px; }
+  #goalBar .goal-track, #goalBar .goal-sub { display: none; }
+  /* 横向きでも指で押す大きさは削らない（44pxはタップ領域の下限）。
+     横幅には余裕があるので、詰めるのは文字側のパディングだけにする */
+  #soundButton { font-size: 17px; }
+}
+@media (max-width: 380px) {
+  #goalBar { padding: 5px 8px; }
+  .goal-track { min-width: 26px; }
+}
+
+/* --- モード選択（スタート画面） ---
+   「ボーナス: OFF」という機械の言葉をやめ、何が起きるかを1行で言い切る --- */
+#bonusToggleButton { display: none !important; }
+
+#modeChooser {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: min(560px, 92vw);
+  margin: 0 auto 14px;
+  padding: 0; border: 0;
+}
+#modeChooser > .mode-legend {
+  grid-column: 1 / -1;             /* 見出しはグリッドの1行を全幅で使う */
+  margin: 0; padding: 0;
+  font-size: 12px; font-weight: 800; letter-spacing: .14em;
+  color: var(--g-muted); text-align: center;
+}
+
+.mode-opt {
+  position: relative;
+  display: flex; align-items: center;
+  min-height: 62px;
+  padding: 10px 12px 10px 40px;
+  border-radius: 12px; text-align: left; cursor: pointer;
+  background: linear-gradient(180deg, #343c4a 0%, #262d3a 100%);
+  border: 1px solid #10151d;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 2px 0 rgba(0,0,0,.45);
+  transition: border-color .13s ease, background .13s ease, filter .13s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.mode-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+/* ラジオの丸は自前で描く（端末ごとの見た目を持ち込まない） */
+.mode-opt::before {
+  content: ""; position: absolute; left: 13px; top: 50%;
+  transform: translateY(-50%);
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid #5b6474; background: #10151d;
+  transition: border-color .13s ease, box-shadow .13s ease;
+}
+.mode-opt:hover { filter: brightness(1.12); }
+.mode-opt:focus-within { outline: 3px solid var(--g-brand); outline-offset: 2px; }
+.mode-opt.is-on {
+  background: linear-gradient(180deg, #3a3720 0%, #2b2a1a 100%);
+  border-color: #6d5f18;
+}
+.mode-opt.is-on::before { border-color: var(--g-brand); box-shadow: inset 0 0 0 4px var(--g-brand); }
+.mode-opt.is-on .mode-name { color: var(--g-brand); }
+.mode-name {
+  display: block;
+  font-size: clamp(14px, 3.4vw, 16px); font-weight: 800;
+  color: #e8ecf3; line-height: 1.25;
+}
+.mode-desc {
+  display: block; margin-top: 3px;
+  font-size: clamp(11px, 2.6vw, 12.5px); font-weight: 500;
+  color: #98a1b0; line-height: 1.4; white-space: normal;
+}
+@media (max-width: 480px) {
+  #modeChooser { grid-template-columns: 1fr; gap: 8px; }
+  .mode-opt { min-height: 56px; }
+}
+@media (max-height: 480px) {
+  .mode-opt { min-height: 50px; padding: 8px 10px 8px 36px; }
+  .mode-desc { margin-top: 1px; }
+}
+
+/* --- 結果画面 --- */
+/* 視線の落ちる先をスコアから正確さへ移す。
+   スコアは「正解数×配点」なので、正解数以上の情報を持っていない */
+#resultScreen #resultAccuracy { color: var(--g-brand); }
+#resultScreen #resultScore    { color: var(--g-text); }
+#resultScreen .v2-sub {
+  font-family: var(--g-font); font-size: 11.5px; font-weight: 600;
+  color: var(--g-muted); margin-left: 6px;
+}
+#resultScreen .v2-unit { font-size: 14px; font-weight: 800; color: var(--g-brand); margin-left: 1px; }
+.v2-trend { margin: 8px 2px 0; font-size: 12.5px; font-weight: 700; color: var(--g-muted); }
+.wrong-expl {
+  font-size: 12px; color: var(--g-muted); margin-top: 4px;
+  padding-left: 8px; border-left: 2px solid rgba(254,208,0,.5);
+}
+.wrong-put { font-size: 11.5px; color: var(--g-muted); margin-left: 6px; }
+
+/* わかってきた度 */
+#masteryCard { background: linear-gradient(180deg,#232936,#1b2029); border: 1px solid #3d4552; }
+.mst-sub { margin: 0 0 10px; font-size: 11px; color: var(--g-muted); }
+.mst-list { list-style: none; margin: 0; padding: 0; }
+.mst-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  grid-template-areas: "name state" "meter meter" "num num";
+  gap: 3px 8px; padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.mst-row:last-child { border-bottom: none; }
+.mst-name  { grid-area: name;  font-size: 14px; font-weight: 800; color: var(--g-text); }
+.mst-state { grid-area: state; font-size: 12px; font-weight: 800; color: var(--g-muted); }
+.mst-num   { grid-area: num;   font-size: 11px; color: var(--g-muted); font-variant-numeric: tabular-nums; }
+/* 溝に色が注がれる形。XPバーと同じ言語で揃える */
+.mst-meter {
+  grid-area: meter; height: 8px; overflow: hidden;
+  background: #0e1117; border: 1px solid #0a0d12; border-radius: 999px;
+  box-shadow: inset 0 2px 3px rgba(0,0,0,.6);
+}
+.mst-meter i {
+  display: block; height: 100%; border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+  transition: width .8s cubic-bezier(.22,1,.36,1);
+}
+.mst-tip {
+  margin: 10px 0 0; padding: 8px 10px;
+  font-size: 12.5px; font-weight: 700; color: #ffd9dd;
+  background: rgba(255,93,108,.1);
+  border-left: 3px solid var(--g-danger);
+  border-radius: 0 8px 8px 0;
+}
+
+/* 結果画面のアクション。「もう1回」を主、「復習」を対等な別の選択肢に */
+#resultActions {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 10px; width: min(420px, 90vw); margin: 18px auto 22px;
+}
+#resultActions .v2-btn { width: 100%; flex-direction: column; gap: 1px; }
+#replayButton { min-height: 60px; }
+#replayButton .ra-main { font-size: 19px; font-weight: 900; letter-spacing: .05em; }
+#replayButton .ra-mode { font-size: 11px; font-weight: 700; opacity: .7; }
+
+/* 復習は「弱い選択肢」ではなく「もう1つの強い選択肢」。
+   黄色と競合しない緑で、同じ重みの2つ目として置く */
+.v2-btn--study {
+  min-height: 50px;
+  background: linear-gradient(180deg, #223a30 0%, #1b2c25 100%);
+  color: #bfe8d3;
+  border: 1px solid #2b6b4e;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 0 rgba(0,0,0,.42), 0 5px 12px rgba(0,0,0,.3);
+}
+.v2-btn--study:hover  { filter: brightness(1.15); transform: translateY(-1px); }
+.v2-btn--study:active { transform: translateY(2px); box-shadow: inset 0 2px 5px rgba(0,0,0,.5); }
+.v2-btn--study .ra-main  { font-size: 15px; font-weight: 800; }
+.v2-btn--study .ra-count { font-size: 11px; font-weight: 700; color: #7fbfa0; }
+
+/* 出口。押せるが目立たない */
+.v2-btn--quiet {
+  min-height: 44px; font-size: 14px;
+  background: none; border: 1px solid var(--g-line); color: var(--g-muted);
+  box-shadow: none;
+}
+.v2-btn--quiet:hover { color: var(--g-text); border-color: var(--g-muted); }
+
+@media (max-height: 780px) {
+  #replayButton { min-height: 54px; }
+}
+
+/* --- 動きを減らす設定への対応（これまで未対応だった） --- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --- ヒントの足場外し --------------------------------------------------
+   遅れて出たヒントと、自分でタップして呼んだヒントは、
+   最初から付いているものと見た目を変えて「支援を使った」と分かるようにする */
+.tile-hint--late, .tile-hint--asked {
+  margin-top: 3px; padding-top: 2px;
+  border-top: 1px dashed #c3c9d6;
+  animation: hint-in .22s ease-out both;
+}
+.tile-hint--asked { color: #7a6a2a; }
+@keyframes hint-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* こたえを見たタイル。ヒントとは見た目を分ける（数えられないので） */
+.tile-hint--answer {
+  display: block;
+  margin-top: 3px; padding-top: 3px;
+  border-top: 1px solid #b9a24a;
+  color: #6b5a1e; font-weight: 700;
+  white-space: normal; word-break: break-word;
+  animation: hint-in .22s ease-out both;
+}
+.word:has(.tile-hint--answer) { opacity: .82; }
+
+/* --- 「考え方」（スタート画面・一時停止画面） ---
+   遊ぶ前に、どう考えれば見分けられるのか／覚えるしかないのかを一度読める場所。
+   長いので折りたたみ、見出しだけでどちらのタイプか分かるようにする */
+#howToBox {
+  width: min(560px, 92vw);
+  margin: 0 auto 12px;
+  text-align: left;
+  border: 1px solid #10151d;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #262d3a 0%, #1e242f 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 0 rgba(0,0,0,.4);
+  overflow: hidden;
+}
+#howToBox > summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  font-size: 14px; font-weight: 800;
+  color: var(--g-brand);
+  -webkit-tap-highlight-color: transparent;
+}
+#howToBox > summary::-webkit-details-marker { display: none; }
+#howToBox > summary::before {
+  content: "＋"; flex: 0 0 auto;
+  font-size: 13px; font-weight: 900; color: var(--g-muted);
+}
+#howToBox[open] > summary::before { content: "−"; }
+#howToBox.is-memo > summary { color: #9fd7ff; }
+#howToBox:hover { filter: brightness(1.08); }
+
+.howto-body {
+  padding: 2px 14px 14px;
+  font-size: clamp(12.5px, 2.7vw, 14px);
+  line-height: 1.75;
+  color: #cfd5e1;
+  white-space: pre-wrap;      /* 改行をそのまま活かす */
+  word-break: break-word;
+}
+
+/* 一時停止中にも読めるようにする。詰まって手を止めた瞬間がいちばん読みたい */
+#pauseHowTo {
+  max-width: min(460px, 84vw);
+  margin: 18px auto 0;
+  text-align: left;
+  max-height: 42vh;
+  overflow-y: auto;
+  border-top: 1px solid #39404e;
+}
+.pause-howto-title {
+  margin: 14px 0 2px;
+  font-size: 12px; font-weight: 800; letter-spacing: .12em;
+  color: var(--g-muted);
+}
+#pauseHowTo .howto-body { padding: 0; }
+@media (max-height: 560px) {
+  #pauseHowTo { max-height: 30vh; margin-top: 10px; }
 }

@@ -1,3 +1,9 @@
+import * as v2p from "../../../shared/progress.js";
+import audio from "../../../shared/audio.js";
+
+let correctCutCount = 0;   // 正しく切れた回数（XPの記録に使う）
+let playStartAt = 0;
+
 const _AH = "bfd86db114080042e8d40ec387b2cd01ed7a9d261c2d503c17e1e724a7b303a4";
 async function _verifyPw(input) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
@@ -162,11 +168,14 @@ if (backBtn) {
  *******************************************************/
 function startGame() {
   if (questions.length === 0) return;
+  audio.unlock();   // 音は必ずユーザー操作の中で起動する（iOSの制約）
   // スタート画面を非表示にし、ゲーム中のコンテンツを表示
   startScreen.classList.add("hidden");
   gameContainerInner.classList.remove("hidden");
 
   score = 0;
+  correctCutCount = 0;
+  playStartAt = Date.now();
   timeLeft = 60;
   updateScoreDisplay();
   updateTimerDisplay();
@@ -481,6 +490,8 @@ function checkCorrect() {
     let boundary = newCuts[0];
     if (correctBoundaries.includes(boundary)) {
       playSwordEffect(letterBoundaries[boundary]);
+      audio.sfx("correct", correctCutCount);
+      correctCutCount++;
       score += 50;
       updateScoreDisplay();
       userCuts.push(boundary);
@@ -488,6 +499,8 @@ function checkCorrect() {
     }
   }
   playPenaltyEffect();
+  audio.sfx("wrong");
+  audio.buzz(18);
   timeLeft = Math.max(0, timeLeft - 5);
   updateTimerDisplay();
 }
@@ -597,6 +610,7 @@ function onHarvest() {
     }, 500);
     return;
   }
+  audio.sfx("levelup");
   score += 100;
   updateScoreDisplay();
   loadQuestion();
@@ -611,6 +625,24 @@ function endGame() {
   finalScoreDisplay.textContent = "最終スコア: " + score;
   finalRankDisplay.textContent = "ランク: " + determineRank(score);
   resultScreen.classList.remove("hidden");
+  audio.sfx("gameover");
+
+  /* ★ 共通の進捗エンジンに記録（XP・称号・連続日数・今日のチャレンジ）。
+     このゲームの得点は「1切り50点＋収穫100点」で、
+     共通エンジンの「正解数×配点」とは作りが違うので freeScore を立てる */
+  try {
+    v2p.recordPlay({
+      gameId: window.GAME_TITLE,
+      score,
+      correctCount: correctCutCount,
+      wrongCount: 0,
+      maxCombo: 0,
+      durationSec: playStartAt ? Math.round((Date.now() - playStartAt) / 1000) : 60,
+      scorePerCorrect: 50,
+      freeScore: true,
+      wrongItems: [],
+    });
+  } catch (e) {}
 
   // スコア保存
   const username = getBambooUsername();
