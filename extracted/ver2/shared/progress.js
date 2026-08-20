@@ -93,9 +93,9 @@ const MEDAL = (f) => new URL("../images/medals/" + f, import.meta.url).href;
 
 export const BADGES = [
   { id: "first_clear",  name: "はじめの一歩",   desc: "どれかのゲームで5問正解（Cランク）",   icon: "🎈" },
-  { id: "rank_b",       name: "ブロンズの腕前", desc: "12問正解（Bランク）を達成",            img: MEDAL("medal_bronze.png") },
-  { id: "rank_a",       name: "シルバーの腕前", desc: "20問正解（Aランク）を達成",            img: MEDAL("medal_silver.png") },
-  { id: "rank_s",       name: "ゴールドの腕前", desc: "30問正解（Sランク）を達成",            img: MEDAL("medal_gold.png") },
+  { id: "rank_b",       name: "ブロンズの腕前", desc: "12問正解を達成",            img: MEDAL("medal_bronze.png") },
+  { id: "rank_a",       name: "シルバーの腕前", desc: "20問正解を達成",            img: MEDAL("medal_silver.png") },
+  { id: "rank_s",       name: "ゴールドの腕前", desc: "30問正解を達成",            img: MEDAL("medal_gold.png") },
   { id: "perfect",      name: "パーフェクト",   desc: "ノーミスで12問以上正解",               icon: "✨" },
   { id: "combo30",      name: "コンボ職人",     desc: "30コンボを達成",                       icon: "🔥" },
   { id: "combo50",      name: "コンボの鬼",     desc: "50コンボを達成",                       icon: "⚡" },
