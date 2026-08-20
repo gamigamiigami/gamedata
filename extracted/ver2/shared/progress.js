@@ -92,7 +92,7 @@ export function subjectName(key) { return SUBJECTS[key] || key || ""; }
 const MEDAL = (f) => new URL("../images/medals/" + f, import.meta.url).href;
 
 export const BADGES = [
-  { id: "first_clear",  name: "はじめの一歩",   desc: "どれかのゲームで5問正解（Cランク）",   icon: "🎈" },
+  { id: "first_clear",  name: "はじめの一歩",   desc: "どれかのゲームで5問正解",   icon: "🎈" },
   { id: "rank_b",       name: "ブロンズの腕前", desc: "12問正解を達成",            img: MEDAL("medal_bronze.png") },
   { id: "rank_a",       name: "シルバーの腕前", desc: "20問正解を達成",            img: MEDAL("medal_silver.png") },
   { id: "rank_s",       name: "ゴールドの腕前", desc: "30問正解を達成",            img: MEDAL("medal_gold.png") },
