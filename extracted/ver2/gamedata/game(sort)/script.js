@@ -934,8 +934,19 @@ window.displayAltRanking = async function(limitNum = 30) {
   const schoolCode  = getSchoolCode();
 
   if (!supabase) {
-    tbody.innerHTML = "<tr><td colspan='3'>DB未接続</td></tr>";
-    return;
+    /* SDKは <script type="module"> で読み込まれるので、
+       ページを開いた直後はまだ window.supabaseClient が無いことがある。
+       そこで即あきらめず、少しだけ待ってから取り直す */
+    const late = await waitForSupabase(4000);
+    if (!late) {
+      tbody.innerHTML =
+        "<tr><td colspan='3'>ネットにつながっていないみたい<br>" +
+        "<button type='button' id='altRetryBtn' class='v2-btn v2-btn--quiet'>もう一度読み込む</button></td></tr>";
+      const rb = document.getElementById("altRetryBtn");
+      if (rb) rb.addEventListener("click", () => window.displayAltRanking(limitNum));
+      return;
+    }
+    return window.displayAltRanking(limitNum);
   }
   try {
     let query;
@@ -946,14 +957,14 @@ window.displayAltRanking = async function(limitNum = 30) {
         .eq('school_code', schoolCode)
         .eq('game_key', getFirestoreCollectionName())
         .order('score', { ascending: false })
-        .limit(limitNum * 100);
+        .limit(Math.min(1000, limitNum * 20));
     } else {
       query = supabase
         .from('global_rankings')
         .select('player, score, device_id')
         .eq('game_key', getFirestoreCollectionName())
         .order('score', { ascending: false })
-        .limit(limitNum * 100);
+        .limit(Math.min(1000, limitNum * 20));
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -973,10 +984,35 @@ window.displayAltRanking = async function(limitNum = 30) {
       tbody.innerHTML = `<tr><td colspan='3'>${label}</td></tr>`;
     }
   } catch (e) {
-    tbody.innerHTML = "<tr><td colspan='3'>取得エラー</td></tr>";
+    /* 「取得エラー」だけでは、通信が届いていないのか・データベース側が
+       止まっているのか・キーが変わったのかが誰にも分からない。
+       原因が分かる形で出して、その場でやり直せるようにする */
+    const detail = (e && (e.message || e.error_description || e.code)) || String(e);
+    tbody.innerHTML =
+      "<tr><td colspan='3'>ランキングを読み込めませんでした<br>" +
+      "<span class='alt-err'>" + escapeHtml(String(detail)).slice(0, 120) + "</span><br>" +
+      "<button type='button' id='altRetryBtn' class='v2-btn v2-btn--quiet'>もう一度読み込む</button></td></tr>";
+    const rb = document.getElementById("altRetryBtn");
+    if (rb) rb.addEventListener("click", () => window.displayAltRanking(limitNum));
     console.error("Supabase 読み込みエラー:", e);
   }
 };
+
+/* SDKの読み込みを最大 ms ミリ秒だけ待つ */
+function waitForSupabase(ms) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const id = setInterval(() => {
+      if (getSupabase()) { clearInterval(id); resolve(true); }
+      else if (Date.now() - started > ms) { clearInterval(id); resolve(false); }
+    }, 150);
+  });
+}
+
+function escapeHtml(t) {
+  return t.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
 
 /* ===============================
    EmailJS 通知設定
@@ -1205,30 +1241,77 @@ function grantBonusTime(sec) {
   return Math.round(add * 10) / 10;
 }
 
-/* --- 難易度カーブ ---
-   加速も出現数も「正解数」を基準にする。
-   スコア基準だと1正解あたりの点数が違うゲーム間で難易度がバラバラになるため。 */
-const BASE_SPAWN_INTERVAL = 1900; // 出現間隔の初期値（ms）
-const MIN_SPAWN_INTERVAL  = 1100; // 出現間隔の下限（ms）
-const MAX_SPEED_FACTOR    = 1.8;  // 落下速度の上限倍率
-const MAX_SPAWN_COUNT     = 2;    // 一度に出す最大数
+/* --- 難易度カーブ（レベル制） ---
+   基準は「正解数」。スコア基準だと1正解あたりの点数が違うゲーム間で
+   難易度がバラバラになるため。
+
+   正解を積むとレベルが上がり、一度に降ってくる数が増えていく（最大5つ）。
+   ただし数だけ増やすと単に理不尽になるので、レベルが上がるほど
+   出現の「間隔」も広げる。1秒あたりに来る枚数はなめらかに増え、
+   最高レベルでようやく毎秒2枚前後になる。 */
+const MAX_LEVEL = 5;
+const LEVEL_UP_AT = [6, 14, 24, 36];   // この正解数でレベルが1つ上がる
+
+/* レベルごとの出現間隔（ms）。[はじめ, 下限]
+   一度に出す数＝レベルなので、間隔も一緒に広げないと数だけが暴力的に増える。
+   1秒あたりの枚数： Lv1 0.5→0.9 / Lv3 1.1→1.6 / Lv5 1.5→2.0 */
+const LEVEL_INTERVAL = [
+  [1900, 1100],
+  [2300, 1500],
+  [2700, 1900],
+  [3000, 2200],
+  [3300, 2500],
+];
+const MAX_SPEED_FACTOR = 2.0;  // 落下速度の上限倍率
+
+function levelFor(correct) {
+  let lv = 1;
+  for (const n of LEVEL_UP_AT) if (correct >= n) lv++;
+  return Math.min(MAX_LEVEL, lv);
+}
+function currentLevel() { return levelFor(correctCount); }
 
 // 正解が増えるほどなめらかに加速
 function difficultyFactor() {
   return Math.min(MAX_SPEED_FACTOR, 1 + correctCount * 0.028);
 }
-// 正解が増えるほど出現間隔を短く
+// 出現間隔。レベルの中で正解を重ねるほど詰まっていく
 function currentSpawnInterval() {
-  return Math.max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - correctCount * 25);
+  const lv = currentLevel();
+  const [start, floorMs] = LEVEL_INTERVAL[lv - 1];
+  const from = LEVEL_UP_AT[lv - 2] || 0;          // このレベルに入った時の正解数
+  return Math.max(floorMs, start - (correctCount - from) * 25);
 }
-// 正解15問ごとに一度に出す数を増やす（最大2つ）
+// 一度に出す数＝レベル（1〜5）
 function currentSpawnCount() {
-  return Math.min(MAX_SPAWN_COUNT, 1 + Math.floor(correctCount / 15));
+  return currentLevel();
 }
 // 画面に出しておける未処理タイルの上限。
 // これを超えたら出題を止めるので、追いつけない子が一方的に溺れることがない
 function maxOnScreen() {
-  return Math.min(6, 3 + Math.floor(correctCount / 12));
+  return Math.min(10, 3 + currentLevel() * 2);
+}
+
+/* レベルが上がったことを、変化の中身つきで短く知らせる。
+   「急に増えた」と感じさせず「上がったから増えた」と読ませるため */
+let levelBannerTimer = null;
+function announceLevelUp(level) {
+  audio.sfx("levelup");
+  audio.bgm.setLevel(level);
+  let b = document.getElementById("levelBanner");
+  if (!b) {
+    b = document.createElement("div");
+    b.id = "levelBanner";
+    b.innerHTML = '<span class="lvb-main"></span><span class="lvb-sub"></span>';
+    playArea.appendChild(b);
+  }
+  b.querySelector(".lvb-main").textContent = "レベル " + level;
+  b.querySelector(".lvb-sub").textContent = "同時に " + level + " つ落ちてくる";
+  b.classList.remove("show");
+  void b.offsetWidth;
+  b.classList.add("show");
+  clearTimeout(levelBannerTimer);
+  levelBannerTimer = setTimeout(() => b.classList.remove("show"), 1700);
 }
 function unsortedCount() {
   return fallingWords.filter((w) => w.element && w.element.dataset.locked === "false").length;
@@ -1576,7 +1659,7 @@ export function initGame(wordData, opts = {}) {
     boost: noteWords,
   });
 
-  lastSpawnTime = Date.now() - BASE_SPAWN_INTERVAL;
+  lastSpawnTime = Date.now() - LEVEL_INTERVAL[0][0];   // 開始直後に1枚目が出るように
   lastFrameTime = Date.now();
   gameOver = false;
 
@@ -1608,7 +1691,7 @@ let introCancel = null; // Returnボタン等でイントロを中断するた�
 function startPlay() {
   introActive = false;
   introCancel = null;
-  lastSpawnTime = Date.now() - BASE_SPAWN_INTERVAL;
+  lastSpawnTime = Date.now() - LEVEL_INTERVAL[0][0];   // 開始直後に1枚目が出るように
   lastFrameTime = Date.now();
   playStartTime = Date.now(); // イントロ時間はプレイ時間に含めない
   audio.bgm.start(0);
@@ -2235,6 +2318,10 @@ function lockWord(wordElem, dropCategory) {
     wordElem.classList.add("correct");
     score += scorePerCorrect;
     correctCount++;
+    // レベルが上がった瞬間だけ知らせる。何が変わるのかも一緒に伝える
+    if (!reviewMode && levelFor(correctCount) > levelFor(correctCount - 1)) {
+      announceLevelUp(levelFor(correctCount));
+    }
     tally(wordElem.dataset.type, "c");
     if (deck) deck.recordAnswer(wordElem._mItem, true, wordElem.dataset.hinted === "1" ? "hinted" : undefined);
     // ★ 間違いノートの問題に正解 → 克服。
@@ -2936,6 +3023,8 @@ function startTimer() {
       if (remainingTime > left) remainingTime = left;
     }
     updateTimerDisplay();
+    // 残りが少なくなったらBGMを焦らせる側へ切り替える（速く・高く・刻みが硬く）
+    audio.bgm.setHurry(remainingTime <= 12 && remainingTime > 0);
     // このinterval は1秒に1回だけ動く。updateTimerDisplay 側に置くと正解のたびに鳴ってしまう
     if (remainingTime <= 5 && remainingTime > 0) audio.sfx("tick");
     if (remainingTime <= 0) {

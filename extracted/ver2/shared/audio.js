@@ -42,6 +42,10 @@ function savePrefs() {
 
 const noop = () => {};
 function release() { try { this.disconnect(); } catch (e) {} live--; }
+/* BGMの音は同時発音数に数えない。
+   数に入れると、伴奏が鳴っているだけで効果音の枠（live>14）を食いつぶし、
+   肝心の正解音・誤答音が鳴らなくなる */
+function releaseQuiet() { try { this.disconnect(); } catch (e) {} }
 
 /* ---------- 起動（必ずユーザー操作の中で呼ぶ） ---------- */
 export function unlock() {
@@ -108,7 +112,7 @@ function buildGraph() {
 }
 
 /* ---------- 発音のかたまり ---------- */
-function tone(type, f, t, cents, peak, atk, dec, dest) {
+function tone(type, f, t, cents, peak, atk, dec, dest, quiet) {
   const o = ctx.createOscillator();
   o.type = type;
   o.frequency.setValueAtTime(f, t);
@@ -118,11 +122,11 @@ function tone(type, f, t, cents, peak, atk, dec, dest) {
   a.gain.exponentialRampToValueAtTime(peak, t + atk);
   a.gain.exponentialRampToValueAtTime(0.0001, t + atk + dec);
   o.connect(a); a.connect(dest);
-  o.onended = release; live++;
+  if (quiet) { o.onended = releaseQuiet; } else { o.onended = release; live++; }
   o.start(t); o.stop(t + atk + dec + 0.02);
   return o;
 }
-function noise(t, peak, dur, type, freq, q, dest) {
+function noise(t, peak, dur, type, freq, q, dest, quiet) {
   const s = ctx.createBufferSource();
   s.buffer = noiseBuf;
   const f = ctx.createBiquadFilter();
@@ -132,7 +136,7 @@ function noise(t, peak, dur, type, freq, q, dest) {
   a.gain.exponentialRampToValueAtTime(peak, t + 0.002);
   a.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   s.connect(f); f.connect(a); a.connect(dest);
-  s.onended = release; live++;
+  if (quiet) { s.onended = releaseQuiet; } else { s.onended = release; live++; }
   s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
   return f;
 }
@@ -287,17 +291,50 @@ const VOICES = {
 /* ---------- BGM ----------
    作曲されたループではなく、継ぎ目のない生成型にする。
    60秒を何百回も遊ぶ相手に固定ループを渡すと、必ずループ点が耳につく。
-   音階はDメジャーペンタトニック、打楽器なし、音量は意図的にかなり小さい。 */
+
+   以前は3つのノコギリ波を鳴らしっぱなしにした「パッド」を敷いていたが、
+   これがローパスをゆっくり開閉する作りだったため、
+   ずっと「うーーー」と鳴る鈍いサイレンに聞こえていた。全部やめた。
+   いまは全部が短く切れる音（プラック・キック・ハイハット）でできていて、
+   伸ばしっぱなしの音は1つもない。
+
+   音階はDメジャーペンタトニック（明るく、重ねても濁らない）。
+   ・レベルが上がるほど音数と厚みが増える
+   ・残り時間が少なくなると速く・高く・詰まった感じになる（焦らせる） */
 const BGM_BASE = 0.075;
-const BPM = 84;
-const SCALE = [293.66, 329.63, 369.99, 440.0, 493.88];
-const CHORDS = [0, 3, 4, 1];
+const BPM = 112;                       // 跳ねる速さ。8分音符で刻む
+const SCALE = [293.66, 329.63, 369.99, 440.0, 493.88];   // D E F# A B
+const CHORDS = [0, 3, 4, 1];           // D → A → B → E
 
-let timer = null, nextT = 0, step = 0, intensity = 0, walk = 2, chord = 0;
-let padOsc = [], padLP = null, duckT = 0;
+/* 16ステップ（＝8分音符×16）のリズム。1が鳴るところ */
+const KICK_PAT = [1,0,0,0,0,0,1,0, 1,0,0,0,0,0,1,0];
+const HAT_PAT  = [0,1,0,1,0,1,0,1, 0,1,0,1,0,1,1,1];
+const BASS_PAT = [1,0,0,1,0,0,1,0, 1,0,0,1,0,0,1,0];
+/* メロディの密度。レベル（1〜5）ごとに鳴らすステップを増やす */
+const MELODY_PAT = [
+  [1,0,0,0,1,0,0,0, 1,0,0,0,1,0,0,0],
+  [1,0,0,1,1,0,0,0, 1,0,0,1,1,0,0,0],
+  [1,0,1,0,1,0,1,0, 1,0,1,0,1,0,1,0],
+  [1,0,1,1,1,0,1,0, 1,1,1,0,1,0,1,1],
+  [1,1,1,1,1,0,1,1, 1,1,1,0,1,1,1,1],
+];
+/* 上がっていく形と下がっていく形を交互に。単調な上昇だけにしない */
+const ARP = [0, 2, 4, 2, 1, 3, 4, 3];
 
-function bgmLevel() { return BGM_BASE * (0.5 + intensity * 0.35); }
-function stepDur() { return intensity > 0.6 ? 60 / BPM / 4 : 60 / BPM / 2; }
+let timer = null, nextT = 0, step = 0, intensity = 0, chord = 0;
+let bgmLevelNo = 1, hurry = false, duckT = 0, alive = false;
+
+/* レベルと正解数の両方から出す「勢い」。0〜1 */
+function energy() {
+  return Math.max(intensity, (bgmLevelNo - 1) / (5 - 1));
+}
+function bgmGain() {
+  return BGM_BASE * (0.6 + energy() * 0.3) * (hurry ? 1.15 : 1);
+}
+function stepDur() {
+  const bpm = BPM * (1 + energy() * 0.06) * (hurry ? 1.22 : 1);
+  return 60 / bpm / 2;                 // 8分音符
+}
 
 /* 効果音が鳴る瞬間だけBGMを少し下げる。既製の音源を並べただけに聞こえない一番の要因 */
 function duck() {
@@ -306,38 +343,18 @@ function duck() {
   if (t - duckT < 0.05) return;
   duckT = t;
   bgmBus.gain.cancelScheduledValues(t);
-  bgmBus.gain.setTargetAtTime(bgmLevel() * 0.7, t, 0.02);
-  bgmBus.gain.setTargetAtTime(bgmLevel(), t + 0.12, 0.18);
+  bgmBus.gain.setTargetAtTime(bgmGain() * 0.7, t, 0.02);
+  bgmBus.gain.setTargetAtTime(bgmGain(), t + 0.12, 0.18);
 }
 
 export const bgm = {
   start(i) {
     if (!ready || dead || mode !== "all" || timer) return;
     live = 0;   // onended の取りこぼしで発音数が張り付き、以後無音になるのを防ぐ
-    intensity = i || 0; step = 0; walk = 2; chord = 0;
+    intensity = i || 0;
+    bgmLevelNo = 1; hurry = false; step = 0; chord = 0; alive = true;
     const t = ctx.currentTime;
-    padLP = ctx.createBiquadFilter();
-    padLP.type = "lowpass";
-    padLP.frequency.value = 500;
-    padLP.Q.value = 0.5;
-    const padGain = g(0.055);
-    padLP.connect(padGain); padGain.connect(bgmBus);
-
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.07;                       // ゆっくりした呼吸
-    const lfoAmt = g(120);
-    lfo.connect(lfoAmt); lfoAmt.connect(padLP.frequency);
-    lfo.start(t);
-    padOsc = [lfo];
-    [-9, 0, 9].forEach((c) => {
-      const o = ctx.createOscillator();
-      o.type = "sawtooth";
-      o.frequency.value = SCALE[0] / 2;
-      o.detune.value = c;
-      o.connect(padLP); o.start(t);
-      padOsc.push(o);
-    });
-    bgmBus.gain.setTargetAtTime(bgmLevel(), t, 1.5);
+    bgmBus.gain.setTargetAtTime(bgmGain(), t, 0.4);
     nextT = t + 0.1;
     timer = setInterval(tick, 25);
   },
@@ -347,9 +364,8 @@ export const bgm = {
     const t = ctx.currentTime;
     const f = fade || 0.6;
     if (timer) { clearInterval(timer); timer = null; }
+    alive = false;
     if (bgmBus) bgmBus.gain.setTargetAtTime(0.0001, t, f / 3);
-    const os = padOsc; padOsc = [];
-    os.forEach((o) => { try { o.stop(t + f); } catch (e) {} });
   },
 
   pause() {
@@ -358,18 +374,33 @@ export const bgm = {
   },
 
   resume() {
-    if (!ready || mode !== "all" || timer || !padOsc.length) return;
+    if (!ready || mode !== "all" || timer || !alive) return;
     nextT = ctx.currentTime + 0.05;
-    bgmBus.gain.setTargetAtTime(bgmLevel(), ctx.currentTime, 0.3);
+    bgmBus.gain.setTargetAtTime(bgmGain(), ctx.currentTime, 0.3);
     timer = setInterval(tick, 25);
   },
 
+  /* 正解数から来るゆるやかな盛り上がり（0〜1） */
   setIntensity(i) {
     intensity = Math.max(0, Math.min(1, i));
-    if (!ready || !padLP || !timer) return;
-    const t = ctx.currentTime;
-    padLP.frequency.setTargetAtTime(500 + intensity * 400, t, 1.5);
-    bgmBus.gain.setTargetAtTime(bgmLevel(), t, 1.5);
+    if (!ready || !timer) return;
+    bgmBus.gain.setTargetAtTime(bgmGain(), ctx.currentTime, 1.0);
+  },
+
+  /* 難易度レベル（1〜5）。上がるほど音数と厚みが増える */
+  setLevel(lv) {
+    bgmLevelNo = Math.max(1, Math.min(5, lv || 1));
+    if (!ready || !timer) return;
+    bgmBus.gain.setTargetAtTime(bgmGain(), ctx.currentTime, 0.6);
+  },
+
+  /* 残り時間が少ないときの「焦らせる」切り替え */
+  setHurry(on) {
+    const v = !!on;
+    if (v === hurry) return;
+    hurry = v;
+    if (!ready || !timer) return;
+    bgmBus.gain.setTargetAtTime(bgmGain(), ctx.currentTime, 0.15);
   },
 
   get playing() { return !!timer; },
@@ -388,28 +419,65 @@ function scheduleAhead() {
   while (nextT < ahead) { schedule(step++, nextT); nextT += stepDur(); }
 }
 
-function schedule(s, t) {
-  /* 大きく跳ばないランダムウォーク＝必ず旋律として聞こえる */
-  const r = Math.random();
-  walk += r < 0.1 ? 0 : r < 0.8 ? (Math.random() < 0.5 ? 1 : -1)
-    : (Math.random() < 0.5 ? 2 : -2);
-  walk = ((walk % 5) + 5) % 5;
-  const f = SCALE[walk] * (s % 16 < 8 ? 1 : 2);
+/* 短いキック。伸びないので「鳴りっぱなし」にならない */
+function kick(t) {
+  const o = ctx.createOscillator();
+  const a = ctx.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(150, t);
+  o.frequency.exponentialRampToValueAtTime(46, t + 0.09);
+  a.gain.setValueAtTime(0.0001, t);
+  a.gain.exponentialRampToValueAtTime(0.16, t + 0.004);
+  a.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+  o.connect(a); a.connect(bgmBus);
+  o.onended = releaseQuiet;
+  o.start(t); o.stop(t + 0.18);
+}
+
+/* はじく音。減衰が速いので、重なっても濁らない */
+function pluck(f, t, peak, dur, dest) {
   const lp = ctx.createBiquadFilter();
-  lp.type = "lowpass"; lp.frequency.value = 2200;
-  lp.connect(bgmBus);
-  tone("triangle", f, t, 0, 0.05, 0.008, 0.18, lp);
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(4200, t);
+  lp.frequency.exponentialRampToValueAtTime(900, t + dur);
+  lp.connect(dest || bgmBus);
+  tone("triangle", f, t, 0, peak, 0.004, dur, lp, true);
+  tone("sine", f * 2, t, 0, peak * 0.35, 0.004, dur * 0.5, lp, true);
+}
 
-  if (s % 8 === 0) tone("sine", SCALE[CHORDS[chord]] / 2, t, 0, 0.07, 0.03, 1.4, bgmBus);
+function schedule(s, t) {
+  const i = s % 16;
+  const e = energy();
+  const lv = bgmLevelNo;
 
-  if (s % 32 === 0 && padOsc.length > 1) {         // 和音を移す（ノードは作り直さない）
-    chord = (chord + 1) % CHORDS.length;
-    const root = SCALE[CHORDS[chord]] / 2;
-    for (let i = 1; i < padOsc.length; i++) {
-      padOsc[i].frequency.setTargetAtTime(i === 2 ? root * 1.5 : root, t, 2.0);
-    }
+  // 拍。レベル1から入れて「曲」として立たせる
+  if (KICK_PAT[i]) kick(t);
+  if (HAT_PAT[i] && (lv >= 2 || i % 4 === 1)) {
+    noise(t, hurry ? 0.03 : 0.022, 0.028, "highpass", 7000, 1, bgmBus, true);
   }
-  if (intensity > 0.5 && s % 2 === 1) noise(t, 0.028, 0.035, "highpass", 6000, 1, bgmBus);
+
+  // ベース。短いプラックなので伸びない
+  if (BASS_PAT[i]) {
+    const root = SCALE[CHORDS[chord]] / 2;
+    pluck(root, t, 0.075, 0.16);
+  }
+
+  // メロディ
+  const pat = MELODY_PAT[Math.min(4, lv - 1)];
+  if (pat[i]) {
+    const deg = ARP[(s + chord) % ARP.length];
+    // 焦らせる時だけ1オクターブ上げて、届きそうで届かない感じを出す
+    const oct = hurry ? 2 : (s % 32 < 16 ? 1 : 2);
+    let f = SCALE[(deg + CHORDS[chord]) % 5] * oct;
+    pluck(f, t, 0.055 + e * 0.02, hurry ? 0.12 : 0.17);
+  }
+
+  // 残り時間が少ないときは、拍のアタマに硬い刻みを足す
+  if (hurry && i % 4 === 0) {
+    noise(t, 0.05, 0.02, "bandpass", 2400, 6, bgmBus, true);
+  }
+
+  if (i === 15) chord = (chord + 1) % CHORDS.length;
 }
 
 /* ---------- 触覚（Androidのみ。iOS Safari は vibrate 非対応） ---------- */
