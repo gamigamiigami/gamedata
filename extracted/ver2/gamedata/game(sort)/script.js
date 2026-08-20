@@ -730,6 +730,7 @@ function startReviewMode() {
   if (gs) gs.style.display = "block";
 
   playArea.innerHTML = "";
+  resetStacks();   // 本編で積み上がった山は持ち込まない
   playArea.appendChild(createSortingArea());
 
   const timerDisplay  = document.getElementById("timer");
@@ -834,6 +835,7 @@ function startTokkunMode(wordData) {
   reviewQueue = queue;
   reviewIndex = 0;
   tokkunClearCount = 0;
+  resetStacks();   // 本編で積み上がった山は持ち込まない
   gameOver = false;
   isPaused = false;
   fallingWords = [];
@@ -932,8 +934,19 @@ window.displayAltRanking = async function(limitNum = 30) {
   const schoolCode  = getSchoolCode();
 
   if (!supabase) {
-    tbody.innerHTML = "<tr><td colspan='3'>DB未接続</td></tr>";
-    return;
+    /* SDKは <script type="module"> で読み込まれるので、
+       ページを開いた直後はまだ window.supabaseClient が無いことがある。
+       そこで即あきらめず、少しだけ待ってから取り直す */
+    const late = await waitForSupabase(4000);
+    if (!late) {
+      tbody.innerHTML =
+        "<tr><td colspan='3'>ネットにつながっていないみたい<br>" +
+        "<button type='button' id='altRetryBtn' class='v2-btn v2-btn--quiet'>もう一度読み込む</button></td></tr>";
+      const rb = document.getElementById("altRetryBtn");
+      if (rb) rb.addEventListener("click", () => window.displayAltRanking(limitNum));
+      return;
+    }
+    return window.displayAltRanking(limitNum);
   }
   try {
     let query;
@@ -944,14 +957,14 @@ window.displayAltRanking = async function(limitNum = 30) {
         .eq('school_code', schoolCode)
         .eq('game_key', getFirestoreCollectionName())
         .order('score', { ascending: false })
-        .limit(limitNum * 100);
+        .limit(Math.min(1000, limitNum * 20));
     } else {
       query = supabase
         .from('global_rankings')
         .select('player, score, device_id')
         .eq('game_key', getFirestoreCollectionName())
         .order('score', { ascending: false })
-        .limit(limitNum * 100);
+        .limit(Math.min(1000, limitNum * 20));
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -971,10 +984,35 @@ window.displayAltRanking = async function(limitNum = 30) {
       tbody.innerHTML = `<tr><td colspan='3'>${label}</td></tr>`;
     }
   } catch (e) {
-    tbody.innerHTML = "<tr><td colspan='3'>取得エラー</td></tr>";
+    /* 「取得エラー」だけでは、通信が届いていないのか・データベース側が
+       止まっているのか・キーが変わったのかが誰にも分からない。
+       原因が分かる形で出して、その場でやり直せるようにする */
+    const detail = (e && (e.message || e.error_description || e.code)) || String(e);
+    tbody.innerHTML =
+      "<tr><td colspan='3'>ランキングを読み込めませんでした<br>" +
+      "<span class='alt-err'>" + escapeHtml(String(detail)).slice(0, 120) + "</span><br>" +
+      "<button type='button' id='altRetryBtn' class='v2-btn v2-btn--quiet'>もう一度読み込む</button></td></tr>";
+    const rb = document.getElementById("altRetryBtn");
+    if (rb) rb.addEventListener("click", () => window.displayAltRanking(limitNum));
     console.error("Supabase 読み込みエラー:", e);
   }
 };
+
+/* SDKの読み込みを最大 ms ミリ秒だけ待つ */
+function waitForSupabase(ms) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const id = setInterval(() => {
+      if (getSupabase()) { clearInterval(id); resolve(true); }
+      else if (Date.now() - started > ms) { clearInterval(id); resolve(false); }
+    }, 150);
+  });
+}
+
+function escapeHtml(t) {
+  return t.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
 
 /* ===============================
    EmailJS 通知設定
@@ -1066,26 +1104,44 @@ async function saveToSupabase(username, score) {
 // 特別エントリ定義（ランクの目安行。1正解100点として 30/20/12/5問 に対応）
 /* 表の中の目安行。ランクは正解数と正確さの両方で決まるようになったので、
    「◯問正解＝このランク」とは言い切らず、点数の目安としてだけ置く */
-const specialEntries = [
-  { username: "── Sランクの目安 ──", score: 3000, time: new Date("2025-02-15").getTime() },
-  { username: "── Aランクの目安 ──", score: 2000, time: new Date("2025-02-15").getTime() },
-  { username: "── Bランクの目安 ──", score: 1200, time: new Date("2025-02-15").getTime() },
-  { username: "── Cランクの目安 ──",  score:  500, time: new Date("2025-02-15").getTime() },
-];
+/* 表の中の目安行。
+   点数は「そのゲームの1問あたりの配点 × 必要な正解数」で出す。
+   以前は1問100点で固定して書いてあったため、
+   品詞カスタム（選んだ品詞数×20点＝全10種なら1問200点）のような
+   配点が違うゲームでは、実際の半分の点数を目安として表示していた。
+   30問正解が必要なのに「Sの目安 3000点（＝15問）」と出ていた。 */
+const RANK_GUIDE_TIME = new Date("2025-02-15").getTime();
+function guideEntries() {
+  const per = scorePerCorrect || 100;
+  return rankTable()
+    .filter((r) => r.need > 0)
+    .map((r) => ({
+      username: `── ${r.rank}ランクの目安 ──`,
+      score: r.need * per,
+      time: RANK_GUIDE_TIME,
+    }));
+}
+/* 配点が決まってから作るので、ここでは空。
+   （モジュール評価時点では scorePerCorrect がまだ初期化されていない） */
+let specialEntries = [];
+function ensureGuides() {
+  if (!specialEntries.length) specialEntries = guideEntries();
+  return specialEntries;
+}
 
 // 旧仕様の目安行（👆入りや旧点数のもの）を掃除する
 function isObsoleteSpecial(entry) {
   if (typeof entry.username !== "string") return false;
   if (!/ランク/.test(entry.username)) return false;
   // 現行の目安行と完全一致するものだけ残す
-  return !specialEntries.some(
+  return !ensureGuides().some(
     (s) => s.username === entry.username && s.score === entry.score
   );
 }
 
 // 特別エントリか判定
 function isSpecial(entry) {
-  return specialEntries.some(
+  return ensureGuides().some(
     special =>
       entry.username === special.username &&
       entry.score    === special.score
@@ -1099,7 +1155,7 @@ function updateRankings() {
   // 旧基準の目安行が残っていたら取り除く
   rankings = rankings.filter(e => !isObsoleteSpecial(e));
 
-  specialEntries.forEach(special => {
+  ensureGuides().forEach(special => {
     const exists = rankings.some(
       entry =>
         entry.username === special.username &&
@@ -1185,30 +1241,77 @@ function grantBonusTime(sec) {
   return Math.round(add * 10) / 10;
 }
 
-/* --- 難易度カーブ ---
-   加速も出現数も「正解数」を基準にする。
-   スコア基準だと1正解あたりの点数が違うゲーム間で難易度がバラバラになるため。 */
-const BASE_SPAWN_INTERVAL = 1900; // 出現間隔の初期値（ms）
-const MIN_SPAWN_INTERVAL  = 1100; // 出現間隔の下限（ms）
-const MAX_SPEED_FACTOR    = 1.8;  // 落下速度の上限倍率
-const MAX_SPAWN_COUNT     = 2;    // 一度に出す最大数
+/* --- 難易度カーブ（レベル制） ---
+   基準は「正解数」。スコア基準だと1正解あたりの点数が違うゲーム間で
+   難易度がバラバラになるため。
+
+   正解を積むとレベルが上がり、一度に降ってくる数が増えていく（最大5つ）。
+   ただし数だけ増やすと単に理不尽になるので、レベルが上がるほど
+   出現の「間隔」も広げる。1秒あたりに来る枚数はなめらかに増え、
+   最高レベルでようやく毎秒2枚前後になる。 */
+const MAX_LEVEL = 5;
+const LEVEL_UP_AT = [6, 14, 24, 36];   // この正解数でレベルが1つ上がる
+
+/* レベルごとの出現間隔（ms）。[はじめ, 下限]
+   一度に出す数＝レベルなので、間隔も一緒に広げないと数だけが暴力的に増える。
+   1秒あたりの枚数： Lv1 0.5→0.9 / Lv3 1.1→1.6 / Lv5 1.5→2.0 */
+const LEVEL_INTERVAL = [
+  [1900, 1100],
+  [2300, 1500],
+  [2700, 1900],
+  [3000, 2200],
+  [3300, 2500],
+];
+const MAX_SPEED_FACTOR = 2.0;  // 落下速度の上限倍率
+
+function levelFor(correct) {
+  let lv = 1;
+  for (const n of LEVEL_UP_AT) if (correct >= n) lv++;
+  return Math.min(MAX_LEVEL, lv);
+}
+function currentLevel() { return levelFor(correctCount); }
 
 // 正解が増えるほどなめらかに加速
 function difficultyFactor() {
   return Math.min(MAX_SPEED_FACTOR, 1 + correctCount * 0.028);
 }
-// 正解が増えるほど出現間隔を短く
+// 出現間隔。レベルの中で正解を重ねるほど詰まっていく
 function currentSpawnInterval() {
-  return Math.max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - correctCount * 25);
+  const lv = currentLevel();
+  const [start, floorMs] = LEVEL_INTERVAL[lv - 1];
+  const from = LEVEL_UP_AT[lv - 2] || 0;          // このレベルに入った時の正解数
+  return Math.max(floorMs, start - (correctCount - from) * 25);
 }
-// 正解15問ごとに一度に出す数を増やす（最大2つ）
+// 一度に出す数＝レベル（1〜5）
 function currentSpawnCount() {
-  return Math.min(MAX_SPAWN_COUNT, 1 + Math.floor(correctCount / 15));
+  return currentLevel();
 }
 // 画面に出しておける未処理タイルの上限。
 // これを超えたら出題を止めるので、追いつけない子が一方的に溺れることがない
 function maxOnScreen() {
-  return Math.min(6, 3 + Math.floor(correctCount / 12));
+  return Math.min(10, 3 + currentLevel() * 2);
+}
+
+/* レベルが上がったことを、変化の中身つきで短く知らせる。
+   「急に増えた」と感じさせず「上がったから増えた」と読ませるため */
+let levelBannerTimer = null;
+function announceLevelUp(level) {
+  audio.sfx("levelup");
+  audio.bgm.setLevel(level);
+  let b = document.getElementById("levelBanner");
+  if (!b) {
+    b = document.createElement("div");
+    b.id = "levelBanner";
+    b.innerHTML = '<span class="lvb-main"></span><span class="lvb-sub"></span>';
+    playArea.appendChild(b);
+  }
+  b.querySelector(".lvb-main").textContent = "レベル " + level;
+  b.querySelector(".lvb-sub").textContent = "同時に " + level + " つ落ちてくる";
+  b.classList.remove("show");
+  void b.offsetWidth;
+  b.classList.add("show");
+  clearTimeout(levelBannerTimer);
+  levelBannerTimer = setTimeout(() => b.classList.remove("show"), 1700);
 }
 function unsortedCount() {
   return fallingWords.filter((w) => w.element && w.element.dataset.locked === "false").length;
@@ -1236,9 +1339,29 @@ const RANK_THRESHOLDS = [
   { rank: "C", need: 5 },
   { rank: "D", need: 0 },
 ];
+
+/* じっくりモードは持ち時間が最大5分＝60秒モードの5倍あるので、
+   同じ「30問正解でS」だと片方だけ極端にぬるくなる（実測：224秒・89問正解でS）。
+   時間は自分で稼いだぶんだけ増える仕組みなので5倍そのままは厳しすぎる。
+   2倍を基準にする。ランキングもモード別に分かれているので混ざらない。 */
+const SLOW_RANK_FACTOR = 2;
+const RANK_THRESHOLDS_SLOW = RANK_THRESHOLDS.map((r) => ({
+  rank: r.rank,
+  need: r.need * SLOW_RANK_FACTOR,
+}));
+/* いま遊んでいるモードの基準表 */
+function rankTable() {
+  return bonusEnabled ? RANK_THRESHOLDS_SLOW : RANK_THRESHOLDS;
+}
+function rankNeed(rank) {
+  const r = rankTable().find((x) => x.rank === rank);
+  return r ? r.need : 0;
+}
 const RANK_ACCURACY = { S: 0.9, A: 0.8, B: 0.7, C: 0, D: 0 };
 const PROMOTE_ACCURACY = 0.95;
-const PROMOTE_MIN_CORRECT = 12;
+/* 正確さで1つ上げるための最低正解数。数問だけ当てて昇格するのを防ぐ。
+   Bランクの必要数と同じにしておく（じっくりモードでは自動的に倍になる） */
+function promoteMinCorrect() { return rankNeed("B"); }
 
 /* 6列以上のゲームは375px幅だと1列50px前後。指のブレがそのまま誤答になるので5ポイントゆるめる。
    （列が多いほど当てずっぽうは当たらないので、知識の面ではむしろ厳しい基準になっている） */
@@ -1259,7 +1382,8 @@ function accuracyOf(correct, wrong) {
 function rankFor(correct, wrong, cols) {
   const w = wrong || 0;
   const acc = accuracyOf(correct, w);
-  let base = RANK_THRESHOLDS.findIndex((r) => correct >= r.need);
+  const table = rankTable();
+  let base = table.findIndex((r) => correct >= r.need);
   if (base < 0) base = 4;
 
   // 天井（0=S … 3=C）。5問以上正解して終えた回はCより下に落とさない
@@ -1269,10 +1393,10 @@ function rankFor(correct, wrong, cols) {
   else if (acc >= accuracyBarFor("B", cols)) ceil = 2;
 
   let idx = Math.max(base, ceil);
-  // 正確さによる昇格は A どまり。S は「30問正解かつ正確さ90%」でしか取れないままにする
-  // （正確なだけで20問そこそこでもSになると、最高ランクの意味がなくなる）
-  if (acc >= PROMOTE_ACCURACY && correct >= PROMOTE_MIN_CORRECT && idx > 1) idx -= 1;
-  return RANK_THRESHOLDS[Math.min(4, idx)].rank;
+  // 正確さによる昇格は A どまり。S は「必要正解数に届く」ことでしか取れないままにする
+  // （正確なだけで数十問手前でもSになると、最高ランクの意味がなくなる）
+  if (acc >= PROMOTE_ACCURACY && correct >= promoteMinCorrect() && idx > 1) idx -= 1;
+  return table[Math.min(4, idx)].rank;
 }
 
 /* いま実際に足りていない条件を1つだけ返す。
@@ -1284,8 +1408,9 @@ function nextGoal(correct, wrong, cols) {
   const cur = rankFor(correct, w, cols);
   if (cur === "S") return { kind: "top", rank: "S", text: "Sランク達成中" };
 
-  const curIdx = RANK_THRESHOLDS.findIndex((r) => r.rank === cur);
-  const target = RANK_THRESHOLDS[curIdx - 1];
+  const table = rankTable();
+  const curIdx = table.findIndex((r) => r.rank === cur);
+  const target = table[curIdx - 1];
   // c/(c+w) >= bar  ⇔  c >= bar*w/(1-bar)
   const needFor = (bar) => Math.max(0, Math.ceil((bar * w) / (1 - bar)) - correct);
 
@@ -1298,7 +1423,7 @@ function nextGoal(correct, wrong, cols) {
   }
   // Aにいる時は正確さで上がれない（Sは正解数でしか届かない）ので、昇格の話はしない
   const p = needFor(PROMOTE_ACCURACY);
-  if (cur !== "A" && correct >= PROMOTE_MIN_CORRECT && p > 0 && p <= 3) {
+  if (cur !== "A" && correct >= promoteMinCorrect() && p > 0 && p <= 3) {
     return { kind: "promo", rank: target.rank, remain: p, text: `あと<b>${p}</b>問で正確さ95% → ランクUP` };
   }
   const r = Math.max(0, target.need - correct);
@@ -1399,7 +1524,18 @@ function setPlayMode(mode) {
     elm.classList.toggle("is-on", on);
     elm.querySelector("input").checked = on;
   });
+  specialEntries = guideEntries();   // モードで必要正解数が変わるので目安行も作り直す
   refreshRankingView();
+}
+
+/* 1問あたりの配点が決まった／変わったときの唯一の入口。
+   品詞カスタムのように「選んだ品詞の数 × 20点」で配点が動くゲームは、
+   開始前のランキング表に出す“ランクの目安”もその場で作り直さないと、
+   実際と違う点数を目安として見せてしまう */
+function applyScorePerCorrect(per) {
+  scorePerCorrect = per || 100;
+  specialEntries = guideEntries();
+  try { refreshRankingView(); } catch (e) { /* 表がまだ無い時は何もしない */ }
 }
 
 /* 旧「ボーナス: OFF」ボタンは残しておく（全ゲームのHTMLに書かれているため）。
@@ -1465,7 +1601,7 @@ export function initGame(wordData, opts = {}) {
     ? opts.categoryOrder
     : [...new Set(currentWordData.map(item => item.type))];
   // 正解1つあたりの得点（既定100、品詞選択ゲームは選択数×20など）
-  scorePerCorrect = opts.scorePerCorrect || 100;
+  applyScorePerCorrect(opts.scorePerCorrect);   // 配点が決まったので目安行を作り直す
 
   const minCats = window.EXPECTED_MIN_CATEGORIES;
   if (minCats && categories.length < minCats) {
@@ -1496,7 +1632,7 @@ export function initGame(wordData, opts = {}) {
   currentCombo = 0;
   maxCombo = 0;
   wrongAnswers = [];
-  stuckWrongs = [];
+  resetStacks();
   skipCount = 0;
   hintTipShown = false;
   revealTipShown = false;
@@ -1523,7 +1659,7 @@ export function initGame(wordData, opts = {}) {
     boost: noteWords,
   });
 
-  lastSpawnTime = Date.now() - BASE_SPAWN_INTERVAL;
+  lastSpawnTime = Date.now() - LEVEL_INTERVAL[0][0];   // 開始直後に1枚目が出るように
   lastFrameTime = Date.now();
   gameOver = false;
 
@@ -1555,7 +1691,7 @@ let introCancel = null; // Returnボタン等でイントロを中断するた�
 function startPlay() {
   introActive = false;
   introCancel = null;
-  lastSpawnTime = Date.now() - BASE_SPAWN_INTERVAL;
+  lastSpawnTime = Date.now() - LEVEL_INTERVAL[0][0];   // 開始直後に1枚目が出るように
   lastFrameTime = Date.now();
   playStartTime = Date.now(); // イントロ時間はプレイ時間に含めない
   audio.bgm.start(0);
@@ -1657,6 +1793,10 @@ export function initTypeSelectionGame(wordData, opts = {}) {
     : [...new Set(wordData.map(w => w.type))];
 
   const selected = new Set(allTypes);
+  /* 選んだ品詞の数で配点が変わるゲームは、開始前から配点を合わせておく。
+     そうしないとランキング表の「Sランクの目安」が実際の半分の点数になる */
+  const syncScore = () =>
+    applyScorePerCorrect(opts.dynamicScore ? Math.max(1, selected.size) * 20 : 100);
   const container = document.getElementById("typeCheckboxes");
   if (container) {
     container.innerHTML = "";
@@ -1673,12 +1813,14 @@ export function initTypeSelectionGame(wordData, opts = {}) {
       cb.addEventListener("change", e => {
         if (e.target.checked) selected.add(type);
         else selected.delete(type);
+        syncScore();
       });
       div.appendChild(cb);
       div.appendChild(label);
       container.appendChild(div);
     });
   }
+  syncScore();   // 初期状態（全部選択）の配点を反映
 
   const startBtn = document.getElementById("startButton");
   if (startBtn) {
@@ -1881,11 +2023,11 @@ function updateGoalBar() {
     // 最初の20秒ずっと「Dランク」を見せられるのは、情報ゼロで気分だけ削る
     html = tight ? '<b>5</b>問でCランク' : 'まず <b>5</b>問正解で Cランク';
     pct = (c / 5) * 100;
-  } else if (acc >= PROMOTE_ACCURACY && c >= PROMOTE_MIN_CORRECT) {
+  } else if (acc >= PROMOTE_ACCURACY && c >= promoteMinCorrect()) {
     keep = true;
     // Aまで上がりきったら「ランクUP」ではなく、次はSに必要な正解数を示す
     const cur = rankFor(c, w, categories.length);
-    const need = Math.max(0, 30 - c);
+    const need = Math.max(0, rankNeed("S") - c);
     const pctTxt = Math.round(acc * 100);
     // すでにSならこれ以上のランクはない。Aなら次はSに必要な正解数を示す
     const tail = cur === "S" ? "・Sランク達成中" : cur === "A" ? `・Sまで${need}問` : "→ ランクUP";
@@ -1896,7 +2038,7 @@ function updateGoalBar() {
   } else {
     const g = nextGoal(c, w, categories.length);
     html = tight ? compactGoal(g) : g.text;
-    const t = RANK_THRESHOLDS.find((r) => r.rank === g.rank);
+    const t = rankTable().find((r) => r.rank === g.rank);
     pct = t && t.need ? Math.min(100, (c / t.need) * 100) : 100;
   }
   main.innerHTML = html;
@@ -1948,9 +2090,30 @@ function sortingAreaHeight() {
   return playArea.clientHeight < 340 ? 62 : SORTING_AREA_HEIGHT;
 }
 
-function getDecisionLineY() {
-  // 判定ラインは常に仕分けエリア上端
+/* 仕分けエリア上端。どの列にも共通の「元の」判定ライン */
+function baseDecisionLineY() {
   return playArea.clientHeight - sortingAreaHeight();
+}
+
+/* 判定ラインは列ごとに変わる。
+   間違えたブロックはその列に積み上がっていき、
+   積んだ高さが仕分けエリアを越えると、その山の上が新しい判定ラインになる。
+   ＝ 間違えるほど、その列だけ判定が上へ迫ってくる。 */
+function getDecisionLineY(colIndex) {
+  const base = baseDecisionLineY();
+  if (colIndex == null || colIndex < 0) return base;
+  const stackH = stackHeights[colIndex] || 0;
+  if (!stackH) return base;
+  return Math.max(0, base - stackH);
+}
+
+/* タイルの中心が今どの列の上にいるか */
+function columnAt(centerX) {
+  const n = Math.max(1, categories.length);
+  return Math.max(0, Math.min(n - 1, Math.floor(centerX / (playArea.clientWidth / n))));
+}
+function columnOfTile(el) {
+  return columnAt((parseFloat(el.style.left) || 0) + el.offsetWidth / 2);
 }
 
 
@@ -2155,6 +2318,10 @@ function lockWord(wordElem, dropCategory) {
     wordElem.classList.add("correct");
     score += scorePerCorrect;
     correctCount++;
+    // レベルが上がった瞬間だけ知らせる。何が変わるのかも一緒に伝える
+    if (!reviewMode && levelFor(correctCount) > levelFor(correctCount - 1)) {
+      announceLevelUp(levelFor(correctCount));
+    }
     tally(wordElem.dataset.type, "c");
     if (deck) deck.recordAnswer(wordElem._mItem, true, wordElem.dataset.hinted === "1" ? "hinted" : undefined);
     // ★ 間違いノートの問題に正解 → 克服。
@@ -2201,9 +2368,76 @@ function lockWord(wordElem, dropCategory) {
    誤答タイルを盤面に残す
    「何を」「どこに入れて」「本当はどこか」を目で確認できるようにする
 =============================== */
-const MAX_STUCK_WRONG = 6;   // 残す枚数の上限（多すぎると盤面が埋まる）
-const MAX_STUCK_ROWS = 3;    // 1列に積み上げる段数の上限
-let stuckWrongs = [];
+/* 間違えたブロックは消えずに、その列に積み上がっていく。
+   積んだ高さが仕分けエリアを越えると、その山の上が新しい判定ラインになる。
+   ＝ 間違えるほど、その列だけ判定が上へ迫ってくる。
+
+   ただし際限なく積むとその列が完全に埋まって手の打ちようがなくなるので、
+   プレイエリアの半分までを上限にし、越えたら一番下の古いブロックが崩れて消える。 */
+const STACK_GAP = 2;              // ブロック同士のすき間（px）
+const STACK_MAX_RATIO = 0.5;      // 山の高さの上限（プレイエリアに対する割合）
+let stackCols = [];               // 列ごとの積み上げ（下から順に要素が入る）
+let stackHeights = [];            // 列ごとの山の高さ（px）
+
+/* 1列ぶんを下から積み直して、山の高さと判定ラインの目印を更新する */
+function relayoutStack(colIndex) {
+  const col = stackCols[colIndex] || [];
+  // 山の上限。プレイエリアの半分まで、かつ元の判定ラインより上の空間の6割まで。
+  // （落ちてくる余地を必ず残す。残さないとその列は手の打ちようがなくなる）
+  const maxH = Math.min(
+    playArea.clientHeight * STACK_MAX_RATIO,
+    baseDecisionLineY() * 0.6
+  );
+
+  // 上限を超えるぶんは、一番下の古いブロックから崩す
+  let total = col.reduce((sum, el) => sum + el.offsetHeight + STACK_GAP, 0);
+  while (col.length > 1 && total > maxH) {
+    const old = col.shift();
+    total -= old.offsetHeight + STACK_GAP;
+    old.classList.add("fading");
+    setTimeout(() => old.remove(), 400);
+  }
+
+  // 仕分けエリアの上端（＝元の判定ライン）から上へ積む。
+  // こうすると列の名前が隠れず、1回目の間違いからラインが上がる
+  const floorY = baseDecisionLineY();
+  let y = floorY;
+  for (const el of col) {
+    const h = el.offsetHeight;
+    y -= h + STACK_GAP;
+    el.style.top = Math.round(y) + "px";
+  }
+  stackHeights[colIndex] = Math.max(0, floorY - y);
+  updateColumnLine(colIndex);
+}
+
+/* 判定ラインが上がった列に、そこが新しいラインだと分かる目印を出す */
+function updateColumnLine(colIndex) {
+  const n = Math.max(1, categories.length);
+  const colWidth = playArea.clientWidth / n;
+  const base = baseDecisionLineY();
+  const lineY = getDecisionLineY(colIndex);
+  let mark = playArea.querySelector('.col-line[data-col="' + colIndex + '"]');
+  if (lineY >= base - 1) { if (mark) mark.remove(); return; }
+  if (!mark) {
+    mark = document.createElement("div");
+    mark.className = "col-line";
+    mark.dataset.col = String(colIndex);
+    mark.innerHTML = '<span class="col-line__name"></span>';
+    playArea.appendChild(mark);
+  }
+  // 積み上がると元の列名が隠れてしまうので、上がったラインに列名を載せる
+  mark.querySelector(".col-line__name").textContent = categories[colIndex] || "";
+  mark.style.left = Math.round(colIndex * colWidth) + "px";
+  mark.style.width = Math.round(colWidth) + "px";
+  mark.style.top = Math.round(lineY) + "px";
+}
+
+function resetStacks() {
+  stackCols = [];
+  stackHeights = [];
+  playArea.querySelectorAll(".col-line").forEach((e) => e.remove());
+}
 
 function stickWrongWord(wordElem, droppedCategory) {
   clearTimeout(wordElem._hintTimer);
@@ -2212,35 +2446,21 @@ function stickWrongWord(wordElem, droppedCategory) {
   wordElem.dataset.locked = "true";
   wordElem.style.pointerEvents = "none";
 
-  // 「正解: ○○」タグを付ける
-  if (!wordElem.querySelector(".answer-tag")) {
-    const tag = document.createElement("span");
-    tag.className = "answer-tag";
-    // 列が狭い端末でも読めるよう「正解:」は◎に省略し、折り返して表示する
-    tag.textContent = "◎" + (wordElem.dataset.type || "");
-    wordElem.appendChild(tag);
-  }
-
-  // 落とした列にスナップして下から積む
+  // 落とした列にスナップして、その列の山の上に積む
   const colCount = Math.max(1, categories.length);
   let colIndex = categories.indexOf(droppedCategory);
   if (colIndex < 0) colIndex = 0;
   const colWidth = playArea.clientWidth / colCount;
-  const row = Math.min(stuckWrongs.filter((s) => s.col === colIndex).length, MAX_STUCK_ROWS - 1);
 
-  wordElem.style.maxWidth = Math.max(40, colWidth - 6) + "px";
-  // タグを足したあとの実寸で配置する（下端で見切れないように）
-  const w = Math.min(wordElem.offsetWidth, colWidth - 6);
-  const h = wordElem.offsetHeight;
-  wordElem.style.left = Math.round(colIndex * colWidth + (colWidth - w) / 2) + "px";
-  wordElem.style.top = Math.round(playArea.clientHeight - h - 3 - row * (h + 3)) + "px";
+  // 列幅いっぱいに広げて、バラけた札ではなく「積み上がった地形」に見せる
+  const blockW = Math.max(30, colWidth - 4);
+  wordElem.style.maxWidth = blockW + "px";
+  wordElem.style.width = blockW + "px";
+  wordElem.style.left = Math.round(colIndex * colWidth + 2) + "px";
 
-  stuckWrongs.push({ element: wordElem, col: colIndex });
-  while (stuckWrongs.length > MAX_STUCK_WRONG) {
-    const old = stuckWrongs.shift();
-    old.element.classList.add("fading");
-    setTimeout(() => old.element.remove(), 500);
-  }
+  const col = stackCols[colIndex] || (stackCols[colIndex] = []);
+  col.push(wordElem);
+  relayoutStack(colIndex);
 
   /* 間違えたその場で「本当はどれか」と、あれば一言解説を出す。
      結果画面まで待たせると、いちばん学べる瞬間を逃してしまう。
@@ -2411,7 +2631,12 @@ function showMicroFeedback({ head, body, ms }) {
   microShownAt = now;
   s.querySelector(".mf-head").textContent = head || "";
   s.querySelector(".mf-body").textContent = body || "";
-  s.style.bottom = (playArea.clientHeight - getDecisionLineY() + 6) + "px";
+  // いちばん高い山より上に出す。積み上がった地形に隠れると読めないため
+  let topLine = baseDecisionLineY();
+  for (let i = 0; i < Math.max(1, categories.length); i++) {
+    topLine = Math.min(topLine, getDecisionLineY(i));
+  }
+  s.style.bottom = (playArea.clientHeight - topLine + 6) + "px";
   s.classList.remove("show");
   void s.offsetWidth;
   s.classList.add("show");
@@ -2513,7 +2738,7 @@ function highlightDropColumn(centerX, tileBottomY) {
     guide.id = "dropGuide";
     playArea.appendChild(guide);
   }
-  const lineY = getDecisionLineY();
+  const lineY = getDecisionLineY(idx);
   const topY = Math.min(tileBottomY, lineY);
   guide.style.left = centerX + "px";
   guide.style.top = topY + "px";
@@ -2541,7 +2766,8 @@ function handleMouseUp(e) {
      ヒント（hint）があればそれを出す。無くても解説（explanation）があれば
      「こたえ」として出す。ただし解説の6割強は正解の分類名をそのまま含むので、
      見たらその問題は得点に数えない（あとでまた出す）。 */
-  if (!currentDrag.moved && top < getDecisionLineY() && !wordElem.querySelector(".tile-hint")) {
+  const myCol = columnOfTile(wordElem);
+  if (!currentDrag.moved && top < getDecisionLineY(myCol) && !wordElem.querySelector(".tile-hint")) {
     if (wordElem.dataset.hint) {
       attachHint(wordElem, true);
       wordElem.classList.remove("dragging");
@@ -2557,7 +2783,7 @@ function handleMouseUp(e) {
   }
 
   // こたえを見た問題は、どこに置いても数えない
-  if (wordElem.dataset.revealed === "1" && top >= getDecisionLineY()
+  if (wordElem.dataset.revealed === "1" && top >= getDecisionLineY(myCol)
       && wordElem.dataset.locked === "false" && !reviewMode) {
     const fwR = fallingWords.find((w) => w.element === wordElem);
     if (fwR) passWord(fwR, top);
@@ -2566,7 +2792,7 @@ function handleMouseUp(e) {
   }
 
   if (reviewMode) {
-    if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
+    if (top >= baseDecisionLineY() && wordElem.dataset.locked === "false") {
       const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
       const columnWidth = playArea.clientWidth / categories.length;
       const columnIndex = Math.floor(dropX / columnWidth);
@@ -2596,10 +2822,8 @@ function handleMouseUp(e) {
     return;
   }
 
-  if (top >= getDecisionLineY() && wordElem.dataset.locked === "false") {
-    const dropX = parseInt(wordElem.style.left) + wordElem.offsetWidth / 2;
-    const columnWidth = playArea.clientWidth / categories.length;
-    const columnIndex = Math.floor(dropX / columnWidth);
+  if (top >= getDecisionLineY(myCol) && wordElem.dataset.locked === "false") {
+    const columnIndex = myCol;
     const dropCategory = categories[columnIndex];
 
     if (wordElem.dataset.type === dropCategory && wordElem.dataset.penalized !== "true") {
@@ -2684,7 +2908,9 @@ function gameLoop() {
     const currentSpeed = FALL_SPEED * difficultyFactor() * (word.speedMult || 1);
     let newY = word.y + currentSpeed * delta;
     const wordHeight = word.element.offsetHeight;
-    const decisionLineY = getDecisionLineY();
+    // その列の判定ライン。間違いが積み上がっている列ほど上にある
+    const tileCol = columnAt(word.x + word.element.offsetWidth / 2);
+    const decisionLineY = getDecisionLineY(tileCol);
 
     if (newY >= decisionLineY) {
       const dropX = word.x + word.element.offsetWidth / 2;
@@ -2743,7 +2969,7 @@ function gameLoop() {
 
   const sortingOverlay = document.getElementById("sortingAreaOverlay");
   if (sortingOverlay) {
-    let currentDecisionLine = getDecisionLineY();
+    let currentDecisionLine = baseDecisionLineY();
     sortingOverlay.style.top = currentDecisionLine + "px";
     sortingOverlay.style.height =
       playArea.clientHeight - currentDecisionLine + "px";
@@ -2797,6 +3023,8 @@ function startTimer() {
       if (remainingTime > left) remainingTime = left;
     }
     updateTimerDisplay();
+    // 残りが少なくなったらBGMを焦らせる側へ切り替える（速く・高く・刻みが硬く）
+    audio.bgm.setHurry(remainingTime <= 12 && remainingTime > 0);
     // このinterval は1秒に1回だけ動く。updateTimerDisplay 側に置くと正解のたびに鳴ってしまう
     if (remainingTime <= 5 && remainingTime > 0) audio.sfx("tick");
     if (remainingTime <= 0) {
@@ -2891,7 +3119,7 @@ function saveScore(username, score) {
   let rankings = JSON.parse(localStorage.getItem(getRankingKey())) || [];
   rankings.push({ username, score, time: Date.now() });
 
-  specialEntries.forEach((special) => {
+  ensureGuides().forEach((special) => {
     const exists = rankings.some(
       (entry) =>
         entry.username === special.username && entry.score === special.score
